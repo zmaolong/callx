@@ -31,6 +31,7 @@ import {
   isPutObjectPresignedUrl
 } from 'utils/collections';
 import { uuid, waitForNextTick } from 'utils/common';
+import { replaceUrlOrigin } from 'utils/url';
 import { cancelNetworkRequest, connectWS, sendGrpcRequest, sendNetworkRequest, sendWsRequest } from 'utils/network/index';
 import { callIpc } from 'utils/common/ipc';
 import brunoClipboard from 'utils/bruno-clipboard';
@@ -598,7 +599,7 @@ const extractPromptVariablesForRequest = async (item, collection) => {
   });
 };
 
-export const sendRequest = (item, collectionUid) => (dispatch, getState) => {
+export const sendRequest = (item, collectionUid, runtimeHost) => (dispatch, getState) => {
   const state = getState();
   const { globalEnvironments, activeGlobalEnvironmentUid } = state.globalEnvironments;
   const collection = findCollectionByUid(state.collections.collections, collectionUid);
@@ -616,6 +617,10 @@ export const sendRequest = (item, collectionUid) => (dispatch, getState) => {
     const collectionCopy = cloneDeep(collection);
 
     const itemCopy = cloneDeep(item);
+    const request = itemCopy.draft?.request || itemCopy.request;
+    if (runtimeHost && request?.url) {
+      request.url = replaceUrlOrigin(request.url, runtimeHost);
+    }
 
     // add selected global env variables to the collection object
     const globalEnvironmentVariables = getGlobalEnvironmentVariables({

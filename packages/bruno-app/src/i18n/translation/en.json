@@ -154,7 +154,12 @@
     "GRAPHQL_PARSE_FAILED": "Failed to parse GraphQL query",
     "CURL_IMPORTED": "cURL command imported successfully",
     "CURL_PARSE_FAILED": "Failed to parse cURL command",
-    "URL_PLACEHOLDER": "Enter URL or paste a cURL request"
+    "URL_PLACEHOLDER": "Enter URL or paste a cURL request",
+    "HOST": "Host",
+    "HOST_ENVIRONMENT": "Environment host",
+    "HOST_ENABLED": "Using environment host: {{host}}",
+    "HOST_DISABLED": "Using host from request URL",
+    "HOST_UNAVAILABLE": "No environment host available"
   },
   "COOKIES": {
     "TITLE": "Cookies",

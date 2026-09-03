@@ -30,7 +30,9 @@ import { IconDeviceFloppy, IconCode } from '@tabler/icons';
 import SingleLineEditor from 'components/SingleLineEditor';
 import SendButton from 'components/RequestPane/SendButton';
 import { isMacOS } from 'utils/common/platform';
-import { hasRequestChanges } from 'utils/collections';
+import { hasRequestChanges, getAllVariables } from 'utils/collections';
+import { interpolateUrl } from 'utils/url';
+import HostSelector from './HostSelector';
 import StyledWrapper from './StyledWrapper';
 import GenerateCodeItem from 'components/Sidebar/Collections/Collection/CollectionItem/GenerateCodeItem/index';
 import ToolHint from 'components/ToolHint';
@@ -50,6 +52,16 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   const saveShortcut = isMac ? 'Cmd + S' : 'Ctrl + S';
   const editorRef = useRef(null);
   const isLoading = ['queued', 'sending'].includes(item.requestState);
+  const [hostEnabled, setHostEnabled] = useState(true);
+  const allVariables = useMemo(() => getAllVariables(collection, item), [collection, item]);
+  const environmentHost = useMemo(() => {
+    const value = interpolateUrl({ url: '{{host}}', variables: allVariables });
+    return value && value !== '{{host}}' ? String(value).trim() : '';
+  }, [allVariables]);
+
+  useEffect(() => {
+    setHostEnabled(true);
+  }, [environmentHost, item.uid]);
 
   const [generateCodeItemModalOpen, setGenerateCodeItemModalOpen]
     = useState(false);
@@ -60,6 +72,10 @@ const QueryUrl = ({ item, collection, handleRun }) => {
       setTimeout(() => editorRef.current?.editor?.focus(), 0);
     }
   }, [item.uid]);
+
+  const onRunWithHost = useCallback((event) => {
+    handleRun(event, hostEnabled && environmentHost ? environmentHost : undefined);
+  }, [handleRun, hostEnabled, environmentHost]);
 
   const onSave = () => {
     dispatch(saveRequest(item.uid, collection.uid));
@@ -439,6 +455,11 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         <div className="flex items-center h-full min-w-fit">
           <HttpMethodSelector method={method} onMethodSelect={onMethodSelect} />
         </div>
+        <HostSelector
+          host={environmentHost}
+          enabled={hostEnabled}
+          onChange={() => setHostEnabled((enabled) => !enabled)}
+        />
         <div
           id="request-url"
           data-testid="request-url"
@@ -451,7 +472,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
             onSave={(finalValue) => onSave(finalValue)}
             theme={storedTheme}
             onChange={(newValue) => onUrlChange(newValue)}
-            onRun={handleRun}
+            onRun={onRunWithHost}
             onPaste={
               item.type === 'http-request'
                 ? handleHttpPaste
@@ -522,7 +543,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
       </div>
       <SendButton
         isLoading={isLoading || item.response?.stream?.running}
-        onSend={handleRun}
+        onSend={onRunWithHost}
         onCancel={handleCancelRequest}
         testId="send-arrow-icon"
       />

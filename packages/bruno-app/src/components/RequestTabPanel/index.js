@@ -600,7 +600,7 @@ const RequestTabPanel = () => {
     return <RequestIsLoading item={item} />;
   }
 
-  const handleRun = async () => {
+  const handleRun = async (event, runtimeHost) => {
     const request = item.draft ? item.draft.request : item.request;
 
     if (isGrpcRequest && !request.url) {
@@ -618,7 +618,7 @@ const RequestTabPanel = () => {
       return;
     }
     if (item.requestState !== 'sending' && item.requestState !== 'queued') {
-      dispatch(sendRequest(item, collection.uid)).catch((err) =>
+      dispatch(sendRequest(item, collection.uid, runtimeHost)).catch((err) =>
         toast.custom((t) => <NetworkError onClose={() => toast.dismiss(t.id)} />, {
           duration: 5000
         }));

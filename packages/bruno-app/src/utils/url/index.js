@@ -165,6 +165,38 @@ export const interpolateUrl = ({ url, variables }) => {
   return interpolate(url, variables);
 };
 
+/**
+ * Replace only the origin of a URL, preserving its path, query string and hash.
+ * A host without a scheme inherits the URL's scheme.
+ */
+export const replaceUrlOrigin = (url, host) => {
+  if (typeof url !== 'string' || !url || typeof host !== 'string' || !host.trim()) {
+    return url;
+  }
+
+  try {
+    const source = new URL(prependDefaultScheme(url));
+    let normalizedHost = host.trim();
+    if (!hasExplicitScheme(normalizedHost)) {
+      normalizedHost = `${source.protocol}//${normalizedHost}`;
+    }
+
+    const replacement = new URL(normalizedHost);
+    if (!['http:', 'https:'].includes(replacement.protocol)) {
+      return url;
+    }
+
+    source.protocol = replacement.protocol;
+    source.username = replacement.username;
+    source.password = replacement.password;
+    source.hostname = replacement.hostname;
+    source.port = replacement.port;
+    return source.toString();
+  } catch {
+    return url;
+  }
+};
+
 export const interpolateUrlPathParams = (url, params, variables = {}, options = {}) => {
   const substituteValue = (value) => {
     const v = value == null ? '' : String(value);

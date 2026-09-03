@@ -3,9 +3,26 @@ import {
   parsePathParams,
   interpolateUrl,
   interpolateUrlPathParams,
-  prependDefaultScheme
+  prependDefaultScheme,
+  replaceUrlOrigin
 } from './index';
 
+describe('Url Utils - replaceUrlOrigin', () => {
+  it('replaces the origin and preserves path, query, and hash', () => {
+    expect(replaceUrlOrigin('http://old.example:8080/api?a=1#result', 'https://new.example:9443'))
+      .toBe('https://new.example:9443/api?a=1#result');
+  });
+
+  it('uses the source scheme when host has no scheme', () => {
+    expect(replaceUrlOrigin('http://old.example/api', 'new.example:9000'))
+      .toBe('http://new.example:9000/api');
+  });
+
+  it('returns the original URL for an invalid host', () => {
+    const url = 'http://old.example/api';
+    expect(replaceUrlOrigin(url, 'not a valid host')).toBe(url);
+  });
+});
 describe('Url Utils - parsePathParams', () => {
   it('should parse path - case 1', () => {
     const params = parsePathParams('www.example.com');

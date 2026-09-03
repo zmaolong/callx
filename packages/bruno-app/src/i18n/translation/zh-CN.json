@@ -154,7 +154,12 @@
     "GRAPHQL_PARSE_FAILED": "解析 GraphQL 查询失败",
     "CURL_IMPORTED": "cURL 命令导入成功",
     "CURL_PARSE_FAILED": "解析 cURL 命令失败",
-    "URL_PLACEHOLDER": "输入 URL 或粘贴 cURL 请求"
+    "URL_PLACEHOLDER": "输入 URL 或粘贴 cURL 请求",
+    "HOST": "Host",
+    "HOST_ENVIRONMENT": "环境 Host",
+    "HOST_ENABLED": "使用环境 Host：{{host}}",
+    "HOST_DISABLED": "使用请求地址自身的 Host",
+    "HOST_UNAVAILABLE": "当前环境没有可用的 Host"
   },
   "COOKIES": {
     "TITLE": "Cookie",
