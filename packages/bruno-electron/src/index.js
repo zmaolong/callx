@@ -203,7 +203,9 @@ app.on('ready', async () => {
         session.defaultSession.loadExtension(ext.path);
       });
     } catch (err) {
-      console.error('An error occurred while loading extensions: ', err);
+      // devtools-installer 从 Google CDN 下载扩展，国内网络大概率失败
+      // 此错误不影响应用运行，静默降级即可
+      console.warn('DevTools extensions not loaded (network unavailable, skipping)');
     }
   }
 

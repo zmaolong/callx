@@ -45,9 +45,10 @@ webProcess.stdout.on('data', (data) => {
   const output = data.toString();
   process.stdout.write(output);
 
-  // Try to detect the port from rsbuild output
+  // Try to detect the port from rsbuild output (strip ANSI color codes first)
   if (!detectedPort) {
-    const match = output.match(portRegex);
+    const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
+    const match = cleanOutput.match(portRegex);
     if (match) {
       detectedPort = match[1];
       log.success(`Detected dev server on port ${colors.bright}${detectedPort}${colors.reset}`);
