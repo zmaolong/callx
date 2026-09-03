@@ -120,6 +120,10 @@
     "SEND_REQUEST": "Send Request",
     "NEW_REQUEST": "New Request",
     "EDIT_ENVIRONMENTS": "Edit Environments",
+    "NAME": "Name",
+    "VALUE": "Value",
+    "QUERY": "Query",
+    "PATH": "Path",
     "PARAMS": "Params",
     "BODY": "Body",
     "HEADERS": "Headers",
@@ -140,7 +144,9 @@
     "NO_BODY": "No Body",
     "PRETTIFY": "Prettify",
     "INVALID_JSON": "Unable to prettify. Invalid JSON format.",
-    "INVALID_XML": "Unable to prettify. Invalid XML format."
+    "INVALID_XML": "Unable to prettify. Invalid XML format.",
+    "INHERITED_HEADERS": "Inherited Headers",
+    "REQUEST_HEADERS": "Request Headers"
   },
   "COOKIES": {
     "TITLE": "Cookies",

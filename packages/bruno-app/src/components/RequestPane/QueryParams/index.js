@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import InfoTip from 'components/InfoTip';
 import { useDispatch, useSelector } from 'react-redux';
@@ -8,7 +9,10 @@ import {
   updatePathParam,
   setQueryParams
 } from 'providers/ReduxStore/slices/collections';
-import { saveRequest, sendRequest } from 'providers/ReduxStore/slices/collections/actions';
+import {
+  saveRequest,
+  sendRequest
+} from 'providers/ReduxStore/slices/collections/actions';
 import { updateTableColumnWidths } from 'providers/ReduxStore/slices/tabs';
 import MultiLineEditor from 'components/MultiLineEditor';
 import EditableTable from 'components/EditableTable';
@@ -19,22 +23,34 @@ import { usePersistedState } from 'hooks/usePersistedState';
 import { useTrackScroll } from 'hooks/useTrackScroll';
 
 const QueryParams = ({ item, collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
-  const params = item.draft ? get(item, 'draft.request.params') : get(item, 'request.params');
+  const params = item.draft
+    ? get(item, 'draft.request.params')
+    : get(item, 'request.params');
   const queryParams = params.filter((param) => param.type === 'query');
   const pathParams = params.filter((param) => param.type === 'path');
 
   const [isBulkEditMode, setIsBulkEditMode] = useState(false);
   const wrapperRef = useRef(null);
-  const [scroll, setScroll] = usePersistedState({ key: `request-params-scroll-${item.uid}`, default: 0 });
-  useTrackScroll({ ref: wrapperRef, selector: '.flex-boundary', onChange: setScroll, initialValue: scroll });
+  const [scroll, setScroll] = usePersistedState({
+    key: `request-params-scroll-${item.uid}`,
+    default: 0
+  });
+  useTrackScroll({
+    ref: wrapperRef,
+    selector: '.flex-boundary',
+    onChange: setScroll,
+    initialValue: scroll
+  });
 
   // Get column widths from Redux
   const focusedTab = tabs?.find((t) => t.uid === activeTabUid);
-  const queryParamsWidths = focusedTab?.tableColumnWidths?.['query-params'] || {};
+  const queryParamsWidths
+    = focusedTab?.tableColumnWidths?.['query-params'] || {};
   const pathParamsWidths = focusedTab?.tableColumnWidths?.['path-params'] || {};
 
   const handleColumnWidthsChange = (tableId, widths) => {
@@ -44,14 +60,22 @@ const QueryParams = ({ item, collection }) => {
   const onSave = () => dispatch(saveRequest(item.uid, collection.uid));
   const handleRun = () => dispatch(sendRequest(item, collection.uid));
 
-  const handleQueryParamsChange = useCallback((updatedParams) => {
-    const paramsWithType = updatedParams.map((p) => ({ ...p, type: 'query' }));
-    dispatch(setQueryParams({
-      collectionUid: collection.uid,
-      itemUid: item.uid,
-      params: paramsWithType
-    }));
-  }, [dispatch, collection.uid, item.uid]);
+  const handleQueryParamsChange = useCallback(
+    (updatedParams) => {
+      const paramsWithType = updatedParams.map((p) => ({
+        ...p,
+        type: 'query'
+      }));
+      dispatch(
+        setQueryParams({
+          collectionUid: collection.uid,
+          itemUid: item.uid,
+          params: paramsWithType
+        })
+      );
+    },
+    [dispatch, collection.uid, item.uid]
+  );
 
   const handlePathParamChange = useCallback(
     (rowUid, key, value) => {
@@ -69,13 +93,18 @@ const QueryParams = ({ item, collection }) => {
     [dispatch, pathParams, item.uid, collection.uid]
   );
 
-  const handleQueryParamDrag = useCallback(({ updateReorderedItem }) => {
-    dispatch(moveQueryParam({
-      collectionUid: collection.uid,
-      itemUid: item.uid,
-      updateReorderedItem
-    }));
-  }, [dispatch, collection.uid, item.uid]);
+  const handleQueryParamDrag = useCallback(
+    ({ updateReorderedItem }) => {
+      dispatch(
+        moveQueryParam({
+          collectionUid: collection.uid,
+          itemUid: item.uid,
+          updateReorderedItem
+        })
+      );
+    },
+    [dispatch, collection.uid, item.uid]
+  );
 
   const toggleBulkEditMode = () => {
     setIsBulkEditMode(!isBulkEditMode);
@@ -95,21 +124,22 @@ const QueryParams = ({ item, collection }) => {
     onRun: handleRun,
     collection,
     item,
-    onDescriptionChange: (newValue, { row }) => handlePathParamChange(row.uid, 'description', newValue)
+    onDescriptionChange: (newValue, { row }) =>
+      handlePathParamChange(row.uid, 'description', newValue)
   });
 
   const queryColumns = [
     {
       key: 'name',
-      name: 'Name',
+      name: t('REQUEST.NAME'),
       isKeyField: true,
-      placeholder: 'Name',
+      placeholder: t('REQUEST.NAME'),
       width: '20%'
     },
     {
       key: 'value',
       name: 'Value',
-      placeholder: 'Value',
+      placeholder: t('REQUEST.VALUE'),
       render: ({ value, onChange }) => (
         <MultiLineEditor
           value={value || ''}
@@ -120,7 +150,7 @@ const QueryParams = ({ item, collection }) => {
           collection={collection}
           item={item}
           variablesAutocomplete={true}
-          placeholder={!value ? 'Value' : ''}
+          placeholder={!value ? t('REQUEST.VALUE') : ''}
         />
       )
     },
@@ -130,7 +160,7 @@ const QueryParams = ({ item, collection }) => {
   const pathColumns = [
     {
       key: 'name',
-      name: 'Name',
+      name: t('REQUEST.NAME'),
       isKeyField: true,
       width: '20%',
       readOnly: true
@@ -138,13 +168,14 @@ const QueryParams = ({ item, collection }) => {
     {
       key: 'value',
       name: 'Value',
-      placeholder: 'Value',
+      placeholder: t('REQUEST.VALUE'),
       render: ({ row, value, onChange }) => (
         <MultiLineEditor
           value={value || ''}
           theme={storedTheme}
           onSave={onSave}
-          onChange={(newValue) => handlePathParamChange(row.uid, 'value', newValue)}
+          onChange={(newValue) =>
+            handlePathParamChange(row.uid, 'value', newValue)}
           onRun={handleRun}
           collection={collection}
           item={item}
@@ -179,7 +210,7 @@ const QueryParams = ({ item, collection }) => {
     <StyledWrapper className="w-full flex flex-col" ref={wrapperRef}>
       <div className="flex-1">
         <div className="mb-3 title text-xs">
-          <span>Query</span>
+          <span>{t('REQUEST.QUERY')}</span>
         </div>
         <EditableTable
           tableId="query-params"
@@ -191,17 +222,21 @@ const QueryParams = ({ item, collection }) => {
           reorderable={true}
           onReorder={handleQueryParamDrag}
           columnWidths={queryParamsWidths}
-          onColumnWidthsChange={(widths) => handleColumnWidthsChange('query-params', widths)}
+          onColumnWidthsChange={(widths) =>
+            handleColumnWidthsChange('query-params', widths)}
           initialScroll={scroll}
         />
         <div className="bulk-edit-bar flex justify-end mt-2">
-          <button className="btn-action text-link select-none" onClick={toggleBulkEditMode}>
+          <button
+            className="btn-action text-link select-none"
+            onClick={toggleBulkEditMode}
+          >
             Bulk Edit
           </button>
         </div>
 
         <div className="mb-3 title text-xs flex items-stretch">
-          <span>Path</span>
+          <span>{t('REQUEST.PATH')}</span>
           <InfoTip className="tooltip-mod" infotipId="path-param-InfoTip">
             <div>
               Path variables are automatically added whenever the
@@ -225,7 +260,8 @@ const QueryParams = ({ item, collection }) => {
             showDelete={false}
             showAddRow={false}
             columnWidths={pathParamsWidths}
-            onColumnWidthsChange={(widths) => handleColumnWidthsChange('path-params', widths)}
+            onColumnWidthsChange={(widths) =>
+              handleColumnWidthsChange('path-params', widths)}
             initialScroll={scroll}
           />
         ) : (

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -9,10 +10,20 @@ import {
   IconEyeOff,
   IconInfoCircle
 } from '@tabler/icons';
-import { BRUNO_DEFAULT_HEADERS, getBrunoRuntimeUserAgent } from '@usebruno/common';
+import {
+  BRUNO_DEFAULT_HEADERS,
+  getBrunoRuntimeUserAgent
+} from '@usebruno/common';
 import { useTheme } from 'providers/Theme';
-import { moveRequestHeader, setRequestHeaders, updateItemSettings } from 'providers/ReduxStore/slices/collections';
-import { sendRequest, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
+import {
+  moveRequestHeader,
+  setRequestHeaders,
+  updateItemSettings
+} from 'providers/ReduxStore/slices/collections';
+import {
+  sendRequest,
+  saveRequest
+} from 'providers/ReduxStore/slices/collections/actions';
 import { updateTableColumnWidths } from 'providers/ReduxStore/slices/tabs';
 import SingleLineEditor from 'components/SingleLineEditor';
 import ToolHint from 'components/ToolHint';
@@ -54,34 +65,53 @@ const getDefaultHeaderValue = (header, requestUrl) => {
 };
 
 const RequestHeaders = ({ item, collection, addHeaderText }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
-  const headers = item.draft ? get(item, 'draft.request.headers') : get(item, 'request.headers');
-  const request = item.draft ? get(item, 'draft.request') : get(item, 'request');
-  const settings = (item.draft ? get(item, 'draft.settings', {}) : get(item, 'settings', {})) || {};
+  const headers = item.draft
+    ? get(item, 'draft.request.headers')
+    : get(item, 'request.headers');
+  const request = item.draft
+    ? get(item, 'draft.request')
+    : get(item, 'request');
+  const settings
+    = (item.draft
+      ? get(item, 'draft.settings', {})
+      : get(item, 'settings', {})) || {};
   const isHttpRequest = item.type === 'http-request';
   const [isBulkEditMode, setIsBulkEditMode] = useState(false);
   const [showDefaultHeaders, setShowDefaultHeaders] = usePersistedState({
     key: `request-show-default-headers-${item.uid}`,
     default: false
   });
-  const [isDefaultHeadersExpanded, setIsDefaultHeadersExpanded] = usePersistedState({
-    key: `request-default-headers-expanded-${item.uid}`,
-    default: true
-  });
-  const [isRequestHeadersExpanded, setIsRequestHeadersExpanded] = usePersistedState({
-    key: `request-headers-expanded-${item.uid}`,
-    default: true
-  });
+  const [isDefaultHeadersExpanded, setIsDefaultHeadersExpanded]
+    = usePersistedState({
+      key: `request-default-headers-expanded-${item.uid}`,
+      default: true
+    });
+  const [isRequestHeadersExpanded, setIsRequestHeadersExpanded]
+    = usePersistedState({
+      key: `request-headers-expanded-${item.uid}`,
+      default: true
+    });
   const wrapperRef = useRef(null);
-  const [scroll, setScroll] = usePersistedState({ key: `request-headers-scroll-${item.uid}`, default: 0 });
-  useTrackScroll({ ref: wrapperRef, selector: '.flex-boundary', onChange: setScroll, initialValue: scroll });
+  const [scroll, setScroll] = usePersistedState({
+    key: `request-headers-scroll-${item.uid}`,
+    default: 0
+  });
+  useTrackScroll({
+    ref: wrapperRef,
+    selector: '.flex-boundary',
+    onChange: setScroll,
+    initialValue: scroll
+  });
 
   // Get column widths from Redux
   const focusedTab = tabs?.find((t) => t.uid === activeTabUid);
-  const headersWidths = focusedTab?.tableColumnWidths?.['request-headers'] || {};
+  const headersWidths
+    = focusedTab?.tableColumnWidths?.['request-headers'] || {};
 
   const handleColumnWidthsChange = (tableId, widths) => {
     dispatch(updateTableColumnWidths({ uid: activeTabUid, tableId, widths }));
@@ -90,68 +120,96 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
   const onSave = () => dispatch(saveRequest(item.uid, collection.uid));
   const handleRun = () => dispatch(sendRequest(item, collection.uid));
 
-  const handleHeadersChange = useCallback((updatedHeaders) => {
-    const requestHeaders = isHttpRequest
-      ? updatedHeaders
-          .filter((header) => header.rowType === ROW_TYPE.REQUEST || !header.rowType)
-          .map(({ rowType, ...header }) => header)
-      : updatedHeaders;
+  const handleHeadersChange = useCallback(
+    (updatedHeaders) => {
+      const requestHeaders = isHttpRequest
+        ? updatedHeaders
+            .filter(
+              (header) => header.rowType === ROW_TYPE.REQUEST || !header.rowType
+            )
+            .map(({ rowType, ...header }) => header)
+        : updatedHeaders;
 
-    dispatch(setRequestHeaders({
-      collectionUid: collection.uid,
-      itemUid: item.uid,
-      headers: requestHeaders
-    }));
-  }, [dispatch, collection.uid, item.uid, isHttpRequest]);
+      dispatch(
+        setRequestHeaders({
+          collectionUid: collection.uid,
+          itemUid: item.uid,
+          headers: requestHeaders
+        })
+      );
+    },
+    [dispatch, collection.uid, item.uid, isHttpRequest]
+  );
 
-  const handleHeaderDrag = useCallback(({ updateReorderedItem }) => {
-    dispatch(moveRequestHeader({
-      collectionUid: collection.uid,
-      itemUid: item.uid,
-      updateReorderedItem
-    }));
-  }, [dispatch, collection.uid, item.uid]);
+  const handleHeaderDrag = useCallback(
+    ({ updateReorderedItem }) => {
+      dispatch(
+        moveRequestHeader({
+          collectionUid: collection.uid,
+          itemUid: item.uid,
+          updateReorderedItem
+        })
+      );
+    },
+    [dispatch, collection.uid, item.uid]
+  );
 
   const omittedHeaderNames = useMemo(
-    () => new Set((settings.omitHeaders || []).map((name) => String(name).toLowerCase())),
+    () =>
+      new Set(
+        (settings.omitHeaders || []).map((name) => String(name).toLowerCase())
+      ),
     [settings.omitHeaders]
   );
 
   const enabledRequestHeaderNames = useMemo(
-    () => new Set((headers || [])
-      .filter((header) => header.enabled !== false && header.name)
-      .map((header) => header.name.toLowerCase())),
+    () =>
+      new Set(
+        (headers || [])
+          .filter((header) => header.enabled !== false && header.name)
+          .map((header) => header.name.toLowerCase())
+      ),
     [headers]
   );
 
   const enabledDefaultHeaderNames = useMemo(
-    () => new Set(BRUNO_DEFAULT_HEADERS
-      .map((header) => header.name.toLowerCase())
-      .filter((name) => !omittedHeaderNames.has(name))),
+    () =>
+      new Set(
+        BRUNO_DEFAULT_HEADERS.map((header) => header.name.toLowerCase()).filter(
+          (name) => !omittedHeaderNames.has(name)
+        )
+      ),
     [omittedHeaderNames]
   );
 
-  const defaultHeaders = useMemo(() => BRUNO_DEFAULT_HEADERS.map((header) => {
-    const normalizedName = header.name.toLowerCase();
-    const enabled = !omittedHeaderNames.has(normalizedName);
+  const defaultHeaders = useMemo(
+    () =>
+      BRUNO_DEFAULT_HEADERS.map((header) => {
+        const normalizedName = header.name.toLowerCase();
+        const enabled = !omittedHeaderNames.has(normalizedName);
 
-    return {
-      uid: `bruno-default-${normalizedName}`,
-      rowType: ROW_TYPE.DEFAULT,
-      name: header.name,
-      value: getDefaultHeaderValue(header, request?.url),
-      enabled,
-      omittable: header.omittable,
-      overridden: enabled && enabledRequestHeaderNames.has(normalizedName)
-    };
-  }), [enabledRequestHeaderNames, omittedHeaderNames, request?.url]);
+        return {
+          uid: `bruno-default-${normalizedName}`,
+          rowType: ROW_TYPE.DEFAULT,
+          name: header.name,
+          value: getDefaultHeaderValue(header, request?.url),
+          enabled,
+          omittable: header.omittable,
+          overridden: enabled && enabledRequestHeaderNames.has(normalizedName)
+        };
+      }),
+    [enabledRequestHeaderNames, omittedHeaderNames, request?.url]
+  );
 
   const tableRows = useMemo(() => {
     if (!isHttpRequest) {
       return headers || [];
     }
 
-    const requestRows = (headers || []).map((header) => ({ ...header, rowType: ROW_TYPE.REQUEST }));
+    const requestRows = (headers || []).map((header) => ({
+      ...header,
+      rowType: ROW_TYPE.REQUEST
+    }));
 
     // Hide the defaults accordion.
     if (!showDefaultHeaders) {
@@ -163,7 +221,7 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
         uid: 'default-headers-section',
         rowType: ROW_TYPE.SECTION,
         section: ROW_TYPE.DEFAULT,
-        label: 'Inherited Headers',
+        label: t('REQUEST.INHERITED_HEADERS'),
         count: defaultHeaders.length,
         expanded: isDefaultHeadersExpanded
       },
@@ -172,7 +230,7 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
         uid: 'request-headers-section',
         rowType: ROW_TYPE.SECTION,
         section: ROW_TYPE.REQUEST,
-        label: 'Request Headers',
+        label: t('REQUEST.REQUEST_HEADERS'),
         count: (headers || []).length,
         expanded: isRequestHeadersExpanded
       },
@@ -187,58 +245,85 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
     showDefaultHeaders
   ]);
 
-  const updateOmitHeaders = useCallback((headerName, enabled) => {
-    const normalizedName = headerName.toLowerCase();
-    const nextOmitHeaders = enabled
-      ? (settings.omitHeaders || []).filter((name) => String(name).toLowerCase() !== normalizedName)
-      : [
-          ...(settings.omitHeaders || []).filter((name) => String(name).toLowerCase() !== normalizedName),
-          headerName
-        ];
+  const updateOmitHeaders = useCallback(
+    (headerName, enabled) => {
+      const normalizedName = headerName.toLowerCase();
+      const nextOmitHeaders = enabled
+        ? (settings.omitHeaders || []).filter(
+            (name) => String(name).toLowerCase() !== normalizedName
+          )
+        : [
+            ...(settings.omitHeaders || []).filter(
+              (name) => String(name).toLowerCase() !== normalizedName
+            ),
+            headerName
+          ];
 
-    dispatch(updateItemSettings({
-      collectionUid: collection.uid,
-      itemUid: item.uid,
-      settings: {
-        omitHeaders: nextOmitHeaders
+      dispatch(
+        updateItemSettings({
+          collectionUid: collection.uid,
+          itemUid: item.uid,
+          settings: {
+            omitHeaders: nextOmitHeaders
+          }
+        })
+      );
+    },
+    [collection.uid, dispatch, item.uid, settings.omitHeaders]
+  );
+
+  const handleHeaderCheckboxChange = useCallback(
+    (row, checked) => {
+      if (row.rowType === ROW_TYPE.DEFAULT) {
+        updateOmitHeaders(row.name, checked);
+        return;
       }
-    }));
-  }, [collection.uid, dispatch, item.uid, settings.omitHeaders]);
 
-  const handleHeaderCheckboxChange = useCallback((row, checked) => {
-    if (row.rowType === ROW_TYPE.DEFAULT) {
-      updateOmitHeaders(row.name, checked);
-      return;
-    }
+      const updatedHeaders = (headers || []).map((header) =>
+        header.uid === row.uid ? { ...header, enabled: checked } : header
+      );
+      handleHeadersChange(updatedHeaders);
+    },
+    [handleHeadersChange, headers, updateOmitHeaders]
+  );
 
-    const updatedHeaders = (headers || []).map((header) =>
-      header.uid === row.uid ? { ...header, enabled: checked } : header
-    );
-    handleHeadersChange(updatedHeaders);
-  }, [handleHeadersChange, headers, updateOmitHeaders]);
+  const renderSectionRow = useCallback(
+    (row) => {
+      if (row.rowType !== ROW_TYPE.SECTION) {
+        return null;
+      }
 
-  const renderSectionRow = useCallback((row) => {
-    if (row.rowType !== ROW_TYPE.SECTION) {
-      return null;
-    }
+      const toggle
+        = row.section === ROW_TYPE.DEFAULT
+          ? () => setIsDefaultHeadersExpanded(!isDefaultHeadersExpanded)
+          : () => setIsRequestHeadersExpanded(!isRequestHeadersExpanded);
 
-    const toggle = row.section === ROW_TYPE.DEFAULT
-      ? () => setIsDefaultHeadersExpanded(!isDefaultHeadersExpanded)
-      : () => setIsRequestHeadersExpanded(!isRequestHeadersExpanded);
-
-    return (
-      <button
-        type="button"
-        className="headers-section-toggle"
-        data-testid={`${row.section}-headers-section-toggle`}
-        aria-expanded={row.expanded}
-        onClick={toggle}
-      >
-        {row.expanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
-        <span>{row.label} ({row.count})</span>
-      </button>
-    );
-  }, [isDefaultHeadersExpanded, isRequestHeadersExpanded, setIsDefaultHeadersExpanded, setIsRequestHeadersExpanded]);
+      return (
+        <button
+          type="button"
+          className="headers-section-toggle"
+          data-testid={`${row.section}-headers-section-toggle`}
+          aria-expanded={row.expanded}
+          onClick={toggle}
+        >
+          {row.expanded ? (
+            <IconChevronDown size={16} />
+          ) : (
+            <IconChevronRight size={16} />
+          )}
+          <span>
+            {row.label} ({row.count})
+          </span>
+        </button>
+      );
+    },
+    [
+      isDefaultHeadersExpanded,
+      isRequestHeadersExpanded,
+      setIsDefaultHeadersExpanded,
+      setIsRequestHeadersExpanded
+    ]
+  );
 
   const getRowError = useCallback((row, index, key) => {
     if (row.rowType && row.rowType !== ROW_TYPE.REQUEST) {
@@ -279,9 +364,11 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
 
     return (
       <ToolHint
-        text={row.omittable
-          ? 'Automatically added at runtime'
-          : 'Required by HTTP, cannot be omitted'}
+        text={
+          row.omittable
+            ? 'Automatically added at runtime'
+            : 'Required by HTTP, cannot be omitted'
+        }
         toolhintId={`default-header-info-${row.uid}`}
         className="default-header-info"
         dataTestId={`default-header-info-${row.name.toLowerCase()}`}
@@ -290,26 +377,40 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
         positionStrategy="fixed"
         tooltipStyle={{ opacity: 1 }}
       >
-        <IconInfoCircle
-          size={16}
-          strokeWidth={1.5}
-        />
+        <IconInfoCircle size={16} strokeWidth={1.5} />
       </ToolHint>
     );
   }, []);
 
-  const rowConfig = useMemo(() => ({
-    isEditable: isRequestRow,
-    isCheckboxDisabled: (row) => row.rowType === ROW_TYPE.DEFAULT && !row.omittable,
-    className: (row) => (row.rowType ? `${row.rowType}-header-row` : ''),
-    testId: (row) => {
-      if (row.rowType === ROW_TYPE.SECTION) return `${row.section}-headers-section-row`;
-      if (row.rowType === ROW_TYPE.DEFAULT) return `default-header-row-${row.name.toLowerCase()}`;
-      return row.name ? `request-header-row-${row.name.toLowerCase()}` : 'request-header-add-row';
-    },
-    renderFullWidth: isHttpRequest && showDefaultHeaders ? renderSectionRow : undefined,
-    renderActionCell: isHttpRequest && showDefaultHeaders ? renderDefaultHeaderAction : undefined
-  }), [isHttpRequest, showDefaultHeaders, renderSectionRow, renderDefaultHeaderAction]);
+  const rowConfig = useMemo(
+    () => ({
+      isEditable: isRequestRow,
+      isCheckboxDisabled: (row) =>
+        row.rowType === ROW_TYPE.DEFAULT && !row.omittable,
+      className: (row) => (row.rowType ? `${row.rowType}-header-row` : ''),
+      testId: (row) => {
+        if (row.rowType === ROW_TYPE.SECTION)
+          return `${row.section}-headers-section-row`;
+        if (row.rowType === ROW_TYPE.DEFAULT)
+          return `default-header-row-${row.name.toLowerCase()}`;
+        return row.name
+          ? `request-header-row-${row.name.toLowerCase()}`
+          : 'request-header-add-row';
+      },
+      renderFullWidth:
+        isHttpRequest && showDefaultHeaders ? renderSectionRow : undefined,
+      renderActionCell:
+        isHttpRequest && showDefaultHeaders
+          ? renderDefaultHeaderAction
+          : undefined
+    }),
+    [
+      isHttpRequest,
+      showDefaultHeaders,
+      renderSectionRow,
+      renderDefaultHeaderAction
+    ]
+  );
 
   const columns = [
     {
@@ -378,27 +479,29 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
       key: 'value',
       name: 'Value',
       placeholder: 'Value',
-      render: ({ row, value, onChange }) => row.rowType === ROW_TYPE.DEFAULT
-        ? <span className="default-header-value">{value}</span>
-        : (
-            <SingleLineEditor
-              value={value || ''}
-              theme={storedTheme}
-              onSave={onSave}
-              onChange={onChange}
-              onRun={handleRun}
-              autocomplete={MimeTypes}
-              collection={collection}
-              item={item}
-              placeholder={!value ? 'Value' : ''}
-            />
-          )
+      render: ({ row, value, onChange }) =>
+        row.rowType === ROW_TYPE.DEFAULT ? (
+          <span className="default-header-value">{value}</span>
+        ) : (
+          <SingleLineEditor
+            value={value || ''}
+            theme={storedTheme}
+            onSave={onSave}
+            onChange={onChange}
+            onRun={handleRun}
+            autocomplete={MimeTypes}
+            collection={collection}
+            item={item}
+            placeholder={!value ? 'Value' : ''}
+          />
+        )
     },
     {
       ...descriptionColumn,
-      render: (cellProps) => (cellProps.row.rowType === ROW_TYPE.DEFAULT
-        ? null
-        : descriptionColumn.render(cellProps))
+      render: (cellProps) =>
+        cellProps.row.rowType === ROW_TYPE.DEFAULT
+          ? null
+          : descriptionColumn.render(cellProps)
     }
   ];
 
@@ -433,13 +536,18 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
         defaultRow={defaultRow}
         getRowError={getRowError}
         reorderable={true}
-        showAddRow={!isHttpRequest || !showDefaultHeaders || isRequestHeadersExpanded}
+        showAddRow={
+          !isHttpRequest || !showDefaultHeaders || isRequestHeadersExpanded
+        }
         initialScroll={scroll}
         onReorder={handleHeaderDrag}
-        onCheckboxChange={isHttpRequest ? handleHeaderCheckboxChange : undefined}
+        onCheckboxChange={
+          isHttpRequest ? handleHeaderCheckboxChange : undefined
+        }
         rowConfig={rowConfig}
         columnWidths={headersWidths}
-        onColumnWidthsChange={(widths) => handleColumnWidthsChange('request-headers', widths)}
+        onColumnWidthsChange={(widths) =>
+          handleColumnWidthsChange('request-headers', widths)}
       />
       <div className="bulk-edit-bar flex items-center justify-between mt-2">
         <div>
@@ -450,9 +558,11 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
               data-testid="toggle-default-headers"
               onClick={() => setShowDefaultHeaders(!showDefaultHeaders)}
             >
-              {showDefaultHeaders
-                ? <IconEyeOff size={16} strokeWidth={1.5} />
-                : <IconEye size={16} strokeWidth={1.5} />}
+              {showDefaultHeaders ? (
+                <IconEyeOff size={16} strokeWidth={1.5} />
+              ) : (
+                <IconEye size={16} strokeWidth={1.5} />
+              )}
               <span>
                 {showDefaultHeaders
                   ? 'Hide Inherited Headers'
@@ -461,7 +571,11 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
             </button>
           )}
         </div>
-        <button className="btn-action text-link select-none" data-testid="bulk-edit-toggle" onClick={toggleBulkEditMode}>
+        <button
+          className="btn-action text-link select-none"
+          data-testid="bulk-edit-toggle"
+          onClick={toggleBulkEditMode}
+        >
           Bulk Edit
         </button>
       </div>

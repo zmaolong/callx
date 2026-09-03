@@ -120,6 +120,10 @@
     "SEND_REQUEST": "发送请求",
     "NEW_REQUEST": "新建请求",
     "EDIT_ENVIRONMENTS": "编辑环境",
+    "NAME": "名称",
+    "VALUE": "值",
+    "QUERY": "查询",
+    "PATH": "路径",
     "PARAMS": "参数",
     "BODY": "请求体",
     "HEADERS": "请求头",
@@ -140,7 +144,9 @@
     "NO_BODY": "无请求体",
     "PRETTIFY": "美化",
     "INVALID_JSON": "无法美化，JSON 格式无效。",
-    "INVALID_XML": "无法美化，XML 格式无效。"
+    "INVALID_XML": "无法美化，XML 格式无效。",
+    "INHERITED_HEADERS": "继承的请求头",
+    "REQUEST_HEADERS": "请求头"
   },
   "COOKIES": {
     "TITLE": "Cookie",

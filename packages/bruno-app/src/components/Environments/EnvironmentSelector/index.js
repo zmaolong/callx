@@ -17,8 +17,16 @@ import StyledWrapper from './StyledWrapper';
 import { transparentize, toColorString, parseToRgb } from 'polished';
 
 const TABS = [
-  { id: 'collection', labelKey: 'ENVIRONMENT.COLLECTION', icon: <IconDatabase size={16} strokeWidth={1.5} /> },
-  { id: 'global', labelKey: 'ENVIRONMENT.GLOBAL', icon: <IconWorld size={16} strokeWidth={1.5} /> }
+  {
+    id: 'collection',
+    labelKey: 'ENVIRONMENT.COLLECTION',
+    icon: <IconDatabase size={16} strokeWidth={1.5} />
+  },
+  {
+    id: 'global',
+    labelKey: 'ENVIRONMENT.GLOBAL',
+    icon: <IconWorld size={16} strokeWidth={1.5} />
+  }
 ];
 
 const EMPTY_STATE_DESCRIPTIONS = {
@@ -29,7 +37,8 @@ const EMPTY_STATE_DESCRIPTIONS = {
 /**
  * Generates background color with transparency for environment badges
  */
-const getEnvBackgroundColor = (color) => (color ? transparentize(1 - 0.12, color) : 'transparent');
+const getEnvBackgroundColor = (color) =>
+  color ? transparentize(1 - 0.12, color) : 'transparent';
 
 /**
  * Calculates the style for an environment badge section
@@ -65,7 +74,9 @@ const calculateDropdownWidth = (environments, globalEnvironments) => {
   const allEnvironments = [...environments, ...globalEnvironments];
   if (allEnvironments.length === 0) return 0;
 
-  const maxCharLength = Math.max(...allEnvironments.map((env) => env.name?.length || 0));
+  const maxCharLength = Math.max(
+    ...allEnvironments.map((env) => env.name?.length || 0)
+  );
   // 8 pixels per character (rough estimate for average character width)
   return maxCharLength * 8;
 };
@@ -80,7 +91,12 @@ const EnvironmentBadge = ({ environment, icon: Icon }) => {
 
   return (
     <>
-      <Icon size={14} strokeWidth={1.5} className="env-icon" style={colorStyle} />
+      <Icon
+        size={14}
+        strokeWidth={1.5}
+        className="env-icon"
+        style={colorStyle}
+      />
       <ToolHint
         text={environment.name}
         toolhintId={`env-${environment.uid}`}
@@ -88,7 +104,10 @@ const EnvironmentBadge = ({ environment, icon: Icon }) => {
         delayShow={1000}
         hidden={environment.name?.length < 7}
       >
-        <span className="env-text max-w-24 truncate overflow-hidden" style={colorStyle}>
+        <span
+          className="env-text max-w-24 truncate overflow-hidden"
+          style={colorStyle}
+        >
           {environment.name}
         </span>
       </ToolHint>
@@ -111,8 +130,14 @@ const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
         className="current-environment flex align-center justify-center cursor-pointer bg-transparent no-environments"
         data-testid="environment-selector-trigger"
       >
-        <span className="env-text-inactive max-w-36 truncate no-wrap">{t('ENVIRONMENT.NO_ENVIRONMENT')}</span>
-        <IconCaretDown className="caret flex items-center justify-center" size={12} strokeWidth={2} />
+        <span className="env-text-inactive max-w-36 truncate no-wrap">
+          {t('ENVIRONMENT.NO_ENVIRONMENT')}
+        </span>
+        <IconCaretDown
+          className="caret flex items-center justify-center"
+          size={12}
+          strokeWidth={2}
+        />
       </div>
     );
   }
@@ -126,9 +151,16 @@ const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
         style={{ padding: 0 }}
         data-testid="environment-selector-trigger"
       >
-        <div className="flex items-center" style={getEnvBadgeStyle(collectionEnv, 'left', false)}>
+        <div
+          className="flex items-center"
+          style={getEnvBadgeStyle(collectionEnv, 'left', false)}
+        >
           <EnvironmentBadge environment={collectionEnv} icon={IconDatabase} />
-          <IconCaretDown className="caret flex items-center justify-center" size={12} strokeWidth={2} />
+          <IconCaretDown
+            className="caret flex items-center justify-center"
+            size={12}
+            strokeWidth={2}
+          />
         </div>
       </div>
     );
@@ -143,9 +175,16 @@ const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
         style={{ padding: 0 }}
         data-testid="environment-selector-trigger"
       >
-        <div className="flex items-center" style={getEnvBadgeStyle(globalEnv, 'right', false)}>
+        <div
+          className="flex items-center"
+          style={getEnvBadgeStyle(globalEnv, 'right', false)}
+        >
           <EnvironmentBadge environment={globalEnv} icon={IconWorld} />
-          <IconCaretDown className="caret flex items-center justify-center" size={12} strokeWidth={2} />
+          <IconCaretDown
+            className="caret flex items-center justify-center"
+            size={12}
+            strokeWidth={2}
+          />
         </div>
       </div>
     );
@@ -160,17 +199,30 @@ const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
       data-testid="environment-selector-trigger"
     >
       {/* Collection Environment Section */}
-      <div className="flex items-center" style={getEnvBadgeStyle(collectionEnv, 'left', true)}>
+      <div
+        className="flex items-center"
+        style={getEnvBadgeStyle(collectionEnv, 'left', true)}
+      >
         <EnvironmentBadge environment={collectionEnv} icon={IconDatabase} />
       </div>
 
       {/* Separator */}
-      <div className="env-separator" style={{ width: '1px', alignSelf: 'stretch' }} />
+      <div
+        className="env-separator"
+        style={{ width: '1px', alignSelf: 'stretch' }}
+      />
 
       {/* Global Environment Section + Caret */}
-      <div className="flex items-center" style={getEnvBadgeStyle(globalEnv, 'right', true)}>
+      <div
+        className="flex items-center"
+        style={getEnvBadgeStyle(globalEnv, 'right', true)}
+      >
         <EnvironmentBadge environment={globalEnv} icon={IconWorld} />
-        <IconCaretDown className="caret flex items-center justify-center" size={12} strokeWidth={2} />
+        <IconCaretDown
+          className="caret flex items-center justify-center"
+          size={12}
+          strokeWidth={2}
+        />
       </div>
     </div>
   );
@@ -183,12 +235,18 @@ const EnvironmentSelector = ({ collection }) => {
   const [activeTab, setActiveTab] = useState('collection');
   const [showCreateGlobalModal, setShowCreateGlobalModal] = useState(false);
   const [showImportGlobalModal, setShowImportGlobalModal] = useState(false);
-  const [showCreateCollectionModal, setShowCreateCollectionModal] = useState(false);
-  const [showImportCollectionModal, setShowImportCollectionModal] = useState(false);
+  const [showCreateCollectionModal, setShowCreateCollectionModal]
+    = useState(false);
+  const [showImportCollectionModal, setShowImportCollectionModal]
+    = useState(false);
   const [searchText, setSearchText] = useState('');
 
-  const globalEnvironments = useSelector((state) => state.globalEnvironments.globalEnvironments);
-  const activeGlobalEnvironmentUid = useSelector((state) => state.globalEnvironments.activeGlobalEnvironmentUid);
+  const globalEnvironments = useSelector(
+    (state) => state.globalEnvironments.globalEnvironments
+  );
+  const activeGlobalEnvironmentUid = useSelector(
+    (state) => state.globalEnvironments.activeGlobalEnvironmentUid
+  );
   const activeGlobalEnvironment = activeGlobalEnvironmentUid
     ? find(globalEnvironments, (e) => e.uid === activeGlobalEnvironmentUid)
     : null;
@@ -216,7 +274,11 @@ const EnvironmentSelector = ({ collection }) => {
 
     dispatch(action)
       .then(() => {
-        toast.success(environment ? t('ENVIRONMENT.CHANGED_TO', { name: environment.name }) : t('ENVIRONMENT.NONE_ACTIVE'));
+        toast.success(
+          environment
+            ? t('ENVIRONMENT.CHANGED_TO', { name: environment.name })
+            : t('ENVIRONMENT.NONE_ACTIVE')
+        );
         hideDropdown();
       })
       .catch(() => {
@@ -228,9 +290,13 @@ const EnvironmentSelector = ({ collection }) => {
     const isCollection = activeTab === 'collection';
     dispatch(
       addTab({
-        uid: `${collection.uid}-${isCollection ? 'environment' : 'global-environment'}-settings`,
+        uid: `${collection.uid}-${
+          isCollection ? 'environment' : 'global-environment'
+        }-settings`,
         collectionUid: collection.uid,
-        type: isCollection ? 'environment-settings' : 'global-environment-settings'
+        type: isCollection
+          ? 'environment-settings'
+          : 'global-environment-settings'
       })
     );
     hideDropdown();
@@ -270,7 +336,12 @@ const EnvironmentSelector = ({ collection }) => {
         <Dropdown
           onCreate={(ref) => (dropdownTippyRef.current = ref)}
           onHidden={() => setSearchText('')}
-          icon={<DropdownTrigger collectionEnv={activeCollectionEnvironment} globalEnv={activeGlobalEnvironment} />}
+          icon={(
+            <DropdownTrigger
+              collectionEnv={activeCollectionEnvironment}
+              globalEnv={activeGlobalEnvironment}
+            />
+          )}
           placement="bottom-end"
           popperOptions={{ strategy: 'fixed' }}
         >
@@ -302,8 +373,14 @@ const EnvironmentSelector = ({ collection }) => {
               key={activeTab}
               searchText={searchText}
               setSearchText={setSearchText}
-              environments={activeTab === 'collection' ? environments : globalEnvironments}
-              activeEnvironmentUid={activeTab === 'collection' ? activeEnvironmentUid : activeGlobalEnvironmentUid}
+              environments={
+                activeTab === 'collection' ? environments : globalEnvironments
+              }
+              activeEnvironmentUid={
+                activeTab === 'collection'
+                  ? activeEnvironmentUid
+                  : activeGlobalEnvironmentUid
+              }
               description={t(EMPTY_STATE_DESCRIPTIONS[activeTab])}
               onEnvironmentSelect={handleEnvironmentSelect}
               onSettingsClick={handleSettingsClick}
@@ -317,7 +394,8 @@ const EnvironmentSelector = ({ collection }) => {
       {showCreateGlobalModal && (
         <CreateGlobalEnvironment
           onClose={() => setShowCreateGlobalModal(false)}
-          onEnvironmentCreated={() => openEnvironmentSettingsTab('global-environment')}
+          onEnvironmentCreated={() =>
+            openEnvironmentSettingsTab('global-environment')}
         />
       )}
 
@@ -325,7 +403,8 @@ const EnvironmentSelector = ({ collection }) => {
         <ImportEnvironmentModal
           type="global"
           onClose={() => setShowImportGlobalModal(false)}
-          onEnvironmentCreated={() => openEnvironmentSettingsTab('global-environment')}
+          onEnvironmentCreated={() =>
+            openEnvironmentSettingsTab('global-environment')}
         />
       )}
 
