@@ -15,6 +15,7 @@ import TextPreview from './TextPreview';
 import HtmlPreview from './HtmlPreview';
 import VideoPreview from './VideoPreview';
 import JsonPreview from './JsonPreview';
+import JsonTablePreview from './JsonTablePreview';
 import { resolveLinkClickHandler } from 'utils/codemirror/linkClickHandler';
 
 const QueryResultPreview = ({
@@ -29,7 +30,9 @@ const QueryResultPreview = ({
   previewMode,
   disableRunEventListener,
   displayedTheme,
-  docKey
+  docKey,
+  tablePath,
+  onTablePathChange
 }) => {
   const preferences = useSelector((state) => state.app.preferences);
   const dispatch = useDispatch();
@@ -53,6 +56,10 @@ const QueryResultPreview = ({
 
   // Same type as the request this response belongs to (HTTP -> HTTP, GraphQL -> GraphQL).
   const handleResponseLinkClick = resolveLinkClickHandler(item, collection);
+
+  if (selectedTab === 'table') {
+    return <JsonTablePreview data={data} path={tablePath} onPathChange={onTablePathChange} />;
+  }
 
   if (selectedTab === 'editor') {
     return (

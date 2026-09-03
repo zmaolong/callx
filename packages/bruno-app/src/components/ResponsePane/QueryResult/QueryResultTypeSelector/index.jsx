@@ -1,5 +1,6 @@
 import React, { forwardRef, useState } from 'react';
-import { IconEye, IconCaretDown, IconBraces, IconCode, IconFileCode, IconBrandJavascript, IconFileText, IconHexagons, IconBinaryTree } from '@tabler/icons';
+import { IconEye, IconCaretDown, IconBraces, IconCode, IconFileCode, IconBrandJavascript, IconFileText, IconHexagons, IconBinaryTree, IconTable } from '@tabler/icons';
+import { useTranslation } from 'react-i18next';
 import classnames from 'classnames';
 import MenuDropdown from 'ui/MenuDropdown';
 import ToggleSwitch from 'components/ToggleSwitch';
@@ -49,6 +50,7 @@ const QueryResultTypeSelector = ({
   isActiveTab,
   onTabSelect
 }) => {
+  const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Handle dropdown state change - only allow opening when active tab
@@ -76,6 +78,9 @@ const QueryResultTypeSelector = ({
 
   // Determine the prefix icon - eye icon when in preview mode, format icon otherwise
   const getPrefixIcon = () => {
+    if (selectedTab === 'table') {
+      return <IconTable size={14} strokeWidth={2} />;
+    }
     if (selectedTab === 'preview') {
       return <IconEye size={14} strokeWidth={2} />;
     }
@@ -94,25 +99,50 @@ const QueryResultTypeSelector = ({
       onClick: () => {
         if (onFormatChange) {
           onFormatChange(item.id);
+          if (selectedTab === 'table' && item.id !== 'json') {
+            onPreviewTabSelect('editor');
+          }
         }
       }
     };
   });
 
   const header = (
-    <div className="flex items-center justify-between gap-3 py-[0.35rem] px-[0.6rem]">
-      <span className="text-[0.8125rem] preview-response-tab-label">Preview</span>
-      <ToggleSwitch
-        isOn={selectedTab === 'preview'}
-        handleToggle={(e) => {
-          e.preventDefault();
-          // e.stopPropagation();
-          onPreviewTabSelect(selectedTab === 'preview' ? 'editor' : 'preview');
-        }}
-        size="2xs"
-        data-testid="preview-response-tab"
-        title={selectedTab === 'preview' ? 'Turn off Preview Mode' : 'Turn on Preview Mode'}
-      />
+    <div className="py-[0.35rem] px-[0.6rem]">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[0.8125rem] preview-response-tab-label flex items-center gap-1">
+          <IconEye size={14} strokeWidth={1.5} />
+          {t('RESPONSE.PREVIEW')}
+        </span>
+        <ToggleSwitch
+          isOn={selectedTab === 'preview'}
+          handleToggle={(e) => {
+            e.preventDefault();
+            onPreviewTabSelect(selectedTab === 'preview' ? 'editor' : 'preview');
+          }}
+          size="2xs"
+          data-testid="preview-response-tab"
+          title={selectedTab === 'preview' ? 'Turn off Preview Mode' : 'Turn on Preview Mode'}
+        />
+      </div>
+      {formatValue === 'json' && (
+        <div className="flex items-center justify-between gap-3 mt-1">
+          <span className="text-[0.8125rem] preview-response-tab-label flex items-center gap-1">
+            <IconTable size={14} strokeWidth={1.5} />
+            {t('RESPONSE.TABLE')}
+          </span>
+          <ToggleSwitch
+            isOn={selectedTab === 'table'}
+            handleToggle={(e) => {
+              e.preventDefault();
+              onPreviewTabSelect(selectedTab === 'table' ? 'editor' : 'table');
+            }}
+            size="2xs"
+            data-testid="table-response-tab"
+            title={selectedTab === 'table' ? t('RESPONSE.TABLE_TURN_OFF') : t('RESPONSE.TABLE_TURN_ON')}
+          />
+        </div>
+      )}
     </div>
   );
 

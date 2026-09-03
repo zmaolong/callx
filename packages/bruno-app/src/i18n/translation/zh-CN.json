@@ -213,7 +213,18 @@
     "DOWNLOAD": "下载响应",
     "CLEAR": "清除响应",
     "CHANGE_LAYOUT": "更改布局",
-    "SAVE": "保存响应"
+    "SAVE": "保存响应",
+    "PREVIEW": "预览",
+    "TABLE": "表格",
+    "TABLE_TURN_ON": "开启表格模式",
+    "TABLE_TURN_OFF": "关闭表格模式",
+    "TABLE_DATA_PATH": "数据路径",
+    "TABLE_INVALID_JSON": "无法解析 JSON",
+    "TABLE_PATH_NOT_FOUND": "未找到数据路径：{{path}}",
+    "TABLE_EXPECTS_ARRAY": "目标路径必须指向数组。",
+    "TABLE_EXPECTS_OBJECT_OR_ARRAY": "目标路径必须指向对象或对象数组。",
+    "TABLE_EXPECTS_OBJECT_ARRAY": "目标数组中的每一项必须是对象。",
+    "TABLE_EMPTY": "目标数组为空。"
   },
   "ENVIRONMENT": {
     "COLLECTION": "集合",

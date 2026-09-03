@@ -103,6 +103,8 @@ const QueryResult = ({
   filterExpanded,
   onFilterChange,
   onFilterExpandChange,
+  tablePath,
+  onTablePathChange,
   docKey
 }) => {
   const contentType = getContentType(headers);
@@ -216,6 +218,8 @@ const QueryResult = ({
                 collection={collection}
                 disableRunEventListener={disableRunEventListener}
                 displayedTheme={displayedTheme}
+                tablePath={tablePath}
+                onTablePathChange={onTablePathChange}
                 docKey={docKey}
               />
             </div>

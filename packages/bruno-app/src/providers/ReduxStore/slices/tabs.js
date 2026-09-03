@@ -154,6 +154,7 @@ export const tabsSlice = createSlice({
           responsePaneTab: 'response',
           responseFormat: null,
           responseViewTab: null,
+          responseTablePath: 'data',
           scriptPaneTab: null,
           preview: preview !== undefined
             ? preview
@@ -189,6 +190,7 @@ export const tabsSlice = createSlice({
         responsePaneTab: 'response',
         responseFormat: null,
         responseViewTab: null,
+        responseTablePath: 'data',
         responseFilter: null,
         responseFilterExpanded: false,
         gqlDocsOpen: false,
@@ -301,6 +303,13 @@ export const tabsSlice = createSlice({
 
       if (tab) {
         tab.responseViewTab = action.payload.responseViewTab;
+      }
+    },
+    updateResponseTablePath: (state, action) => {
+      const tab = find(state.tabs, (t) => t.uid === action.payload.uid);
+
+      if (tab) {
+        tab.responseTablePath = action.payload.responseTablePath;
       }
     },
     updateResponseFilter: (state, action) => {
@@ -641,6 +650,7 @@ export const {
   updateTabMeta,
   updateResponseFormat,
   updateResponseViewTab,
+  updateResponseTablePath,
   updateResponseFilter,
   updateResponseFilterExpanded,
   updateDocsEditing,

@@ -12,6 +12,7 @@ import {
   updateResponsePaneTab,
   updateResponseFormat,
   updateResponseViewTab,
+  updateResponseTablePath,
   updateResponseFilter,
   updateResponseFilterExpanded
 } from 'providers/ReduxStore/slices/tabs';
@@ -73,6 +74,7 @@ const ResponsePane = ({ item, collection }) => {
 
   const persistedFormat = focusedTab?.responseFormat;
   const persistedViewTab = focusedTab?.responseViewTab;
+  const tablePath = focusedTab?.responseTablePath ?? 'data';
 
   // Use persisted values from Redux, falling back to initial values or defaults
   const selectedFormat = persistedFormat ?? initialFormat ?? 'raw';
@@ -123,6 +125,13 @@ const ResponsePane = ({ item, collection }) => {
       dispatch(
         updateResponseViewTab({ uid: item.uid, responseViewTab: newViewTab })
       );
+    },
+    [dispatch, item.uid]
+  );
+
+  const handleTablePathChange = useCallback(
+    (responseTablePath) => {
+      dispatch(updateResponseTablePath({ uid: item.uid, responseTablePath }));
     },
     [dispatch, item.uid]
   );
@@ -261,6 +270,8 @@ const ResponsePane = ({ item, collection }) => {
                   responseFilterExpanded: expanded
                 })
               )}
+            tablePath={tablePath}
+            onTablePathChange={handleTablePathChange}
           />
         );
       }
@@ -338,7 +349,7 @@ const ResponsePane = ({ item, collection }) => {
                   onPreviewTabSelect={handleViewTabChange}
                   selectedTab={selectedViewTab}
                   isActiveTab={
-                    selectedViewTab === 'editor' || selectedViewTab === 'preview'
+                    selectedViewTab === 'editor' || selectedViewTab === 'preview' || selectedViewTab === 'table'
                   }
                   onTabSelect={() => {
                     handleViewTabChange('editor');

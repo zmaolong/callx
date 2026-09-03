@@ -22,6 +22,7 @@ const QueryResponse = ({
   const [selectedTab, setSelectedTab] = useState('editor');
   const [filter, setFilter] = useState('');
   const [filterExpanded, setFilterExpanded] = useState(false);
+  const [tablePath, setTablePath] = useState('data');
 
   useEffect(() => {
     if (initialFormat !== null && initialTab !== null) {
@@ -40,8 +41,8 @@ const QueryResponse = ({
             onFormatChange={(newFormat) => {
               setSelectedFormat(newFormat);
             }}
-            onPreviewTabSelect={() => {
-              setSelectedTab((prev) => prev === 'editor' ? 'preview' : 'editor');
+            onPreviewTabSelect={(nextTab) => {
+              setSelectedTab(nextTab);
             }}
             selectedTab={selectedTab}
             isActiveTab={true}
@@ -63,6 +64,8 @@ const QueryResponse = ({
           filterExpanded={filterExpanded}
           onFilterChange={setFilter}
           onFilterExpandChange={setFilterExpanded}
+          tablePath={tablePath}
+          onTablePathChange={setTablePath}
           docKey={docKey}
         />
       </div>

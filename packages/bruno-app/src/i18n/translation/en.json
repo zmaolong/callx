@@ -213,7 +213,18 @@
     "DOWNLOAD": "Download response",
     "CLEAR": "Clear response",
     "CHANGE_LAYOUT": "Change layout",
-    "SAVE": "Save response"
+    "SAVE": "Save response",
+    "PREVIEW": "Preview",
+    "TABLE": "Table",
+    "TABLE_TURN_ON": "Turn on Table Mode",
+    "TABLE_TURN_OFF": "Turn off Table Mode",
+    "TABLE_DATA_PATH": "Data path",
+    "TABLE_INVALID_JSON": "Cannot parse JSON",
+    "TABLE_PATH_NOT_FOUND": "Data path not found: {{path}}",
+    "TABLE_EXPECTS_ARRAY": "The data path must point to an array.",
+    "TABLE_EXPECTS_OBJECT_OR_ARRAY": "The data path must point to an object or an array of objects.",
+    "TABLE_EXPECTS_OBJECT_ARRAY": "Every item in the target array must be an object.",
+    "TABLE_EMPTY": "The target array is empty."
   },
   "ENVIRONMENT": {
     "COLLECTION": "Collection",

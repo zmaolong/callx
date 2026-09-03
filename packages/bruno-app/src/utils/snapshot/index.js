@@ -493,7 +493,8 @@ export const serializeTab = (tab, collection) => {
     serialized.response = {
       tab: tab.responsePaneTab,
       format: tab.responseFormat,
-      viewTab: tab.responseViewTab
+      viewTab: tab.responseViewTab,
+      tablePath: tab.responseTablePath
     };
   }
 
@@ -711,6 +712,7 @@ export const deserializeTab = (snapshotTab, collection) => {
     responsePaneTab: snapshotTab.response?.tab || 'response',
     responseFormat: snapshotTab.response?.format || null,
     responseViewTab: snapshotTab.response?.viewTab || null,
+    responseTablePath: snapshotTab.response?.tablePath || 'data',
     responsePaneScrollPosition: null,
     scriptPaneTab: null
   };
