@@ -146,7 +146,14 @@
     "INVALID_JSON": "Unable to prettify. Invalid JSON format.",
     "INVALID_XML": "Unable to prettify. Invalid XML format.",
     "INHERITED_HEADERS": "Inherited Headers",
-    "REQUEST_HEADERS": "Request Headers"
+    "REQUEST_HEADERS": "Request Headers",
+    "URL_REQUIRED": "URL is required",
+    "INVALID_CURL": "Invalid cURL command",
+    "GRAPHQL_IMPORTED": "GraphQL query imported successfully",
+    "GRAPHQL_PARSE_FAILED": "Failed to parse GraphQL query",
+    "CURL_IMPORTED": "cURL command imported successfully",
+    "CURL_PARSE_FAILED": "Failed to parse cURL command",
+    "URL_PLACEHOLDER": "Enter URL or paste a cURL request"
   },
   "COOKIES": {
     "TITLE": "Cookies",

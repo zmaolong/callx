@@ -146,7 +146,14 @@
     "INVALID_JSON": "无法美化，JSON 格式无效。",
     "INVALID_XML": "无法美化，XML 格式无效。",
     "INHERITED_HEADERS": "继承的请求头",
-    "REQUEST_HEADERS": "请求头"
+    "REQUEST_HEADERS": "请求头",
+    "URL_REQUIRED": "URL 为必填项",
+    "INVALID_CURL": "cURL 命令无效",
+    "GRAPHQL_IMPORTED": "GraphQL 查询导入成功",
+    "GRAPHQL_PARSE_FAILED": "解析 GraphQL 查询失败",
+    "CURL_IMPORTED": "cURL 命令导入成功",
+    "CURL_PARSE_FAILED": "解析 cURL 命令失败",
+    "URL_PLACEHOLDER": "输入 URL 或粘贴 cURL 请求"
   },
   "COOKIES": {
     "TITLE": "Cookie",
