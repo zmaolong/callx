@@ -106,7 +106,28 @@
     "CANCEL": "Cancel",
     "SEND_REQUEST": "Send Request",
     "NEW_REQUEST": "New Request",
-    "EDIT_ENVIRONMENTS": "Edit Environments"
+    "EDIT_ENVIRONMENTS": "Edit Environments",
+    "PARAMS": "Params",
+    "BODY": "Body",
+    "HEADERS": "Headers",
+    "AUTH": "Auth",
+    "VARS": "Vars",
+    "SCRIPT": "Script",
+    "ASSERT": "Assert",
+    "TESTS": "Tests",
+    "DOCS": "Docs",
+    "APP": "App",
+    "SETTINGS": "Settings",
+    "BODY_FORM": "Form",
+    "MULTIPART_FORM": "Multipart Form",
+    "FORM_URLENCODED": "Form URL Encoded",
+    "BODY_RAW": "Raw",
+    "BODY_OTHER": "Other",
+    "FILE_BINARY": "File / Binary",
+    "NO_BODY": "No Body",
+    "PRETTIFY": "Prettify",
+    "INVALID_JSON": "Unable to prettify. Invalid JSON format.",
+    "INVALID_XML": "Unable to prettify. Invalid XML format."
   },
   "COOKIES": {
     "TITLE": "Cookies",
@@ -153,5 +174,34 @@
     "MULTIPLE_NON_MODIFIERS": "Only one non-modifier key allowed (e.g. Cmd + Shift + K).",
     "OS_RESERVED": "This shortcut is reserved by the OS.",
     "DUPLICATE": "This shortcut is already in use."
+  },
+  "RESPONSE": {
+    "RESPONSE": "Response",
+    "HEADERS": "Headers",
+    "TIMELINE": "Timeline",
+    "NOT_FOUND": "404 | Not found",
+    "ERROR_OCCURRED": "An error occurred!"
+  },
+  "ENVIRONMENT": {
+    "SEARCH_PLACEHOLDER": "Search environments...",
+    "NO_ENVIRONMENT": "No Environment",
+    "NO_RESULTS": "No results found",
+    "CONFIGURE": "Configure",
+    "READY": "Ready to get started?",
+    "IMPORT": "Import"
+  },
+  "SEARCH": {
+    "TITLE": "Global Search",
+    "PLACEHOLDER": "Search collections, requests, or documentation...",
+    "ARIA_LABEL": "Search collections, requests, or documentation",
+    "CLEAR": "Clear search query",
+    "RESULTS": "Search results",
+    "NO_RESULTS": "No results found",
+    "NO_COLLECTIONS": "No collections are currently mounted or visible.",
+    "MOUNT_HINT": "Mount a collection via the sidebar or this search modal, then try again.",
+    "NAVIGATE": "to navigate",
+    "SELECT": "to select",
+    "CLOSE": "to close",
+    "KEYBOARD_SHORTCUTS": "Keyboard shortcuts"
   }
 }

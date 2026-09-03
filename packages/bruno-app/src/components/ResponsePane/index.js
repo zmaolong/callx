@@ -1,7 +1,20 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback
+} from 'react';
+import { useTranslation } from 'react-i18next';
 import find from 'lodash/find';
 import { useDispatch, useSelector } from 'react-redux';
-import { updateResponsePaneTab, updateResponseFormat, updateResponseViewTab, updateResponseFilter, updateResponseFilterExpanded } from 'providers/ReduxStore/slices/tabs';
+import {
+  updateResponsePaneTab,
+  updateResponseFormat,
+  updateResponseViewTab,
+  updateResponseFilter,
+  updateResponseFilterExpanded
+} from 'providers/ReduxStore/slices/tabs';
 import QueryResult from './QueryResult';
 import Overlay from './Overlay';
 import Placeholder from './Placeholder';
@@ -17,7 +30,10 @@ import ScriptErrorIcon from './ScriptErrorIcon';
 import StyledWrapper from './StyledWrapper';
 import ResponsePaneActions from './ResponsePaneActions';
 import QueryResultTypeSelector from './QueryResult/QueryResultTypeSelector/index';
-import { useInitialResponseFormat, useResponsePreviewFormatOptions } from './QueryResult/index';
+import {
+  useInitialResponseFormat,
+  useResponsePreviewFormatOptions
+} from './QueryResult/index';
 import SkippedRequest from './SkippedRequest';
 import ClearTimeline from './ClearTimeline/index';
 import HeightBoundContainer from 'ui/HeightBoundContainer';
@@ -29,6 +45,7 @@ import ResponsiveTabs from 'ui/ResponsiveTabs';
 const RIGHT_CONTENT_EXPANDED_WIDTH = 135;
 
 const ResponsePane = ({ item, collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
@@ -42,8 +59,14 @@ const ResponsePane = ({ item, collection }) => {
   const focusedTab = find(tabs, (t) => t.uid === activeTabUid);
 
   // Initialize format and tab only once when data loads.
-  const { initialFormat, initialTab, contentType } = useInitialResponseFormat(response?.dataBuffer, response?.headers);
-  const previewFormatOptions = useResponsePreviewFormatOptions(response?.dataBuffer, response?.headers);
+  const { initialFormat, initialTab, contentType } = useInitialResponseFormat(
+    response?.dataBuffer,
+    response?.headers
+  );
+  const previewFormatOptions = useResponsePreviewFormatOptions(
+    response?.dataBuffer,
+    response?.headers
+  );
 
   // Track previous response headers to detect when content-type changes
   const previousContentRef = useRef(contentType);
@@ -66,30 +89,61 @@ const ResponsePane = ({ item, collection }) => {
       previousContentRef.current = contentType;
     }
     if (contentTypeChanged || persistedFormat === null) {
-      dispatch(updateResponseFormat({ uid: item.uid, responseFormat: initialFormat }));
+      dispatch(
+        updateResponseFormat({ uid: item.uid, responseFormat: initialFormat })
+      );
     }
     if (contentTypeChanged || persistedViewTab === null) {
-      dispatch(updateResponseViewTab({ uid: item.uid, responseViewTab: initialTab }));
+      dispatch(
+        updateResponseViewTab({ uid: item.uid, responseViewTab: initialTab })
+      );
     }
-  }, [contentType, initialFormat, initialTab, persistedFormat, persistedViewTab, focusedTab, item.uid, dispatch]);
+  }, [
+    contentType,
+    initialFormat,
+    initialTab,
+    persistedFormat,
+    persistedViewTab,
+    focusedTab,
+    item.uid,
+    dispatch
+  ]);
 
-  const handleFormatChange = useCallback((newFormat) => {
-    dispatch(updateResponseFormat({ uid: item.uid, responseFormat: newFormat }));
-  }, [dispatch, item.uid]);
+  const handleFormatChange = useCallback(
+    (newFormat) => {
+      dispatch(
+        updateResponseFormat({ uid: item.uid, responseFormat: newFormat })
+      );
+    },
+    [dispatch, item.uid]
+  );
 
-  const handleViewTabChange = useCallback((newViewTab) => {
-    dispatch(updateResponseViewTab({ uid: item.uid, responseViewTab: newViewTab }));
-  }, [dispatch, item.uid]);
+  const handleViewTabChange = useCallback(
+    (newViewTab) => {
+      dispatch(
+        updateResponseViewTab({ uid: item.uid, responseViewTab: newViewTab })
+      );
+    },
+    [dispatch, item.uid]
+  );
 
-  const requestTimeline = ([...(collection.timeline || [])]).filter((obj) => {
+  const requestTimeline = [...(collection.timeline || [])].filter((obj) => {
     if (obj.itemUid === item.uid) return true;
   });
 
   useEffect(() => {
-    if (item?.preRequestScriptErrorMessage || item?.postResponseScriptErrorMessage || item?.testScriptErrorMessage) {
+    if (
+      item?.preRequestScriptErrorMessage
+      || item?.postResponseScriptErrorMessage
+      || item?.testScriptErrorMessage
+    ) {
       setShowScriptErrorCard(true);
     }
-  }, [item?.preRequestScriptErrorMessage, item?.postResponseScriptErrorMessage, item?.testScriptErrorMessage]);
+  }, [
+    item?.preRequestScriptErrorMessage,
+    item?.postResponseScriptErrorMessage,
+    item?.testScriptErrorMessage
+  ]);
 
   const selectTab = (tab) => {
     dispatch(
@@ -114,25 +168,34 @@ const ResponsePane = ({ item, collection }) => {
       return 0;
     }
   }, [response.size, response.dataBuffer]);
-  const responseHeadersCount = typeof response.headers === 'object' ? Object.entries(response.headers).length : 0;
+  const responseHeadersCount
+    = typeof response.headers === 'object'
+      ? Object.entries(response.headers).length
+      : 0;
 
-  const hasScriptError = item?.preRequestScriptErrorMessage || item?.postResponseScriptErrorMessage || item?.testScriptErrorMessage;
+  const hasScriptError
+    = item?.preRequestScriptErrorMessage
+      || item?.postResponseScriptErrorMessage
+      || item?.testScriptErrorMessage;
 
   const allTabs = useMemo(() => {
     return [
       {
         key: 'response',
-        label: 'Response',
+        label: t('RESPONSE.RESPONSE'),
         indicator: null
       },
       {
         key: 'headers',
-        label: 'Headers',
-        indicator: responseHeadersCount > 0 ? <sup className="ml-1 font-medium">{responseHeadersCount}</sup> : null
+        label: t('RESPONSE.HEADERS'),
+        indicator:
+          responseHeadersCount > 0 ? (
+            <sup className="ml-1 font-medium">{responseHeadersCount}</sup>
+          ) : null
       },
       {
         key: 'timeline',
-        label: 'Timeline',
+        label: t('RESPONSE.TIMELINE'),
         indicator: null
       },
       {
@@ -148,14 +211,28 @@ const ResponsePane = ({ item, collection }) => {
         indicator: null
       }
     ];
-  }, [responseHeadersCount, item.testResults, item.assertionResults, item.preRequestTestResults, item.postResponseTestResults]);
+  }, [
+    responseHeadersCount,
+    item.testResults,
+    item.assertionResults,
+    item.preRequestTestResults,
+    item.postResponseTestResults,
+    t
+  ]);
 
   const getTabPanel = (tab) => {
     switch (tab) {
       case 'response': {
         const isStream = item.response?.stream ?? false;
         if (isStream) {
-          return <WSMessagesList order={-1} messages={item.response.data} item={item} collection={collection} />;
+          return (
+            <WSMessagesList
+              order={-1}
+              messages={item.response.data}
+              item={item}
+              collection={collection}
+            />
+          );
         }
         return (
           <QueryResult
@@ -170,8 +247,20 @@ const ResponsePane = ({ item, collection }) => {
             selectedTab={selectedViewTab}
             filter={focusedTab?.responseFilter}
             filterExpanded={focusedTab?.responseFilterExpanded}
-            onFilterChange={(value) => dispatch(updateResponseFilter({ uid: activeTabUid, responseFilter: value }))}
-            onFilterExpandChange={(expanded) => dispatch(updateResponseFilterExpanded({ uid: activeTabUid, responseFilterExpanded: expanded }))}
+            onFilterChange={(value) =>
+              dispatch(
+                updateResponseFilter({
+                  uid: activeTabUid,
+                  responseFilter: value
+                })
+              )}
+            onFilterExpandChange={(expanded) =>
+              dispatch(
+                updateResponseFilterExpanded({
+                  uid: activeTabUid,
+                  responseFilterExpanded: expanded
+                })
+              )}
           />
         );
       }
@@ -179,23 +268,16 @@ const ResponsePane = ({ item, collection }) => {
         return <ResponseHeaders headers={response.headers} />;
       }
       case 'timeline': {
-        return <Timeline collection={collection} item={item} activeTabUid={activeTabUid} />;
-      }
-      case 'tests': {
         return (
-          <TestResults
+          <Timeline
+            collection={collection}
             item={item}
-            results={item.testResults}
-            assertionResults={item.assertionResults}
-            preRequestTestResults={item.preRequestTestResults}
-            postResponseTestResults={item.postResponseTestResults}
+            activeTabUid={activeTabUid}
           />
         );
       }
-
-      default: {
-        return <div>404 | Not found</div>;
-      }
+      default:
+        return <div>{t('RESPONSE.NOT_FOUND')}</div>;
     }
   };
 
@@ -232,38 +314,52 @@ const ResponsePane = ({ item, collection }) => {
   }
 
   const rightContent = !isLoading ? (
-    <div ref={rightContentRef} className="flex justify-end items-center right-side-container gap-3">
+    <div
+      ref={rightContentRef}
+      className="flex justify-end items-center right-side-container gap-3"
+    >
       {hasScriptError && !showScriptErrorCard && (
         <ScriptErrorIcon
           itemUid={item.uid}
           onClick={() => setShowScriptErrorCard(true)}
         />
       )}
-      {focusedTab?.responsePaneTab === 'response' && item?.response && !(item.response?.stream ?? false) ? (
-        <>
-          {/* Result View Tabs (Visualizations + Response Format) */}
-          <div className="result-view-tabs">
-
-            {/* Response Format */}
-            <QueryResultTypeSelector
-              formatOptions={previewFormatOptions}
-              formatValue={selectedFormat}
-              onFormatChange={handleFormatChange}
-              onPreviewTabSelect={handleViewTabChange}
-              selectedTab={selectedViewTab}
-              isActiveTab={selectedViewTab === 'editor' || selectedViewTab === 'preview'}
-              onTabSelect={() => {
-                handleViewTabChange('editor');
-              }}
-            />
-          </div>
-        </>
-      ) : null}
-      <div className="flex items-center response-pane-status" data-testid="response-pane-status">
-        <StatusCode status={response.status} isStreaming={item.response?.stream?.running} />
-        {item.response?.stream?.running
-          ? <ResponseStopWatch startTimestamp={item.requestSent?.timestamp} />
-          : <ResponseTime duration={response.duration} />}
+      {focusedTab?.responsePaneTab === 'response'
+        && item?.response
+        && !(item.response?.stream ?? false) ? (
+            <>
+              {/* Result View Tabs (Visualizations + Response Format) */}
+              <div className="result-view-tabs">
+                {/* Response Format */}
+                <QueryResultTypeSelector
+                  formatOptions={previewFormatOptions}
+                  formatValue={selectedFormat}
+                  onFormatChange={handleFormatChange}
+                  onPreviewTabSelect={handleViewTabChange}
+                  selectedTab={selectedViewTab}
+                  isActiveTab={
+                    selectedViewTab === 'editor' || selectedViewTab === 'preview'
+                  }
+                  onTabSelect={() => {
+                    handleViewTabChange('editor');
+                  }}
+                />
+              </div>
+            </>
+          ) : null}
+      <div
+        className="flex items-center response-pane-status"
+        data-testid="response-pane-status"
+      >
+        <StatusCode
+          status={response.status}
+          isStreaming={item.response?.stream?.running}
+        />
+        {item.response?.stream?.running ? (
+          <ResponseStopWatch startTimestamp={item.requestSent?.timestamp} />
+        ) : (
+          <ResponseTime duration={response.duration} />
+        )}
         <ResponseSize size={responseSize} />
       </div>
 
@@ -297,7 +393,11 @@ const ResponsePane = ({ item, collection }) => {
           rightContentExpandedWidth={RIGHT_CONTENT_EXPANDED_WIDTH}
         />
       </div>
-      <section className={`response-pane-content ${hasScriptError && showScriptErrorCard ? 'has-script-error' : ''}`}>
+      <section
+        className={`response-pane-content ${
+          hasScriptError && showScriptErrorCard ? 'has-script-error' : ''
+        }`}
+      >
         {isLoading ? <Overlay item={item} collection={collection} /> : null}
         {hasScriptError && showScriptErrorCard && (
           <ScriptError
@@ -308,13 +408,14 @@ const ResponsePane = ({ item, collection }) => {
         )}
         <div className="response-tab-content">
           {!item?.response ? (
-            focusedTab?.responsePaneTab === 'timeline' && requestTimeline?.length ? (
-              <Timeline
-                collection={collection}
-                item={item}
-                activeTabUid={activeTabUid}
-              />
-            ) : null
+            focusedTab?.responsePaneTab === 'timeline'
+            && requestTimeline?.length ? (
+                  <Timeline
+                    collection={collection}
+                    item={item}
+                    activeTabUid={activeTabUid}
+                  />
+                ) : null
           ) : (
             <>{getTabPanel(focusedTab.responsePaneTab)}</>
           )}

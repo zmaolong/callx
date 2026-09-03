@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconPlus, IconDownload, IconSettings } from '@tabler/icons';
 import ToolHint from 'components/ToolHint';
 import ColorBadge from 'components/ColorBadge';
@@ -15,6 +16,7 @@ const EnvironmentListContent = ({
   searchText,
   setSearchText
 }) => {
+  const { t } = useTranslation();
   const searchInputRef = useRef(null);
 
   const handleKeyDown = (e) => {
@@ -33,12 +35,20 @@ const EnvironmentListContent = ({
         return;
       }
 
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      if (
+        document.activeElement?.tagName === 'INPUT'
+        || document.activeElement?.tagName === 'TEXTAREA'
+      ) {
         return;
       }
 
       // Ignore modifier keys and non-printable keys (except Backspace)
-      if ((e.key.length !== 1 && e.key !== 'Backspace') || e.ctrlKey || e.metaKey || e.altKey) {
+      if (
+        (e.key.length !== 1 && e.key !== 'Backspace')
+        || e.ctrlKey
+        || e.metaKey
+        || e.altKey
+      ) {
         return;
       }
 
@@ -58,7 +68,9 @@ const EnvironmentListContent = ({
     if (!trimmedSearchText) {
       return environments || [];
     }
-    return (environments || []).filter((env) => env.name.toLowerCase().includes(trimmedSearchText));
+    return (environments || []).filter((env) =>
+      env.name.toLowerCase().includes(trimmedSearchText)
+    );
   }, [environments, searchText]);
 
   return (
@@ -69,7 +81,7 @@ const EnvironmentListContent = ({
             <div className="env-list-search">
               <SearchInput
                 ref={searchInputRef}
-                placeholder="Search environments..."
+                placeholder={t('ENVIRONMENT.SEARCH_PLACEHOLDER')}
                 searchText={searchText}
                 setSearchText={setSearchText}
                 onKeyDown={handleKeyDown}
@@ -82,12 +94,14 @@ const EnvironmentListContent = ({
               />
             </div>
             <div
-              className={`dropdown-item no-environment ${!activeEnvironmentUid ? 'dropdown-item-active' : ''}`}
+              className={`dropdown-item no-environment ${
+                !activeEnvironmentUid ? 'dropdown-item-active' : ''
+              }`}
               onClick={() => onEnvironmentSelect(null)}
               data-testid="env-no-environment-item"
             >
               <span className="w-2 shrink-0" />
-              <span>No Environment</span>
+              <span>{t('ENVIRONMENT.NO_ENVIRONMENT')}</span>
             </div>
             <ToolHint
               tooltipId="environment-name-tooltip"
@@ -101,14 +115,21 @@ const EnvironmentListContent = ({
             >
               <div>
                 {filteredEnvs.length === 0 && searchText ? (
-                  <div className="text-center text-xs opacity-50 py-2 italic" data-testid="env-no-results">
-                    No results found
+                  <div
+                    className="text-center text-xs opacity-50 py-2 italic"
+                    data-testid="env-no-results"
+                  >
+                    {t('ENVIRONMENT.NO_RESULTS')}
                   </div>
                 ) : (
                   filteredEnvs.map((env) => (
                     <div
                       key={env.uid}
-                      className={`dropdown-item ${env.uid === activeEnvironmentUid ? 'dropdown-item-active' : ''}`}
+                      className={`dropdown-item ${
+                        env.uid === activeEnvironmentUid
+                          ? 'dropdown-item-active'
+                          : ''
+                      }`}
                       onClick={() => onEnvironmentSelect(env)}
                       data-tooltip-id="environment-name-tooltip"
                       data-tooltip-content={env.name}
@@ -116,32 +137,42 @@ const EnvironmentListContent = ({
                       data-testid="env-list-item"
                     >
                       <ColorBadge color={env.color} size={8} />
-                      <span className="max-w-100% truncate no-wrap">{env.name}</span>
+                      <span className="max-w-100% truncate no-wrap">
+                        {env.name}
+                      </span>
                     </div>
                   ))
                 )}
               </div>
             </ToolHint>
             <div className="dropdown-item configure-button">
-              <button onClick={onSettingsClick} id="configure-env" data-testid="configure-env">
+              <button
+                onClick={onSettingsClick}
+                id="configure-env"
+                data-testid="configure-env"
+              >
                 <IconSettings size={16} strokeWidth={1.5} />
-                <span>Configure</span>
+                <span>{t('ENVIRONMENT.CONFIGURE')}</span>
               </button>
             </div>
           </div>
         </>
       ) : (
         <div className="empty-state">
-          <h3>Ready to get started?</h3>
+          <h3>{t('ENVIRONMENT.READY')}</h3>
           <p>{description}</p>
           <div className="space-y-2">
             <button onClick={onCreateClick} id="create-env">
               <IconPlus size={16} strokeWidth={1.5} />
-              Create
+              {t('COMMON.ADD')}
             </button>
-            <button onClick={onImportClick} id="import-env" data-testid="empty-state-import-env-btn">
+            <button
+              onClick={onImportClick}
+              id="import-env"
+              data-testid="empty-state-import-env-btn"
+            >
               <IconDownload size={16} strokeWidth={1.5} />
-              Import
+              {t('ENVIRONMENT.IMPORT')}
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useRef, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import classnames from 'classnames';
 import { useSelector, useDispatch } from 'react-redux';
 import { find, get } from 'lodash';
@@ -24,17 +25,17 @@ import TabBarAiAssist from '../TabBarAiAssist';
 import { hasEffectiveAuth } from 'utils/auth';
 
 const TAB_CONFIG = [
-  { key: 'params', label: 'Params' },
-  { key: 'body', label: 'Body' },
-  { key: 'headers', label: 'Headers' },
-  { key: 'auth', label: 'Auth' },
-  { key: 'vars', label: 'Vars' },
-  { key: 'script', label: 'Script' },
-  { key: 'assert', label: 'Assert' },
-  { key: 'tests', label: 'Tests' },
-  { key: 'docs', label: 'Docs' },
-  { key: 'app', label: 'App' },
-  { key: 'settings', label: 'Settings' }
+  { key: 'params', labelKey: 'REQUEST.PARAMS' },
+  { key: 'body', labelKey: 'REQUEST.BODY' },
+  { key: 'headers', labelKey: 'REQUEST.HEADERS' },
+  { key: 'auth', labelKey: 'REQUEST.AUTH' },
+  { key: 'vars', labelKey: 'REQUEST.VARS' },
+  { key: 'script', labelKey: 'REQUEST.SCRIPT' },
+  { key: 'assert', labelKey: 'REQUEST.ASSERT' },
+  { key: 'tests', labelKey: 'REQUEST.TESTS' },
+  { key: 'docs', labelKey: 'REQUEST.DOCS' },
+  { key: 'app', labelKey: 'REQUEST.APP' },
+  { key: 'settings', labelKey: 'REQUEST.SETTINGS' }
 ];
 
 const TAB_PANELS = {
@@ -52,6 +53,7 @@ const TAB_PANELS = {
 };
 
 const HttpRequestPane = ({ item, collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
@@ -61,7 +63,10 @@ const HttpRequestPane = ({ item, collection }) => {
   const focusedTab = find(tabs, (t) => t.uid === activeTabUid);
   const requestPaneTab = focusedTab?.requestPaneTab;
   const getProperty = useCallback(
-    (key, defaultValue = []) => (item.draft ? get(item, `draft.${key}`, defaultValue) : get(item, key, defaultValue)),
+    (key, defaultValue = []) =>
+      item.draft
+        ? get(item, `draft.${key}`, defaultValue)
+        : get(item, key, defaultValue),
     [item.draft, item]
   );
 
@@ -79,14 +84,20 @@ const HttpRequestPane = ({ item, collection }) => {
   const app = getProperty('app', null);
   const appTabEnabled = app?.enabled === true;
   // A previously selected App tab may be restored while apps are disabled in settings.
-  const effectiveTab = requestPaneTab === 'app' && !appTabEnabled ? 'params' : requestPaneTab;
+  const effectiveTab
+    = requestPaneTab === 'app' && !appTabEnabled ? 'params' : requestPaneTab;
 
-  const activeCounts = useMemo(() => ({
-    params: params.filter((p) => p.enabled).length,
-    headers: headers.filter((h) => h.enabled).length,
-    assertions: assertions.filter((a) => a.enabled).length,
-    vars: requestVars.filter((r) => r.enabled).length + responseVars.filter((r) => r.enabled).length
-  }), [params, headers, assertions, requestVars, responseVars]);
+  const activeCounts = useMemo(
+    () => ({
+      params: params.filter((p) => p.enabled).length,
+      headers: headers.filter((h) => h.enabled).length,
+      assertions: assertions.filter((a) => a.enabled).length,
+      vars:
+        requestVars.filter((r) => r.enabled).length
+        + responseVars.filter((r) => r.enabled).length
+    }),
+    [params, headers, assertions, requestVars, responseVars]
+  );
 
   const selectTab = useCallback(
     (tabKey) => {
@@ -95,45 +106,96 @@ const HttpRequestPane = ({ item, collection }) => {
     [dispatch, item.uid]
   );
 
-  const itemAuthMode = item.draft?.request?.auth?.mode ?? item.request?.auth?.mode ?? item.root?.request?.auth?.mode;
+  const itemAuthMode
+    = item.draft?.request?.auth?.mode
+      ?? item.request?.auth?.mode
+      ?? item.root?.request?.auth?.mode;
   const hasAuth = useMemo(
     () => hasEffectiveAuth(collection, item),
     [item, itemAuthMode, collection]
   );
 
   const indicators = useMemo(() => {
-    const hasScriptError = item.preRequestScriptErrorMessage || item.postResponseScriptErrorMessage;
+    const hasScriptError
+      = item.preRequestScriptErrorMessage || item.postResponseScriptErrorMessage;
     const hasTestError = item.testScriptErrorMessage;
 
     return {
-      params: activeCounts.params > 0 ? <sup className="font-medium">{activeCounts.params}</sup> : null,
+      params:
+        activeCounts.params > 0 ? (
+          <sup className="font-medium">{activeCounts.params}</sup>
+        ) : null,
       body: body.mode !== 'none' ? <StatusDot /> : null,
-      headers: activeCounts.headers > 0 ? <sup className="font-medium">{activeCounts.headers}</sup> : null,
+      headers:
+        activeCounts.headers > 0 ? (
+          <sup className="font-medium">{activeCounts.headers}</sup>
+        ) : null,
       auth: hasAuth ? <StatusDot dataTestId="auth" /> : null,
-      vars: activeCounts.vars > 0 ? <sup className="font-medium">{activeCounts.vars}</sup> : null,
-      script: (script.req || script.res) ? (hasScriptError ? <StatusDot type="error" /> : <StatusDot />) : null,
-      assert: activeCounts.assertions > 0 ? <sup className="font-medium">{activeCounts.assertions}</sup> : null,
-      tests: tests?.length > 0 ? (hasTestError ? <StatusDot type="error" /> : <StatusDot />) : null,
+      vars:
+        activeCounts.vars > 0 ? (
+          <sup className="font-medium">{activeCounts.vars}</sup>
+        ) : null,
+      script:
+        script.req || script.res ? (
+          hasScriptError ? (
+            <StatusDot type="error" />
+          ) : (
+            <StatusDot />
+          )
+        ) : null,
+      assert:
+        activeCounts.assertions > 0 ? (
+          <sup className="font-medium">{activeCounts.assertions}</sup>
+        ) : null,
+      tests:
+        tests?.length > 0 ? (
+          hasTestError ? (
+            <StatusDot type="error" />
+          ) : (
+            <StatusDot />
+          )
+        ) : null,
       docs: docs?.length > 0 ? <StatusDot /> : null,
       app: app?.code?.length > 0 ? <StatusDot dataTestId="app" /> : null,
       settings: tags?.length > 0 ? <StatusDot /> : null
     };
-  }, [activeCounts, body.mode, hasAuth, script, item.preRequestScriptErrorMessage, item.postResponseScriptErrorMessage, item.testScriptErrorMessage, tests, docs, app, tags]);
+  }, [
+    activeCounts,
+    body.mode,
+    hasAuth,
+    script,
+    item.preRequestScriptErrorMessage,
+    item.postResponseScriptErrorMessage,
+    item.testScriptErrorMessage,
+    tests,
+    docs,
+    app,
+    tags
+  ]);
 
   const allTabs = useMemo(
-    () => TAB_CONFIG
-      .filter(({ key }) => key !== 'app' || appTabEnabled)
-      .map(({ key, label }) => ({ key, label, indicator: indicators[key] })),
-    [indicators, appTabEnabled]
+    () =>
+      TAB_CONFIG.filter(({ key }) => key !== 'app' || appTabEnabled).map(
+        ({ key, labelKey }) => ({
+          key,
+          label: t(labelKey),
+          indicator: indicators[key]
+        })
+      ),
+    [indicators, appTabEnabled, t]
   );
 
   const tabPanel = useMemo(() => {
     const Component = TAB_PANELS[effectiveTab];
-    return Component ? <Component key={item.uid} item={item} collection={collection} /> : <div className="mt-4">404 | Not found</div>;
+    return Component ? (
+      <Component key={item.uid} item={item} collection={collection} />
+    ) : (
+      <div className="mt-4">{t('RESPONSE.NOT_FOUND')}</div>
+    );
   }, [effectiveTab, item, collection]);
 
   if (!activeTabUid || !focusedTab?.uid || !requestPaneTab) {
-    return <div className="pb-4 px-4">An error occurred!</div>;
+    return <div className="pb-4 px-4">{t('RESPONSE.ERROR_OCCURRED')}</div>;
   }
 
   let rightContent = null;
@@ -147,7 +209,10 @@ const HttpRequestPane = ({ item, collection }) => {
       break;
     case 'auth':
       rightContent = (
-        <div ref={rightContentRef} className="flex flex-grow justify-start items-center">
+        <div
+          ref={rightContentRef}
+          className="flex flex-grow justify-start items-center"
+        >
           <AuthMode item={item} collection={collection} />
         </div>
       );
@@ -156,7 +221,11 @@ const HttpRequestPane = ({ item, collection }) => {
       rightContent = (
         <div ref={rightContentRef} className="flex items-center gap-2">
           <DocsAction />
-          <TabBarAiAssist item={item} collection={collection} activeTab={effectiveTab} />
+          <TabBarAiAssist
+            item={item}
+            collection={collection}
+            activeTab={effectiveTab}
+          />
         </div>
       );
       break;
@@ -165,7 +234,11 @@ const HttpRequestPane = ({ item, collection }) => {
     case 'tests':
       rightContent = (
         <div ref={rightContentRef} className="flex items-center">
-          <TabBarAiAssist item={item} collection={collection} activeTab={effectiveTab} />
+          <TabBarAiAssist
+            item={item}
+            collection={collection}
+            activeTab={effectiveTab}
+          />
         </div>
       );
       break;
