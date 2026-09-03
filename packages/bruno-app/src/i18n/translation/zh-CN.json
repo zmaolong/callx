@@ -26,7 +26,9 @@
     "CREATE_FAILED": "创建工作区时发生错误",
     "COLLECTION_CREATE_TITLE": "创建集合",
     "COLLECTION_CREATED": "集合创建成功！",
-    "COLLECTION_CREATE_FAILED": "创建集合时发生错误"
+    "COLLECTION_CREATE_FAILED": "创建集合时发生错误",
+    "COLLECTION": "集合",
+    "GLOBAL": "全局"
   },
   "MENU": {
     "FILE": "文件",
@@ -194,7 +196,13 @@
     "ERROR_OCCURRED": "发生错误！"
   },
   "ENVIRONMENT": {
-    "SEARCH_PLACEHOLDER": "搜索环境…",
+    "COLLECTION": "集合",
+    "GLOBAL": "全局",
+    "CREATE_COLLECTION_DESCRIPTION": "创建第一个环境，开始使用集合。",
+    "CREATE_GLOBAL_DESCRIPTION": "创建第一个全局环境，在多个集合间使用。",
+    "CHANGED_TO": "环境已切换为 {{name}}",
+    "NONE_ACTIVE": "当前没有启用的环境",
+    "SELECT_FAILED": "选择环境时发生错误",
     "NO_ENVIRONMENT": "无环境",
     "NO_RESULTS": "未找到结果",
     "CONFIGURE": "配置",

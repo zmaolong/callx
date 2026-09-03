@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef, forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import find from 'lodash/find';
 import Dropdown from 'components/Dropdown';
 import { IconWorld, IconDatabase, IconCaretDown } from '@tabler/icons';
@@ -16,13 +17,13 @@ import StyledWrapper from './StyledWrapper';
 import { transparentize, toColorString, parseToRgb } from 'polished';
 
 const TABS = [
-  { id: 'collection', label: 'Collection', icon: <IconDatabase size={16} strokeWidth={1.5} /> },
-  { id: 'global', label: 'Global', icon: <IconWorld size={16} strokeWidth={1.5} /> }
+  { id: 'collection', labelKey: 'ENVIRONMENT.COLLECTION', icon: <IconDatabase size={16} strokeWidth={1.5} /> },
+  { id: 'global', labelKey: 'ENVIRONMENT.GLOBAL', icon: <IconWorld size={16} strokeWidth={1.5} /> }
 ];
 
 const EMPTY_STATE_DESCRIPTIONS = {
-  collection: 'Create your first environment to begin working with your collection.',
-  global: 'Create your first global environment to begin working across collections.'
+  collection: 'ENVIRONMENT.CREATE_COLLECTION_DESCRIPTION',
+  global: 'ENVIRONMENT.CREATE_GLOBAL_DESCRIPTION'
 };
 
 /**
@@ -99,6 +100,7 @@ const EnvironmentBadge = ({ environment, icon: Icon }) => {
  * Dropdown trigger component showing active environments
  */
 const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
+  const { t } = useTranslation();
   const hasAnyEnv = collectionEnv || globalEnv;
 
   // Empty state - no environments selected
@@ -109,7 +111,7 @@ const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
         className="current-environment flex align-center justify-center cursor-pointer bg-transparent no-environments"
         data-testid="environment-selector-trigger"
       >
-        <span className="env-text-inactive max-w-36 truncate no-wrap">No Environment</span>
+        <span className="env-text-inactive max-w-36 truncate no-wrap">{t('ENVIRONMENT.NO_ENVIRONMENT')}</span>
         <IconCaretDown className="caret flex items-center justify-center" size={12} strokeWidth={2} />
       </div>
     );
@@ -175,6 +177,7 @@ const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
 });
 
 const EnvironmentSelector = ({ collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const dropdownTippyRef = useRef();
   const [activeTab, setActiveTab] = useState('collection');
@@ -213,11 +216,11 @@ const EnvironmentSelector = ({ collection }) => {
 
     dispatch(action)
       .then(() => {
-        toast.success(environment ? `Environment changed to ${environment.name}` : 'No Environments are active now');
+        toast.success(environment ? t('ENVIRONMENT.CHANGED_TO', { name: environment.name }) : t('ENVIRONMENT.NONE_ACTIVE'));
         hideDropdown();
       })
       .catch(() => {
-        toast.error('An error occurred while selecting the environment');
+        toast.error(t('ENVIRONMENT.SELECT_FAILED'));
       });
   };
 
@@ -287,7 +290,7 @@ const EnvironmentSelector = ({ collection }) => {
               >
                 <span className="tab-content-wrapper">
                   {tab.icon}
-                  {tab.label}
+                  {t(tab.labelKey)}
                 </span>
               </button>
             ))}
@@ -301,7 +304,7 @@ const EnvironmentSelector = ({ collection }) => {
               setSearchText={setSearchText}
               environments={activeTab === 'collection' ? environments : globalEnvironments}
               activeEnvironmentUid={activeTab === 'collection' ? activeEnvironmentUid : activeGlobalEnvironmentUid}
-              description={description}
+              description={t(EMPTY_STATE_DESCRIPTIONS[activeTab])}
               onEnvironmentSelect={handleEnvironmentSelect}
               onSettingsClick={handleSettingsClick}
               onCreateClick={handleCreateClick}

@@ -26,7 +26,9 @@
     "CREATE_FAILED": "An error occurred while creating the workspace",
     "COLLECTION_CREATE_TITLE": "Create Collection",
     "COLLECTION_CREATED": "Collection created!",
-    "COLLECTION_CREATE_FAILED": "An error occurred while creating the collection"
+    "COLLECTION_CREATE_FAILED": "An error occurred while creating the collection",
+    "COLLECTION": "Collection",
+    "GLOBAL": "Global"
   },
   "MENU": {
     "FILE": "File",
@@ -194,7 +196,13 @@
     "ERROR_OCCURRED": "An error occurred!"
   },
   "ENVIRONMENT": {
-    "SEARCH_PLACEHOLDER": "Search environments...",
+    "COLLECTION": "Collection",
+    "GLOBAL": "Global",
+    "CREATE_COLLECTION_DESCRIPTION": "Create your first environment to begin working with your collection.",
+    "CREATE_GLOBAL_DESCRIPTION": "Create your first global environment to begin working across collections.",
+    "CHANGED_TO": "Environment changed to {{name}}",
+    "NONE_ACTIVE": "No environments are active now",
+    "SELECT_FAILED": "An error occurred while selecting the environment",
     "NO_ENVIRONMENT": "No Environment",
     "NO_RESULTS": "No results found",
     "CONFIGURE": "Configure",
