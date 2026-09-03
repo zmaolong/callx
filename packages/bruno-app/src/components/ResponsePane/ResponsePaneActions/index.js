@@ -1,11 +1,22 @@
 import React, { forwardRef, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
-import { IconDots, IconDownload, IconEraser, IconBookmark, IconCopy, IconLayoutColumns, IconLayoutRows } from '@tabler/icons';
+import {
+  IconDots,
+  IconDownload,
+  IconEraser,
+  IconBookmark,
+  IconCopy,
+  IconLayoutColumns,
+  IconLayoutRows
+} from '@tabler/icons';
 import MenuDropdown from 'ui/MenuDropdown';
 import ResponseDownload from '../ResponseDownload';
 import ResponseBookmark from '../ResponseBookmark';
 import ResponseClear from '../ResponseClear';
-import ResponseLayoutToggle, { useResponseLayoutToggle } from '../ResponseLayoutToggle';
+import ResponseLayoutToggle, {
+  useResponseLayoutToggle
+} from '../ResponseLayoutToggle';
 import ResponseCopy from '../ResponseCopy/index';
 import StyledWrapper from './StyledWrapper';
 
@@ -20,24 +31,31 @@ const StyledMenuIcon = styled.button`
   border-radius: 4px;
 
   &:hover {
-    border-color: ${(props) => props.theme.app.collection.toolbar.environmentSelector.hoverBorder} !important;
+    border-color: ${(props) =>
+      props.theme.app.collection.toolbar.environmentSelector
+        .hoverBorder} !important;
     color: ${(props) => props.theme.text};
   }
 `;
 
 const MenuIcon = forwardRef((props, ref) => (
-  <StyledMenuIcon
-    ref={ref}
-    title="More actions"
-    {...props}
-  >
+  <StyledMenuIcon ref={ref} {...props}>
     <IconDots size={16} strokeWidth={1.5} />
   </StyledMenuIcon>
 ));
 
 MenuIcon.displayName = 'MenuIcon';
 
-const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, selectedTab, data, dataBuffer }) => {
+const ResponsePaneActions = ({
+  item,
+  collection,
+  responseSize,
+  selectedFormat,
+  selectedTab,
+  data,
+  dataBuffer
+}) => {
+  const { t } = useTranslation();
   const { orientation } = useResponseLayoutToggle();
 
   // Refs to access child component imperative handles (click, isDisabled)
@@ -54,7 +72,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
   const gqlMenuItems = [
     {
       id: 'copy-response',
-      label: 'Copy response',
+      label: t('RESPONSE.COPY'),
       leftSection: IconCopy,
       get disabled() {
         return copyButtonRef.current?.isDisabled ?? false;
@@ -63,7 +81,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
     },
     {
       id: 'download-response',
-      label: 'Download response',
+      label: t('RESPONSE.DOWNLOAD'),
       leftSection: IconDownload,
       get disabled() {
         return downloadButtonRef.current?.isDisabled ?? false;
@@ -72,7 +90,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
     },
     {
       id: 'clear-response',
-      label: 'Clear response',
+      label: t('RESPONSE.CLEAR'),
       leftSection: IconEraser,
       get disabled() {
         return clearButtonRef.current?.isDisabled ?? false;
@@ -81,8 +99,9 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
     },
     {
       id: 'change-layout',
-      label: 'Change layout',
-      leftSection: orientation === 'vertical' ? IconLayoutColumns : IconLayoutRows,
+      label: t('RESPONSE.CHANGE_LAYOUT'),
+      leftSection:
+        orientation === 'vertical' ? IconLayoutColumns : IconLayoutRows,
       get disabled() {
         return layoutToggleButtonRef.current?.isDisabled ?? false;
       },
@@ -93,7 +112,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
   const menuItems = [
     {
       id: 'copy-response',
-      label: 'Copy response',
+      label: t('RESPONSE.COPY'),
       leftSection: IconCopy,
       get disabled() {
         return copyButtonRef.current?.isDisabled ?? false;
@@ -102,7 +121,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
     },
     {
       id: 'save-response',
-      label: 'Save response',
+      label: t('RESPONSE.SAVE'),
       leftSection: IconBookmark,
       get disabled() {
         return bookmarkButtonRef.current?.isDisabled ?? false;
@@ -111,7 +130,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
     },
     {
       id: 'download-response',
-      label: 'Download response',
+      label: t('RESPONSE.DOWNLOAD'),
       leftSection: IconDownload,
       get disabled() {
         return downloadButtonRef.current?.isDisabled ?? false;
@@ -120,7 +139,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
     },
     {
       id: 'clear-response',
-      label: 'Clear response',
+      label: t('RESPONSE.CLEAR'),
       leftSection: IconEraser,
       get disabled() {
         return clearButtonRef.current?.isDisabled ?? false;
@@ -129,8 +148,9 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
     },
     {
       id: 'change-layout',
-      label: 'Change layout',
-      leftSection: orientation === 'vertical' ? IconLayoutColumns : IconLayoutRows,
+      label: t('RESPONSE.CHANGE_LAYOUT'),
+      leftSection:
+        orientation === 'vertical' ? IconLayoutColumns : IconLayoutRows,
       get disabled() {
         return layoutToggleButtonRef.current?.isDisabled ?? false;
       },
@@ -150,7 +170,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
           placement="bottom-end"
           data-testid="response-actions-menu"
         >
-          <MenuIcon />
+          <MenuIcon title={t('RESPONSE.MORE_ACTIONS')} />
         </MenuDropdown>
       </div>
       <div className="actions-buttons flex items-center gap-[2px]">
@@ -162,9 +182,20 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
           data={data}
           dataBuffer={dataBuffer}
         />
-        {item.type !== 'graphql-request' && <ResponseBookmark ref={bookmarkButtonRef} item={item} collection={collection} responseSize={responseSize} />}
+        {item.type !== 'graphql-request' && (
+          <ResponseBookmark
+            ref={bookmarkButtonRef}
+            item={item}
+            collection={collection}
+            responseSize={responseSize}
+          />
+        )}
         <ResponseDownload ref={downloadButtonRef} item={item} />
-        <ResponseClear ref={clearButtonRef} item={item} collection={collection} />
+        <ResponseClear
+          ref={clearButtonRef}
+          item={item}
+          collection={collection}
+        />
         <ResponseLayoutToggle ref={layoutToggleButtonRef} />
       </div>
     </StyledWrapper>

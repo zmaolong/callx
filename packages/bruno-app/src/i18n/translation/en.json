@@ -199,7 +199,13 @@
     "HEADERS": "Headers",
     "TIMELINE": "Timeline",
     "NOT_FOUND": "404 | Not found",
-    "ERROR_OCCURRED": "An error occurred!"
+    "ERROR_OCCURRED": "An error occurred!",
+    "MORE_ACTIONS": "More actions",
+    "COPY": "Copy response",
+    "DOWNLOAD": "Download response",
+    "CLEAR": "Clear response",
+    "CHANGE_LAYOUT": "Change layout",
+    "SAVE": "Save response"
   },
   "ENVIRONMENT": {
     "COLLECTION": "Collection",

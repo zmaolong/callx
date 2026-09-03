@@ -199,7 +199,13 @@
     "HEADERS": "响应头",
     "TIMELINE": "时间线",
     "NOT_FOUND": "404 | 未找到",
-    "ERROR_OCCURRED": "发生错误！"
+    "ERROR_OCCURRED": "发生错误！",
+    "MORE_ACTIONS": "更多操作",
+    "COPY": "复制响应",
+    "DOWNLOAD": "下载响应",
+    "CLEAR": "清除响应",
+    "CHANGE_LAYOUT": "更改布局",
+    "SAVE": "保存响应"
   },
   "ENVIRONMENT": {
     "COLLECTION": "集合",
