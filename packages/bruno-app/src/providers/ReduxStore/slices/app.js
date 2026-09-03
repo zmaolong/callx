@@ -58,6 +58,7 @@ const initialState = {
       codeFont: 'default'
     },
     general: {
+      language: 'en',
       defaultLocation: ''
     },
     onboarding: {

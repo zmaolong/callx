@@ -52,6 +52,7 @@ import { addLog } from 'providers/ReduxStore/slices/logs';
 import { loadNotifications } from 'providers/ReduxStore/slices/notifications';
 import { updateSystemResources } from 'providers/ReduxStore/slices/performance';
 import { apiSpecAddFileEvent, apiSpecChangeFileEvent } from 'providers/ReduxStore/slices/apiSpec';
+import i18n, { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '../../i18n';
 
 const useIpcEvents = () => {
   const dispatch = useDispatch();
@@ -336,8 +337,22 @@ const useIpcEvents = () => {
       );
     });
 
-    const removePreferencesUpdatesListener = ipcRenderer.on('main:load-preferences', (val) => {
-      dispatch(updatePreferences(val));
+    const removePreferencesUpdatesListener = ipcRenderer.on('main:load-preferences', async (val) => {
+      const language = val?.general?.language;
+      const nextLanguage = SUPPORTED_LANGUAGES.includes(language) ? language : DEFAULT_LANGUAGE;
+      try {
+        await i18n.changeLanguage(nextLanguage);
+      } catch (error) {
+        console.error('Failed to change application language:', error);
+        await i18n.changeLanguage(DEFAULT_LANGUAGE);
+      }
+      dispatch(updatePreferences({
+        ...val,
+        general: {
+          ...val.general,
+          language: nextLanguage
+        }
+      }));
     });
 
     const removeCookieUpdateListener = ipcRenderer.on('main:cookies-update', (val) => {

@@ -63,6 +63,7 @@ const defaultPreferences = {
     lastSeenVersion: null
   },
   general: {
+    language: 'en',
     defaultLocation: '',
     defaultWorkspacePath: ''
   },
@@ -185,6 +186,7 @@ const preferencesSchema = Yup.object().shape({
     lastSeenVersion: Yup.string().nullable()
   }),
   general: Yup.object({
+    language: Yup.string().oneOf(['en', 'zh-CN']),
     defaultLocation: Yup.string().max(1024).nullable(),
     defaultWorkspacePath: Yup.string().max(1024).nullable()
   }),
