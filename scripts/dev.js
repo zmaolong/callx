@@ -31,6 +31,7 @@ let detectedPort = null;
 
 // Regex to match rsbuild's local URL output (e.g., "➜ Local:    http://localhost:3000/")
 const portRegex = /Local:\s+http:\/\/localhost:(\d+)/;
+const ansiRegex = /\x1b\[[0-9;]*m/g;
 
 console.log(`\n${colors.bright}${colors.yellow}🚀 Starting Bruno development environment...${colors.reset}\n`);
 
@@ -47,7 +48,7 @@ webProcess.stdout.on('data', (data) => {
 
   // Try to detect the port from rsbuild output (strip ANSI color codes first)
   if (!detectedPort) {
-    const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
+    const cleanOutput = output.replace(ansiRegex, '');
     const match = cleanOutput.match(portRegex);
     if (match) {
       detectedPort = match[1];
@@ -75,7 +76,8 @@ function startElectron(port) {
     shell: true,
     env: {
       ...process.env,
-      BRUNO_DEV_PORT: port
+      BRUNO_DEV_PORT: port,
+      BRUNO_INSTALL_DEVTOOLS: 'false'
     }
   });
 
