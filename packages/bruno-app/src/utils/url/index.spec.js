@@ -4,9 +4,36 @@ import {
   interpolateUrl,
   interpolateUrlPathParams,
   prependDefaultScheme,
-  replaceUrlOrigin
+  replaceUrlOrigin,
+  getUrlWithoutOrigin,
+  replaceUrlWithoutOrigin
 } from './index';
 
+describe('Url Utils - URL without origin', () => {
+  it('shows only the path, query, and hash', () => {
+    expect(getUrlWithoutOrigin('https://example.com:8443/api?a=1#result'))
+      .toBe('/api?a=1#result');
+  });
+
+  it('replaces the path while preserving the original origin', () => {
+    expect(replaceUrlWithoutOrigin('https://example.com:8443/api?a=1#result', '/users?page=2#details'))
+      .toBe('https://example.com:8443/users?page=2#details');
+  });
+
+  it('keeps the current path when editing only the query', () => {
+    expect(replaceUrlWithoutOrigin('https://example.com/api?a=1', '?page=2'))
+      .toBe('https://example.com/api?page=2');
+  });
+
+  it('keeps absolute URL input unchanged', () => {
+    expect(replaceUrlWithoutOrigin('https://example.com/api', 'https://other.example/users'))
+      .toBe('https://other.example/users');
+  });
+
+  it('falls back to the full value for variable URLs', () => {
+    expect(getUrlWithoutOrigin('{{baseUrl}}/api')).toBe('{{baseUrl}}/api');
+  });
+});
 describe('Url Utils - replaceUrlOrigin', () => {
   it('replaces the origin and preserves path, query, and hash', () => {
     expect(replaceUrlOrigin('http://old.example:8080/api?a=1#result', 'https://new.example:9443'))

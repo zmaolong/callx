@@ -197,6 +197,51 @@ export const replaceUrlOrigin = (url, host) => {
   }
 };
 
+export const getUrlWithoutOrigin = (url) => {
+  if (typeof url !== 'string' || !url) {
+    return url;
+  }
+
+  try {
+    const parsed = new URL(prependDefaultScheme(url));
+    return `${parsed.pathname || '/'}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url;
+  }
+};
+
+export const replaceUrlWithoutOrigin = (url, value) => {
+  if (typeof url !== 'string' || !url || typeof value !== 'string') {
+    return value;
+  }
+
+  try {
+    const absoluteValue = new URL(value);
+    if (['http:', 'https:'].includes(absoluteValue.protocol)) {
+      return value;
+    }
+  } catch {
+    // Continue processing values that are paths, queries, or fragments.
+  }
+
+  try {
+    const parsed = new URL(prependDefaultScheme(url));
+    if (value.startsWith('?')) {
+      parsed.search = value;
+    } else if (value.startsWith('#')) {
+      parsed.hash = value;
+    } else {
+      const replacement = new URL(value || '/', parsed.origin);
+      parsed.pathname = replacement.pathname;
+      parsed.search = replacement.search;
+      parsed.hash = replacement.hash;
+    }
+    return parsed.toString();
+  } catch {
+    return value;
+  }
+};
+
 export const interpolateUrlPathParams = (url, params, variables = {}, options = {}) => {
   const substituteValue = (value) => {
     const v = value == null ? '' : String(value);

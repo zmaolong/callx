@@ -159,7 +159,9 @@
     "HOST_ENVIRONMENT": "Environment host",
     "HOST_ENABLED": "Using environment host: {{host}}",
     "HOST_DISABLED": "Using host from request URL",
-    "HOST_UNAVAILABLE": "No environment host available"
+    "HOST_UNAVAILABLE": "No environment host available",
+    "HOST_ENABLE": "Enable environment host",
+    "HOST_DISABLE": "Disable environment host"
   },
   "COOKIES": {
     "TITLE": "Cookies",

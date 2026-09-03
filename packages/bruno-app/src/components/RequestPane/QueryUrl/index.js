@@ -31,7 +31,7 @@ import SingleLineEditor from 'components/SingleLineEditor';
 import SendButton from 'components/RequestPane/SendButton';
 import { isMacOS } from 'utils/common/platform';
 import { hasRequestChanges, getAllVariables } from 'utils/collections';
-import { interpolateUrl } from 'utils/url';
+import { interpolateUrl, getUrlWithoutOrigin, replaceUrlWithoutOrigin } from 'utils/url';
 import HostSelector from './HostSelector';
 import StyledWrapper from './StyledWrapper';
 import GenerateCodeItem from 'components/Sidebar/Collections/Collection/CollectionItem/GenerateCodeItem/index';
@@ -58,6 +58,9 @@ const QueryUrl = ({ item, collection, handleRun }) => {
     const value = interpolateUrl({ url: '{{host}}', variables: allVariables });
     return value && value !== '{{host}}' ? String(value).trim() : '';
   }, [allVariables]);
+
+  const isHostEnabled = hostEnabled && Boolean(environmentHost);
+  const displayedUrl = isHostEnabled ? getUrlWithoutOrigin(url) : url;
 
   useEffect(() => {
     setHostEnabled(true);
@@ -104,6 +107,10 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         }
       }, 0);
     }
+  };
+
+  const onEditorUrlChange = (value) => {
+    onUrlChange(isHostEnabled ? replaceUrlWithoutOrigin(url, value) : value);
   };
 
   const onMethodSelect = (verb) => {
@@ -165,7 +172,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         setTimeout(() => {
           const editor = editorRef.current?.editor;
           if (editor) {
-            editor.setCursor(0, request.url.length);
+            editor.setCursor(0, isHostEnabled ? getUrlWithoutOrigin(request.url).length : request.url.length);
           }
         }, 0);
 
@@ -265,7 +272,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         setTimeout(() => {
           const editor = editorRef.current?.editor;
           if (editor) {
-            editor.setCursor(0, request.url.length);
+            editor.setCursor(0, isHostEnabled ? getUrlWithoutOrigin(request.url).length : request.url.length);
           }
         }, 0);
 
@@ -457,7 +464,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         </div>
         <HostSelector
           host={environmentHost}
-          enabled={hostEnabled}
+          enabled={isHostEnabled}
           onChange={() => setHostEnabled((enabled) => !enabled)}
         />
         <div
@@ -467,11 +474,11 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         >
           <SingleLineEditor
             ref={editorRef}
-            value={url}
+            value={displayedUrl}
             placeholder={t('REQUEST.URL_PLACEHOLDER')}
             onSave={(finalValue) => onSave(finalValue)}
             theme={storedTheme}
-            onChange={(newValue) => onUrlChange(newValue)}
+            onChange={(newValue) => onEditorUrlChange(newValue)}
             onRun={onRunWithHost}
             onPaste={
               item.type === 'http-request'

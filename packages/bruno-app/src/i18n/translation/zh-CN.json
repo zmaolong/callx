@@ -159,7 +159,9 @@
     "HOST_ENVIRONMENT": "环境 Host",
     "HOST_ENABLED": "使用环境 Host：{{host}}",
     "HOST_DISABLED": "使用请求地址自身的 Host",
-    "HOST_UNAVAILABLE": "当前环境没有可用的 Host"
+    "HOST_UNAVAILABLE": "当前环境没有可用的 Host",
+    "HOST_ENABLE": "启用环境 Host",
+    "HOST_DISABLE": "禁用环境 Host"
   },
   "COOKIES": {
     "TITLE": "Cookie",
