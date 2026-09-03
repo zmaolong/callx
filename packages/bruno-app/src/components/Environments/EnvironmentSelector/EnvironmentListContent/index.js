@@ -119,7 +119,7 @@ const EnvironmentListContent = ({
                     className="text-center text-xs opacity-50 py-2 italic"
                     data-testid="env-no-results"
                   >
-                    {t('ENVIRONMENT.NO_RESULTS')}
+                    {t('ENVIRONMENT.NO_RESULTS', { defaultValue: 'No results found' })}
                   </div>
                 ) : (
                   filteredEnvs.map((env) => (
@@ -159,12 +159,12 @@ const EnvironmentListContent = ({
         </>
       ) : (
         <div className="empty-state">
-          <h3>{t('ENVIRONMENT.READY')}</h3>
+          <h3>{t('ENVIRONMENT.READY', { defaultValue: 'Ready to get started?' })}</h3>
           <p>{description}</p>
           <div className="space-y-2">
             <button onClick={onCreateClick} id="create-env">
               <IconPlus size={16} strokeWidth={1.5} />
-              {t('COMMON.ADD')}
+              {t('COMMON.CREATE')}
             </button>
             <button
               onClick={onImportClick}

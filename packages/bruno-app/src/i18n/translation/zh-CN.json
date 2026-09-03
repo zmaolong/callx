@@ -16,7 +16,8 @@
     "COPY": "复制",
     "SAVE": "保存",
     "CONFIRM": "确认",
-    "NAME": "名称"
+    "NAME": "名称",
+    "CREATE": "创建"
   },
   "WORKSPACE": {
     "CREATE_TITLE": "创建工作区",

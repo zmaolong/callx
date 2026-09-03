@@ -16,7 +16,8 @@
     "COPY": "Copy",
     "SAVE": "Save",
     "CONFIRM": "Confirm",
-    "NAME": "Name"
+    "NAME": "Name",
+    "CREATE": "Create"
   },
   "WORKSPACE": {
     "CREATE_TITLE": "Create Workspace",
