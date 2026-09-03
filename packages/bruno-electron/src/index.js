@@ -190,23 +190,22 @@ if (useSingleInstance && !gotTheLock) {
 app.on('ready', async () => {
   initializeShellEnv();
 
-  if (isDev) {
+  if (isDev && process.env.BRUNO_INSTALL_DEVTOOLS === 'true') {
     const { installExtension, REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS } = require('electron-devtools-installer');
-    try {
-      const extensions = await installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS], {
-        loadExtensionOptions: { allowFileAccess: true }
+    installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS], {
+      loadExtensionOptions: { allowFileAccess: true }
+    })
+      .then(async (extensions) => {
+        console.log(`Added Extensions:  ${extensions.map((ext) => ext.name).join(', ')}`);
+        await require('node:timers/promises').setTimeout(1000);
+        session.defaultSession.getAllExtensions().map((ext) => {
+          console.log(`Loading Extension: ${ext.name}`);
+          session.defaultSession.loadExtension(ext.path);
+        });
+      })
+      .catch(() => {
+        console.warn('DevTools extensions not loaded (network unavailable, skipping)');
       });
-      console.log(`Added Extensions:  ${extensions.map((ext) => ext.name).join(', ')}`);
-      await require('node:timers/promises').setTimeout(1000);
-      session.defaultSession.getAllExtensions().map((ext) => {
-        console.log(`Loading Extension: ${ext.name}`);
-        session.defaultSession.loadExtension(ext.path);
-      });
-    } catch (err) {
-      // devtools-installer 从 Google CDN 下载扩展，国内网络大概率失败
-      // 此错误不影响应用运行，静默降级即可
-      console.warn('DevTools extensions not loaded (network unavailable, skipping)');
-    }
   }
 
   // Initialize system proxy cache early (non-blocking)
