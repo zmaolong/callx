@@ -1,9 +1,20 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector, useDispatch } from 'react-redux';
 import Modal from 'components/Modal';
 import Accordion from 'components/Accordion/index';
-import { IconTrash, IconEdit, IconCirclePlus, IconCookieOff, IconAlertTriangle, IconSearch } from '@tabler/icons';
-import { deleteCookiesForDomain, deleteCookie } from 'providers/ReduxStore/slices/app';
+import {
+  IconTrash,
+  IconEdit,
+  IconCirclePlus,
+  IconCookieOff,
+  IconAlertTriangle,
+  IconSearch
+} from '@tabler/icons';
+import {
+  deleteCookiesForDomain,
+  deleteCookie
+} from 'providers/ReduxStore/slices/app';
 import toast from 'react-hot-toast';
 import ModifyCookieModal from 'components/Cookies/ModifyCookieModal/index';
 import StyledWrapper from './StyledWrapper';
@@ -11,57 +22,84 @@ import moment from 'moment';
 import { Tooltip } from 'react-tooltip';
 import Button from 'ui/Button';
 
-const ClearDomainCookiesModal = ({ onClose, domain, onClear }) => (
-  <Modal onClose={onClose} handleCancel={onClose} title="Clear Domain Cookies" hideFooter={true}>
-    <div className="flex items-center font-normal">
-      <IconAlertTriangle size={32} strokeWidth={1.5} className="warning-icon" />
-      <h1 className="ml-2 text-lg font-medium">Hold on..</h1>
-    </div>
-    <div className="font-normal mt-4">
-      Are you sure you want to clear all cookies for the domain {domain}?
-    </div>
+const ClearDomainCookiesModal = ({ onClose, domain, onClear }) => {
+  const { t } = useTranslation();
 
-    <div className="flex justify-between mt-6">
-      <div>
-        <Button color="secondary" variant="ghost" onClick={onClose}>
-          Close
-        </Button>
+  return (
+    <Modal
+      onClose={onClose}
+      handleCancel={onClose}
+      title={t('COOKIES.CLEAR_DOMAIN_TITLE')}
+      hideFooter={true}
+    >
+      <div className="flex items-center font-normal">
+        <IconAlertTriangle
+          size={32}
+          strokeWidth={1.5}
+          className="warning-icon"
+        />
+        <h1 className="ml-2 text-lg font-medium">{t('COOKIES.HOLD_ON')}</h1>
       </div>
-      <div>
-        <Button color="danger" onClick={onClear}>
-          Clear All
-        </Button>
+      <div className="font-normal mt-4">
+        {t('COOKIES.CLEAR_CONFIRM', { domain })}
       </div>
-    </div>
-  </Modal>
-);
 
-const DeleteCookieModal = ({ onClose, cookieName, onDelete }) => (
-  <Modal onClose={onClose} handleCancel={onClose} title="Delete Cookie" hideFooter={true}>
-    <div className="flex items-center font-normal">
-      <IconAlertTriangle size={32} strokeWidth={1.5} className="warning-icon" />
-      <h1 className="ml-2 text-lg font-medium">Hold on..</h1>
-    </div>
-    <div className="font-normal mt-4">
-      Are you sure you want to delete the cookie {cookieName}?
-    </div>
+      <div className="flex justify-between mt-6">
+        <div>
+          <Button color="secondary" variant="ghost" onClick={onClose}>
+            {t('COMMON.CLOSE')}
+          </Button>
+        </div>
+        <div>
+          <Button color="danger" onClick={onClear}>
+            {t('COMMON.CLEAR_ALL')}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
 
-    <div className="flex justify-between mt-6">
-      <div>
-        <Button color="secondary" variant="ghost" onClick={onClose}>
-          Close
-        </Button>
+const DeleteCookieModal = ({ onClose, cookieName, onDelete }) => {
+  const { t } = useTranslation();
+
+  return (
+    <Modal
+      onClose={onClose}
+      handleCancel={onClose}
+      title={t('COOKIES.DELETE_TITLE')}
+      hideFooter={true}
+    >
+      <div className="flex items-center font-normal">
+        <IconAlertTriangle
+          size={32}
+          strokeWidth={1.5}
+          className="warning-icon"
+        />
+        <h1 className="ml-2 text-lg font-medium">{t('COOKIES.HOLD_ON')}</h1>
       </div>
-      <div>
-        <Button color="danger" onClick={onDelete}>
-          Delete
-        </Button>
+      <div className="font-normal mt-4">
+        {t('COOKIES.DELETE_CONFIRM', { name: cookieName })}
       </div>
-    </div>
-  </Modal>
-);
+
+      <div className="flex justify-between mt-6">
+        <div>
+          <Button color="secondary" variant="ghost" onClick={onClose}>
+            {t('COMMON.CLOSE')}
+          </Button>
+        </div>
+        <div>
+          <Button color="danger" onClick={onDelete}>
+            {t('COMMON.DELETE')}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
 
 const CollectionProperties = ({ onClose }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const cookies = useSelector((state) => state.app.cookies) || [];
   const [isModifyCookieModalOpen, setIsModifyCookieModalOpen] = useState(false);
@@ -90,9 +128,11 @@ const CollectionProperties = ({ onClose }) => {
   const clearDomainCookiesAction = () => {
     dispatch(deleteCookiesForDomain(domainToClear))
       .then(() => {
-        toast.success('Domain cookies cleared successfully');
+        toast.success(t('COOKIES.CLEARED_SUCCESS'));
       })
-      .catch((err) => console.log(err) && toast.error('Failed to clear domain cookies'));
+      .catch(
+        (err) => console.log(err) && toast.error(t('COOKIES.CLEAR_FAILED'))
+      );
     setDomainToClear(null);
   };
 
@@ -105,9 +145,11 @@ const CollectionProperties = ({ onClose }) => {
       const { domain, path, key } = cookieToDelete;
       dispatch(deleteCookie(domain, path, key))
         .then(() => {
-          toast.success('Cookie deleted successfully');
+          toast.success(t('COOKIES.DELETED_SUCCESS'));
         })
-        .catch((err) => console.log(err) && toast.error('Failed to delete cookie'));
+        .catch(
+          (err) => console.log(err) && toast.error(t('COOKIES.DELETE_FAILED'))
+        );
     }
     setCookieToDelete(null);
   };
@@ -126,42 +168,50 @@ const CollectionProperties = ({ onClose }) => {
     <>
       <Modal
         size="xl"
-        title="Cookies"
+        title={t('COOKIES.TITLE')}
         hideFooter={true}
         handleCancel={onClose}
-        customHeader={shouldShowHeader ? (
-          <StyledWrapper className="header flex items-center justify-between w-full">
-            <h2 className="text-xs font-medium">Cookies</h2>
-            <input
-              type="search"
-              placeholder="Search by domain"
-              value={searchText || ''}
-              onChange={(e) => setSearchText(e.target.value)}
-              className="block textbox non-passphrase-input ml-auto font-normal"
-              autoFocus
-            />
-            <Button
-              type="submit"
-              size="sm"
-              className="mx-4"
-              icon={<IconCirclePlus strokeWidth={1.5} size={16} />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddCookie();
-              }}
-            >
-              <span>Add Cookie</span>
-            </Button>
-          </StyledWrapper>
-        ) : null}
+        customHeader={
+          shouldShowHeader ? (
+            <StyledWrapper className="header flex items-center justify-between w-full">
+              <h2 className="text-xs font-medium">{t('COOKIES.TITLE')}</h2>
+              <input
+                type="search"
+                placeholder={t('COOKIES.SEARCH_PLACEHOLDER')}
+                value={searchText || ''}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="block textbox non-passphrase-input ml-auto font-normal"
+                autoFocus
+              />
+              <Button
+                type="submit"
+                size="sm"
+                className="mx-4"
+                icon={<IconCirclePlus strokeWidth={1.5} size={16} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddCookie();
+                }}
+              >
+                <span>{t('COOKIES.ADD')}</span>
+              </Button>
+            </StyledWrapper>
+          ) : null
+        }
       >
         <StyledWrapper>
           {!cookies || !cookies.length ? (
             // No cookies found
             <div className="flex items-center justify-center flex-col">
-              <IconCookieOff size={48} strokeWidth={1.5} className="empty-icon" />
-              <h2 className="text-lg font-medium mt-4">No cookies found</h2>
-              <p className="empty-text mt-2">Add cookies to get started</p>
+              <IconCookieOff
+                size={48}
+                strokeWidth={1.5}
+                className="empty-icon"
+              />
+              <h2 className="text-lg font-medium mt-4">
+                {t('COOKIES.NO_COOKIES')}
+              </h2>
+              <p className="empty-text mt-2">{t('COOKIES.GET_STARTED')}</p>
               <Button
                 type="submit"
                 size="sm"
@@ -172,15 +222,17 @@ const CollectionProperties = ({ onClose }) => {
                   handleAddCookie();
                 }}
               >
-                Add Cookie
+                {t('COOKIES.ADD')}
               </Button>
             </div>
           ) : cookies.length && !filteredCookies.length ? (
             // No search results
             <div className="flex items-center justify-center flex-col">
               <IconSearch size={48} />
-              <h2 className="text-lg font-medium mt-4">No search results</h2>
-              <p className="empty-text mt-2">Try a different search term</p>
+              <h2 className="text-lg font-medium mt-4">
+                {t('COOKIES.NO_RESULTS')}
+              </h2>
+              <p className="empty-text mt-2">{t('COOKIES.TRY_DIFFERENT')}</p>
             </div>
           ) : (
             // Show cookies list
@@ -193,7 +245,10 @@ const CollectionProperties = ({ onClose }) => {
                         <span>{domainWithCookies.domain}</span>
                         <span className="domain-count ml-2 text-xs">
                           ({domainWithCookies.cookies.length}{' '}
-                          {domainWithCookies.cookies.length === 1 ? 'cookie' : 'cookies'})
+                          {domainWithCookies.cookies.length === 1
+                            ? t('COOKIES.COOKIE')
+                            : t('COOKIES.COOKIES')}
+                          )
                         </span>
                         <div className="ml-auto flex items-center gap-2">
                           <button
@@ -209,7 +264,9 @@ const CollectionProperties = ({ onClose }) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleClearDomainCookies(domainWithCookies.domain);
+                              handleClearDomainCookies(
+                                domainWithCookies.domain
+                              );
                             }}
                             className="action-button-danger mr-2"
                           >
@@ -223,20 +280,36 @@ const CollectionProperties = ({ onClose }) => {
                         <table className="w-full">
                           <thead>
                             <tr className="text-left">
-                              <th className="py-2 px-4 font-medium w-32">Name</th>
-                              <th className="py-2 px-4 font-medium w-52">Value</th>
-                              <th className="py-2 px-4 font-medium">Path</th>
-                              <th className="py-2 px-4 font-medium">Expires</th>
-                              <th className="py-2 px-4 font-medium text-center">Secure</th>
-                              <th className="py-2 px-4 font-medium text-center">HTTP Only</th>
-                              <th className="py-2 px-4 font-medium text-right w-24">Actions</th>
+                              <th className="py-2 px-4 font-medium w-32">
+                                {t('COOKIES.NAME')}
+                              </th>
+                              <th className="py-2 px-4 font-medium w-52">
+                                {t('COOKIES.VALUE')}
+                              </th>
+                              <th className="py-2 px-4 font-medium">
+                                {t('COOKIES.PATH')}
+                              </th>
+                              <th className="py-2 px-4 font-medium">
+                                {t('COOKIES.EXPIRES')}
+                              </th>
+                              <th className="py-2 px-4 font-medium text-center">
+                                {t('COOKIES.SECURE')}
+                              </th>
+                              <th className="py-2 px-4 font-medium text-center">
+                                {t('COOKIES.HTTP_ONLY')}
+                              </th>
+                              <th className="py-2 px-4 font-medium text-right w-24">
+                                {t('COOKIES.ACTIONS')}
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
                             {domainWithCookies.cookies.map((cookie) => (
                               <tr key={cookie.key}>
                                 <td className="py-2 px-4 truncate">
-                                  <span id={`cookie-key-${cookie.key}`}>{cookie.key}</span>
+                                  <span id={`cookie-key-${cookie.key}`}>
+                                    {cookie.key}
+                                  </span>
                                   <Tooltip
                                     anchorId={`cookie-key-${cookie.key}`}
                                     className="tooltip-mod"
@@ -244,36 +317,53 @@ const CollectionProperties = ({ onClose }) => {
                                   />
                                 </td>
                                 <td className="py-2 px-4 truncate">
-                                  <span id={`cookie-value-${cookie.key}`}>{cookie.value}</span>
+                                  <span id={`cookie-value-${cookie.key}`}>
+                                    {cookie.value}
+                                  </span>
                                   <Tooltip
                                     anchorId={`cookie-value-${cookie.key}`}
                                     className="tooltip-mod"
                                     html={cookie.value}
                                   />
                                 </td>
-                                <td className="py-2 px-4 truncate">{cookie.path || '/'}</td>
+                                <td className="py-2 px-4 truncate">
+                                  {cookie.path || '/'}
+                                </td>
                                 <td className="py-2 px-4 truncate">
                                   <span id={`cookie-expires-${cookie.key}`}>
-                                    {cookie.expires && moment(cookie.expires).isValid()
-                                      ? new Date(cookie.expires).toLocaleString()
-                                      : 'Session'}
+                                    {cookie.expires
+                                      && moment(cookie.expires).isValid()
+                                      ? new Date(
+                                          cookie.expires
+                                        ).toLocaleString()
+                                      : t('COOKIES.SESSION')}
                                   </span>
-                                  {cookie.expires && moment(cookie.expires).isValid() && (
+                                  {cookie.expires
+                                    && moment(cookie.expires).isValid() && (
                                     <Tooltip
                                       anchorId={`cookie-expires-${cookie.key}`}
                                       className="tooltip-mod"
-                                      html={new Date(cookie.expires).toLocaleString()}
+                                      html={new Date(
+                                        cookie.expires
+                                      ).toLocaleString()}
                                     />
                                   )}
                                 </td>
-                                <td className="py-2 px-4 text-center">{cookie.secure ? '✓' : ''}</td>
-                                <td className="py-2 px-4 text-center">{cookie.httpOnly ? '✓' : ''}</td>
+                                <td className="py-2 px-4 text-center">
+                                  {cookie.secure ? '✓' : ''}
+                                </td>
+                                <td className="py-2 px-4 text-center">
+                                  {cookie.httpOnly ? '✓' : ''}
+                                </td>
                                 <td className="py-2 px-4">
                                   <div className="flex items-center justify-end gap-2">
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleEditCookie(domainWithCookies.domain, cookie);
+                                        handleEditCookie(
+                                          domainWithCookies.domain,
+                                          cookie
+                                        );
                                       }}
                                       className="edit-button"
                                     >
@@ -282,7 +372,11 @@ const CollectionProperties = ({ onClose }) => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDeleteCookie(domainWithCookies.domain, cookie.path, cookie.key);
+                                        handleDeleteCookie(
+                                          domainWithCookies.domain,
+                                          cookie.path,
+                                          cookie.key
+                                        );
                                       }}
                                       className="delete-button"
                                     >

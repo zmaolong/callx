@@ -5,70 +5,37 @@
     "REPORT_ISSUES": "报告问题",
     "GITHUB": "GitHub",
     "DISCORD": "Discord",
-    "TWITTER": "Twitter"
-  },
-  "WELCOME": {
-    "ABOUT_BRUNO": "用于探索和测试 API 的开源 IDE",
-    "LINKS": "链接",
-    "CREATE_COLLECTION": "创建集合",
-    "OPEN_COLLECTION": "打开集合",
-    "IMPORT_COLLECTION": "导入集合",
-    "COLLECTION_IMPORT_SUCCESS": "集合导入成功",
-    "COLLECTION_IMPORT_ERROR": "导入集合时发生错误，请查看日志了解更多信息。",
-    "COLLECTION_OPEN_ERROR": "打开集合时发生错误",
-    "GLOBAL_SEARCH_TIP_PART1": "按下",
-    "GLOBAL_SEARCH_TIP_PART2": "（Mac）或",
-    "GLOBAL_SEARCH_TIP_PART3": "（Windows）即可快速搜索集合、文件夹和请求"
+    "TWITTER": "Twitter",
+    "CANCEL": "取消",
+    "CLOSE": "关闭",
+    "DELETE": "删除",
+    "CLEAR_ALL": "全部清除",
+    "RESET_DEFAULT": "恢复默认",
+    "SEARCH": "搜索",
+    "ADD": "添加",
+    "COPY": "复制",
+    "SAVE": "保存",
+    "CONFIRM": "确认"
   },
   "MENU": {
-    "FILE": "文件",
-    "EDIT": "编辑",
-    "VIEW": "视图",
-    "HELP": "帮助",
-    "OPEN_COLLECTION": "打开集合",
-    "PREFERENCES": "偏好设置",
-    "QUIT": "退出",
-    "UNDO": "撤销",
-    "REDO": "重做",
-    "CUT": "剪切",
-    "COPY": "复制",
-    "PASTE": "粘贴",
-    "SELECT_ALL": "全选",
-    "DEVELOPER_TOOLS": "开发者工具",
-    "RESET_ZOOM": "重置缩放",
-    "ZOOM_IN": "放大",
-    "ZOOM_OUT": "缩小",
-    "FULL_SCREEN": "全屏",
-    "ABOUT_BRUNO": "关于 Bruno"
+    "FILE": "文件", "EDIT": "编辑", "VIEW": "视图", "HELP": "帮助", "OPEN_COLLECTION": "打开集合", "PREFERENCES": "偏好设置", "QUIT": "退出", "UNDO": "撤销", "REDO": "重做", "CUT": "剪切", "COPY": "复制", "PASTE": "粘贴", "SELECT_ALL": "全选", "DEVELOPER_TOOLS": "开发者工具", "RESET_ZOOM": "重置缩放", "ZOOM_IN": "放大", "ZOOM_OUT": "缩小", "FULL_SCREEN": "全屏", "ABOUT_BRUNO": "关于 Bruno"
   },
   "PREFERENCES": {
-    "GENERAL": "常规",
-    "THEMES": "主题",
-    "DISPLAY": "显示",
-    "PROXY": "代理",
-    "CLIENT_CERTIFICATES": "客户端证书",
-    "KEYBINDINGS": "快捷键",
-    "AI": "AI",
-    "CACHE": "缓存",
-    "SUPPORT": "支持",
-    "BETA": "Beta",
-    "GENERAL_SETTINGS": "常规设置",
-    "LANGUAGE": "语言",
-    "ENGLISH": "English",
-    "CHINESE": "中文",
-    "SSL_VERIFICATION": "SSL/TLS 证书验证",
-    "CUSTOM_CA": "使用自定义 CA 证书",
-    "SELECT_FILE": "选择文件",
-    "KEEP_DEFAULT_CA": "保留默认 CA 证书",
-    "STORE_COOKIES": "自动存储 Cookie",
-    "SEND_COOKIES": "自动发送 Cookie",
-    "OAUTH_BROWSER": "使用系统浏览器进行 OAuth2 授权",
-    "REQUEST_TIMEOUT": "请求超时（毫秒）",
-    "ENABLE_AUTO_SAVE": "启用自动保存",
-    "SAVE_DELAY": "保存延迟（毫秒）",
-    "DEFAULT_LOCATION": "默认位置",
-    "DEFAULT_LOCATION_HELP": "用于新工作区和集合的默认位置",
-    "BROWSE": "浏览",
-    "DEFAULT_LOCATION_PLACEHOLDER": "点击浏览默认位置"
+    "GENERAL": "常规", "THEMES": "主题", "DISPLAY": "显示", "PROXY": "代理", "CLIENT_CERTIFICATES": "客户端证书", "KEYBINDINGS": "快捷键", "AI": "AI", "CACHE": "缓存", "SUPPORT": "支持", "BETA": "Beta", "GENERAL_SETTINGS": "常规设置", "LANGUAGE": "语言", "ENGLISH": "English", "CHINESE": "中文", "SSL_VERIFICATION": "SSL/TLS 证书验证", "CUSTOM_CA": "使用自定义 CA 证书", "SELECT_FILE": "选择文件", "KEEP_DEFAULT_CA": "保留默认 CA 证书", "STORE_COOKIES": "自动存储 Cookie", "SEND_COOKIES": "自动发送 Cookie", "OAUTH_BROWSER": "使用系统浏览器进行 OAuth2 授权", "REQUEST_TIMEOUT": "请求超时（毫秒）", "ENABLE_AUTO_SAVE": "启用自动保存", "SAVE_DELAY": "保存延迟（毫秒）", "DEFAULT_LOCATION": "默认位置", "DEFAULT_LOCATION_HELP": "用于新工作区和集合的默认位置", "BROWSE": "浏览", "DEFAULT_LOCATION_PLACEHOLDER": "点击浏览默认位置", "REQUEST_TIMEOUT_NUMBER": "请求超时必须是数字", "REQUEST_TIMEOUT_MIN": "请求超时必须大于或等于 0", "SAVE_DELAY_NUMBER": "保存延迟必须是数字", "SAVE_DELAY_MIN": "保存延迟至少为 500 毫秒", "SAVE_DELAY_REQUIRED": "启用自动保存时必须设置保存延迟", "UPDATE_FAILED": "更新偏好设置失败"
+  },
+  "WELCOME": {
+    "ABOUT_BRUNO": "用于探索和测试 API 的开源 IDE", "LINKS": "链接", "CREATE_COLLECTION": "创建集合", "OPEN_COLLECTION": "打开集合", "IMPORT_COLLECTION": "导入集合", "COLLECTION_IMPORT_SUCCESS": "集合导入成功", "COLLECTION_IMPORT_ERROR": "导入集合时发生错误，请查看日志了解更多信息。", "COLLECTION_OPEN_ERROR": "打开集合时发生错误", "GLOBAL_SEARCH_TIP_PART1": "按下", "GLOBAL_SEARCH_TIP_PART2": "（Mac）或", "GLOBAL_SEARCH_TIP_PART3": "（Windows）即可快速搜索集合、文件夹和请求"
+  },
+  "STATUS_BAR": {
+    "PREFERENCES": "偏好设置", "OPEN_PREFERENCES": "打开偏好设置", "CHANGE_THEME": "切换主题", "NOTIFICATIONS": "通知", "GITHUB_REPOSITORY": "GitHub 仓库", "OPEN_GITHUB_REPOSITORY": "打开 GitHub 仓库", "SEARCH": "搜索", "GLOBAL_SEARCH": "全局搜索", "COOKIES": "Cookie", "OPEN_COOKIES": "打开 Cookie", "DEV_TOOLS": "开发工具", "OPEN_DEV_TOOLS": "打开开发工具（{{count}} 个错误）"
+  },
+  "REQUEST": {
+    "SEND": "发送", "CANCEL": "取消", "SEND_REQUEST": "发送请求", "NEW_REQUEST": "新建请求", "EDIT_ENVIRONMENTS": "编辑环境"
+  },
+  "COOKIES": {
+    "TITLE": "Cookie", "CLEAR_DOMAIN_TITLE": "清除域 Cookie", "DELETE_TITLE": "删除 Cookie", "HOLD_ON": "请确认", "CLEAR_CONFIRM": "确定要清除域名 {{domain}} 的所有 Cookie 吗？", "DELETE_CONFIRM": "确定要删除 Cookie {{name}} 吗？", "SEARCH_PLACEHOLDER": "按域名搜索", "ADD": "添加 Cookie", "NO_COOKIES": "未找到 Cookie", "GET_STARTED": "添加 Cookie 以开始使用", "NO_RESULTS": "没有搜索结果", "TRY_DIFFERENT": "请尝试其他搜索词", "COOKIE": "个 Cookie", "COOKIES": "个 Cookie", "NAME": "名称", "VALUE": "值", "PATH": "路径", "EXPIRES": "过期时间", "SECURE": "安全", "HTTP_ONLY": "仅 HTTP", "ACTIONS": "操作", "SESSION": "会话", "CLEARED_SUCCESS": "域 Cookie 已清除", "CLEAR_FAILED": "清除域 Cookie 失败", "DELETED_SUCCESS": "Cookie 已删除", "DELETE_FAILED": "删除 Cookie 失败"
+  },
+  "KEYBINDINGS": {
+    "TITLE": "快捷键", "COMMAND": "命令", "KEYBINDING": "快捷键", "NO_BINDINGS": "没有可用的快捷键", "RESET_DEFAULT": "恢复默认", "RESET_TO_DEFAULT": "恢复默认快捷键", "CUSTOMIZE": "自定义快捷键", "RESERVED": "系统保留快捷键", "RESET_SUCCESS": "所有快捷键已恢复默认", "EMPTY": "快捷键不能为空。", "ONLY_MODIFIERS": "请添加非修饰键（例如 Ctrl + K）。", "MISSING_MODIFIER_MAC": "macOS 快捷键必须包含至少一个修饰键（command/alt/shift/ctrl）。", "MISSING_MODIFIER_WINDOWS": "Windows 快捷键必须包含至少一个修饰键（ctrl/alt/shift）。", "MULTIPLE_NON_MODIFIERS": "最多只能有一个非修饰键（例如 Cmd + Shift + K）。", "OS_RESERVED": "此快捷键由操作系统保留。", "DUPLICATE": "此快捷键已被使用。"
   }
 }

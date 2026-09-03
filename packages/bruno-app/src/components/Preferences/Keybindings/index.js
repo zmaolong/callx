@@ -1,9 +1,16 @@
 import React, { useMemo, useRef, useState, useEffect, Fragment } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTheme } from 'providers/Theme';
 
 import StyledWrapper from './StyledWrapper';
-import { IconReload, IconPencil, IconLock, IconCircleCheck, IconAlertCircle } from '@tabler/icons';
+import {
+  IconReload,
+  IconPencil,
+  IconLock,
+  IconCircleCheck,
+  IconAlertCircle
+} from '@tabler/icons';
 import { isMacOS } from 'utils/common/platform';
 
 import { savePreferences } from 'providers/ReduxStore/slices/app';
@@ -64,7 +71,9 @@ const renderDisplayValue = (displayValue, os) => {
 
   // If there's only one shortcut, render it normally
   if (parsed.length === 1) {
-    return <span className="shortcut-pills">{renderKeycaps(parsed[0], os)}</span>;
+    return (
+      <span className="shortcut-pills">{renderKeycaps(parsed[0], os)}</span>
+    );
   }
 
   // If there are multiple shortcuts (range), render each as a group with separator
@@ -95,7 +104,8 @@ const hasRequiredModifier = (os, arr) => {
   if (arr.some(isFunctionKey)) return true;
   return arr.some((k) => REQUIRED_MODIFIERS_BY_OS[os]?.has(k));
 };
-const isOnlyModifiers = (arr) => arr.length > 0 && arr.every((k) => MODIFIERS.has(k));
+const isOnlyModifiers = (arr) =>
+  arr.length > 0 && arr.every((k) => MODIFIERS.has(k));
 
 // Keep a stable modifier order for display, storage, and duplicate detection.
 // Non-modifier keys keep their original order.
@@ -113,7 +123,9 @@ const sortCombo = (arr) => {
     }
   });
 
-  modifiers.sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b));
+  modifiers.sort(
+    (a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b)
+  );
 
   return [...modifiers, ...nonModifiers];
 };
@@ -133,7 +145,8 @@ const uniqSorted = (arr) => {
   return sortCombo(unique);
 };
 
-const toKeysString = (keysArr) => uniqSorted(keysArr).join(KEY_BINDING_SEPARATOR);
+const toKeysString = (keysArr) =>
+  uniqSorted(keysArr).join(KEY_BINDING_SEPARATOR);
 
 const renderKeycaps = (keysArr, os) => {
   if (!keysArr?.length) return null;
@@ -261,6 +274,7 @@ const ERROR = {
 };
 
 const Keybindings = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const preferences = useSelector((state) => state.app.preferences);
   const { theme } = useTheme();
@@ -369,7 +383,8 @@ const Keybindings = () => {
   const successTimerRef = useRef(null);
 
   const getCurrentRowKeysString = (action) => keyBindings?.[action]?.[os] || '';
-  const getDefaultRowKeysString = (action) => sectionDefaults?.[action]?.[os] || '';
+  const getDefaultRowKeysString = (action) =>
+    sectionDefaults?.[action]?.[os] || '';
 
   const isRowDirty = (action) => {
     const current = getCurrentRowKeysString(action);
@@ -417,13 +432,13 @@ const Keybindings = () => {
     const sig = comboSignature(arr);
 
     if (!sig) {
-      return { code: ERROR.EMPTY, message: `Shortcut can’t be empty.` };
+      return { code: ERROR.EMPTY, message: t('KEYBINDINGS.EMPTY') };
     }
 
     if (isOnlyModifiers(arr)) {
       return {
         code: ERROR.ONLY_MODIFIERS,
-        message: 'Add a non-modifier key (e.g. Ctrl + K).'
+        message: t('KEYBINDINGS.ONLY_MODIFIERS')
       };
     }
 
@@ -432,8 +447,8 @@ const Keybindings = () => {
         code: ERROR.MISSING_REQUIRED_MOD,
         message:
           os === 'mac'
-            ? 'macOS shortcuts must include at least one modifier (command/alt/shift/ctrl).'
-            : 'Windows shortcuts must include at least one modifier (ctrl/alt/shift).'
+            ? t('KEYBINDINGS.MISSING_MODIFIER_MAC')
+            : t('KEYBINDINGS.MISSING_MODIFIER_WINDOWS')
       };
     }
 
@@ -441,21 +456,21 @@ const Keybindings = () => {
     if (nonModifierCount > 1) {
       return {
         code: ERROR.MULTIPLE_NON_MODIFIERS,
-        message: 'Only one non-modifier key allowed (e.g. Cmd + Shift + K).'
+        message: t('KEYBINDINGS.MULTIPLE_NON_MODIFIERS')
       };
     }
 
     if (RESERVED_BY_OS[os]?.has(sig)) {
       return {
         code: ERROR.RESERVED,
-        message: 'This shortcut is reserved by the OS.'
+        message: t('KEYBINDINGS.OS_RESERVED')
       };
     }
 
     if (buildUsedSignatures(action).has(sig)) {
       return {
         code: ERROR.DUPLICATE,
-        message: 'This shortcut is already in use.'
+        message: t('KEYBINDINGS.DUPLICATE')
       };
     }
 
@@ -469,7 +484,10 @@ const Keybindings = () => {
         ...(preferences?.keyBindings || {}),
         [action]: {
           ...(preferences?.keyBindings?.[action] || {}),
-          name: preferences?.keyBindings?.[action]?.name || sectionDefaults?.[action]?.name || action,
+          name:
+            preferences?.keyBindings?.[action]?.name
+            || sectionDefaults?.[action]?.name
+            || action,
           [os]: nextKeys
         }
       }
@@ -549,7 +567,7 @@ const Keybindings = () => {
     };
 
     dispatch(savePreferences(updatedPreferences));
-    toast.success('All shortcuts have been reset to default');
+    toast.success(t('KEYBINDINGS.RESET_SUCCESS'));
   };
 
   const startEditing = (action) => {
@@ -656,7 +674,7 @@ const Keybindings = () => {
       setDraftByAction((prev) => ({ ...prev, [action]: [] }));
       setErrorByAction((prev) => ({
         ...prev,
-        [action]: { code: ERROR.EMPTY, message: `Shortcut can't be empty.` }
+        [action]: { code: ERROR.EMPTY, message: t('KEYBINDINGS.EMPTY') }
       }));
       return;
     }
@@ -678,7 +696,11 @@ const Keybindings = () => {
     }
 
     // Max 3 keys allowed per keybinding
-    if (pressedKeysRef.current.size >= 3 && !pressedKeysRef.current.has(keyName)) return;
+    if (
+      pressedKeysRef.current.size >= 3
+      && !pressedKeysRef.current.has(keyName)
+    )
+      return;
 
     pressedKeysRef.current.add(keyName);
 
@@ -734,12 +756,23 @@ const Keybindings = () => {
     if (binding?.displayValue) {
       // Use the same pills style rendering as regular keybindings
       if (typeof binding.displayValue === 'string') {
-        return <span className="shortcut-text">{renderDisplayValue(binding.displayValue, os)}</span>;
+        return (
+          <span className="shortcut-text">
+            {renderDisplayValue(binding.displayValue, os)}
+          </span>
+        );
       }
 
       // displayValue can be an object with OS-specific values
-      const rawDisplayText = binding.displayValue[os] || binding.displayValue.mac || binding.displayValue.windows;
-      return <span className="shortcut-text">{renderDisplayValue(rawDisplayText, os)}</span>;
+      const rawDisplayText
+        = binding.displayValue[os]
+          || binding.displayValue.mac
+          || binding.displayValue.windows;
+      return (
+        <span className="shortcut-text">
+          {renderDisplayValue(rawDisplayText, os)}
+        </span>
+      );
     }
 
     const isRecording = recordingAction === action;
@@ -748,7 +781,9 @@ const Keybindings = () => {
       : fromKeysString(getCurrentRowKeysString(action));
 
     if (isRecording) {
-      const textParts = (arr || []).map((key) => formatSingleKeyForDisplay(key, os));
+      const textParts = (arr || []).map((key) =>
+        formatSingleKeyForDisplay(key, os)
+      );
       return (
         <span className="shortcut-text">
           {textParts.join(' ')}
@@ -763,7 +798,7 @@ const Keybindings = () => {
   return (
     <StyledWrapper className="w-full">
       <div className="section-header">
-        <span>Keybindings</span>
+        <span>{t('KEYBINDINGS.TITLE')}</span>
 
         <div className="section-actions">
           <ToggleSwitch
@@ -779,19 +814,23 @@ const Keybindings = () => {
             data-testid="reset-all-keybindings-btn"
             disabled={!hasCustomizedKeybindings}
           >
-            Reset Default
+            {t('KEYBINDINGS.RESET_DEFAULT')}
           </button>
         </div>
       </div>
 
-      <div className={`tables-container ${!keybindingsEnabled ? 'tables-disabled' : ''}`}>
+      <div
+        className={`tables-container ${
+          !keybindingsEnabled ? 'tables-disabled' : ''
+        }`}
+      >
         {groupedKeyMappings.length > 0 ? (
           <div className="table-container">
             <table>
               <thead>
                 <tr>
-                  <td>Command</td>
-                  <td>Keybinding</td>
+                  <td>{t('KEYBINDINGS.COMMAND')}</td>
+                  <td>{t('KEYBINDINGS.KEYBINDING')}</td>
                 </tr>
               </thead>
               <tbody>
@@ -811,25 +850,41 @@ const Keybindings = () => {
                       const hasError = Boolean(errorByAction[action]?.message);
                       const errorMessage = errorByAction[action]?.message;
 
-                      const showPencil = isHovered && !isDirty && !isEditing && !isReadOnly && !isSuccess && !hasError;
-                      const showRefresh = isDirty && !isEditing && !isSuccess && !hasError;
-                      const showLock = isHovered && isReadOnly && !isEditing && !isSuccess;
+                      const showPencil
+                        = isHovered
+                          && !isDirty
+                          && !isEditing
+                          && !isReadOnly
+                          && !isSuccess
+                          && !hasError;
+                      const showRefresh
+                        = isDirty && !isEditing && !isSuccess && !hasError;
+                      const showLock
+                        = isHovered && isReadOnly && !isEditing && !isSuccess;
                       const inputId = `kb-input-${action}`;
 
-                      const isLastInSection = rowIndex === section.rows.length - 1
-                        && sectionIndex < groupedKeyMappings.length - 1;
+                      const isLastInSection
+                        = rowIndex === section.rows.length - 1
+                          && sectionIndex < groupedKeyMappings.length - 1;
 
                       return (
                         <tr
                           key={action}
-                          className={`${isSuccess ? 'row-success' : ''} ${isEditing ? 'row-editing' : ''} ${isLastInSection ? 'section-last-row' : ''}`}
+                          className={`${isSuccess ? 'row-success' : ''} ${
+                            isEditing ? 'row-editing' : ''
+                          } ${isLastInSection ? 'section-last-row' : ''}`}
                           data-testid={`keybinding-row-${action}`}
                           onMouseEnter={() => setHoveredAction(action)}
                           onMouseLeave={() =>
-                            setHoveredAction((prev) => (prev === action ? null : prev))}
-                          onClick={() => !isReadOnly && !isEditing && startEditing(action)}
+                            setHoveredAction((prev) =>
+                              prev === action ? null : prev
+                            )}
+                          onClick={() =>
+                            !isReadOnly && !isEditing && startEditing(action)}
                         >
-                          <td data-testid={`keybinding-name-${action}`}>{row.name}</td>
+                          <td data-testid={`keybinding-name-${action}`}>
+                            {row.name}
+                          </td>
 
                           <td>
                             <div className="keybinding-row">
@@ -840,14 +895,24 @@ const Keybindings = () => {
                                     if (el) inputRefs.current[action] = el;
                                   }}
                                   data-testid={`keybinding-input-${action}`}
-                                  className={`shortcut-input ${hasError && errorByAction[action]?.code !== ERROR.EMPTY ? 'shortcut-input--error' : ''} ${isEditing ? 'shortcut-input--editing' : ''
-                                  } ${isReadOnly ? 'shortcut-input--readonly' : ''}`}
+                                  className={`shortcut-input ${
+                                    hasError
+                                    && errorByAction[action]?.code !== ERROR.EMPTY
+                                      ? 'shortcut-input--error'
+                                      : ''
+                                  } ${
+                                    isEditing ? 'shortcut-input--editing' : ''
+                                  } ${
+                                    isReadOnly ? 'shortcut-input--readonly' : ''
+                                  }`}
                                   tabIndex={isReadOnly ? -1 : 0}
                                   role="textbox"
                                   aria-readonly={!isEditing || isReadOnly}
                                   aria-disabled={isReadOnly}
-                                  onKeyDown={(e) => (isReadOnly ? null : handleKeyDown(action, e))}
-                                  onKeyUp={(e) => (isReadOnly ? null : handleKeyUp(action, e))}
+                                  onKeyDown={(e) =>
+                                    isReadOnly ? null : handleKeyDown(action, e)}
+                                  onKeyUp={(e) =>
+                                    isReadOnly ? null : handleKeyUp(action, e)}
                                   onBlur={() => {
                                     if (isEditing && hasError) {
                                       cancelEditing(action);
@@ -857,14 +922,22 @@ const Keybindings = () => {
                                   }}
                                 >
                                   {renderValue(action)}
-                                  {hasError && errorByAction[action]?.code !== ERROR.EMPTY && (
+                                  {hasError
+                                    && errorByAction[action]?.code
+                                    !== ERROR.EMPTY && (
                                     <span className="input-error-icon">
-                                      <IconAlertCircle size={14} stroke={1.5} />
+                                      <IconAlertCircle
+                                        size={14}
+                                        stroke={1.5}
+                                      />
                                     </span>
                                   )}
                                 </div>
 
-                                {isEditing && hasError && errorByAction[action]?.code !== ERROR.EMPTY && (
+                                {isEditing
+                                  && hasError
+                                  && errorByAction[action]?.code
+                                  !== ERROR.EMPTY && (
                                   <Tooltip
                                     id={`kb-editing-error-tooltip-${action}`}
                                     anchorSelect={`#${inputId}`}
@@ -890,9 +963,10 @@ const Keybindings = () => {
                                       className="action-btn"
                                       data-testid={`keybinding-reset-${action}`}
                                       onClick={(e) => {
-                                        e.stopPropagation(); resetRowToDefault(action);
+                                        e.stopPropagation();
+                                        resetRowToDefault(action);
                                       }}
-                                      title="Reset to default"
+                                      title={t('KEYBINDINGS.RESET_TO_DEFAULT')}
                                     >
                                       <IconReload size={14} stroke={1.5} />
                                     </button>
@@ -902,7 +976,7 @@ const Keybindings = () => {
                                     <span
                                       className="pencil-icon"
                                       data-testid={`keybinding-edit-${action}`}
-                                      title="Customize keys"
+                                      title={t('KEYBINDINGS.CUSTOMIZE')}
                                     >
                                       <IconPencil size={14} stroke={1.5} />
                                     </span>
@@ -913,7 +987,7 @@ const Keybindings = () => {
                                       type="button"
                                       className="edit-btn"
                                       data-testid={`keybinding-locked-${action}`}
-                                      title="Reserved shortcut"
+                                      title={t('KEYBINDINGS.RESERVED')}
                                     >
                                       <IconLock size={14} stroke={1.5} />
                                     </button>
@@ -936,7 +1010,7 @@ const Keybindings = () => {
             </table>
           </div>
         ) : (
-          <div className="empty-state">No key bindings available</div>
+          <div className="empty-state">{t('KEYBINDINGS.NO_BINDINGS')}</div>
         )}
       </div>
     </StyledWrapper>
