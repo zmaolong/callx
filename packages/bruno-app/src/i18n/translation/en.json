@@ -219,7 +219,13 @@
     "NO_RESULTS": "No results found",
     "CONFIGURE": "Configure",
     "READY": "Ready to get started?",
-    "IMPORT": "Import"
+    "IMPORT": "Import",
+    "DESCRIPTION": "Description",
+    "NO_CHANGES": "No changes to save",
+    "FIX_ERRORS": "Please fix validation errors before saving",
+    "SAVED": "Changes saved successfully",
+    "SAVE_FAILED": "An error occurred while saving the changes",
+    "NO_RESULTS_FOR": "No results found for “{{query}}”"
   },
   "SEARCH": {
     "TITLE": "Global Search",

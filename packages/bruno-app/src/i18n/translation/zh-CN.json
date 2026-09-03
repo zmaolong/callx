@@ -219,7 +219,13 @@
     "NO_RESULTS": "未找到结果",
     "CONFIGURE": "配置",
     "READY": "准备好开始了吗？",
-    "IMPORT": "导入"
+    "IMPORT": "导入",
+    "DESCRIPTION": "描述",
+    "NO_CHANGES": "没有需要保存的更改",
+    "FIX_ERRORS": "保存前请修复校验错误",
+    "SAVED": "更改已保存",
+    "SAVE_FAILED": "保存更改时发生错误",
+    "NO_RESULTS_FOR": "未找到“{{query}}”的结果"
   },
   "SEARCH": {
     "TITLE": "全局搜索",
