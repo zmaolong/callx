@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFormik } from 'formik';
 import { useDispatch, useSelector } from 'react-redux';
 import * as Yup from 'yup';
@@ -11,10 +12,15 @@ import { createWorkspaceAction } from 'providers/ReduxStore/slices/workspaces/ac
 import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import { multiLineMsg } from 'utils/common/index';
 import { formatIpcError } from 'utils/common/error';
-import { sanitizeName, validateName, validateNameError } from 'utils/common/regex';
+import {
+  sanitizeName,
+  validateName,
+  validateNameError
+} from 'utils/common/regex';
 import get from 'lodash/get';
 
 const CreateWorkspace = ({ onClose }) => {
+  const { t } = useTranslation();
   const inputRef = useRef();
   const dispatch = useDispatch();
   const workspaces = useSelector((state) => state.workspaces.workspaces);
@@ -37,21 +43,33 @@ const CreateWorkspace = ({ onClose }) => {
         .min(1, 'Workspace name can\'t be empty')
         .max(255, 'Must be 255 characters or less')
         .required('Workspace name is required')
-        .test('unique-name', 'A workspace with this name already exists', function (value) {
-          if (!value) return true;
+        .test(
+          'unique-name',
+          'A workspace with this name already exists',
+          function (value) {
+            if (!value) return true;
 
-          return !workspaces.some((w) =>
-            !w.isCreating && w.name && w.name.toLowerCase() === value.toLowerCase());
-        }),
+            return !workspaces.some(
+              (w) =>
+                !w.isCreating
+                && w.name
+                && w.name.toLowerCase() === value.toLowerCase()
+            );
+          }
+        ),
       workspaceFolderName: Yup.string()
         .min(1, 'Must be at least 1 character')
         .max(255, 'Must be 255 characters or less')
         .test('is-valid-folder-name', function (value) {
           const isValid = validateName(value);
-          return isValid ? true : this.createError({ message: validateNameError(value) });
+          return isValid
+            ? true
+            : this.createError({ message: validateNameError(value) });
         })
         .required('Folder name is required'),
-      workspaceLocation: Yup.string().min(1, 'Location is required').required('Location is required')
+      workspaceLocation: Yup.string()
+        .min(1, 'Location is required')
+        .required('Location is required')
     }),
     onSubmit: async (values) => {
       if (isSubmitting) return;
@@ -59,11 +77,19 @@ const CreateWorkspace = ({ onClose }) => {
       try {
         setIsSubmitting(true);
 
-        await dispatch(createWorkspaceAction(values.workspaceName.trim(), values.workspaceFolderName, values.workspaceLocation));
-        toast.success('Workspace created!');
+        await dispatch(
+          createWorkspaceAction(
+            values.workspaceName.trim(),
+            values.workspaceFolderName,
+            values.workspaceLocation
+          )
+        );
+        toast.success(t('WORKSPACE.CREATED'));
         onClose();
       } catch (error) {
-        toast.error(multiLineMsg('An error occurred while creating the workspace', formatIpcError(error)));
+        toast.error(
+          multiLineMsg(t('WORKSPACE.CREATE_FAILED'), formatIpcError(error))
+        );
       } finally {
         setIsSubmitting(false);
       }
@@ -92,9 +118,11 @@ const CreateWorkspace = ({ onClose }) => {
   return (
     <Modal
       size="md"
-      title="Create Workspace"
-      description="Give your new workspace a name and choose its type to get started."
-      confirmText={isSubmitting ? 'Creating...' : 'Create Workspace'}
+      title={t('WORKSPACE.CREATE_TITLE')}
+      description={t('WORKSPACE.CREATE_DESCRIPTION')}
+      confirmText={
+        isSubmitting ? t('WORKSPACE.CREATING') : t('WORKSPACE.CREATE_TITLE')
+      }
       handleConfirm={formik.handleSubmit}
       handleCancel={onClose}
       style="new"
@@ -132,21 +160,25 @@ const CreateWorkspace = ({ onClose }) => {
               value={formik.values.workspaceName || ''}
             />
             {formik.touched.workspaceName && formik.errors.workspaceName ? (
-              <div className="text-red-500 text-sm mt-1">{formik.errors.workspaceName}</div>
+              <div className="text-red-500 text-sm mt-1">
+                {formik.errors.workspaceName}
+              </div>
             ) : null}
           </div>
 
           {formik.values.workspaceName?.trim()?.length > 0 && (
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <label htmlFor="workspaceFolderName" className="flex items-center font-semibold">
+                <label
+                  htmlFor="workspaceFolderName"
+                  className="flex items-center font-semibold"
+                >
                   Folder Name
                   <Help width="300">
-                    <p>
-                      The name of the folder used to store the workspace.
-                    </p>
+                    <p>The name of the folder used to store the workspace.</p>
                     <p className="mt-2">
-                      You can choose a folder name different from your workspace's name or one compatible with filesystem rules.
+                      You can choose a folder name different from your
+                      workspace's name or one compatible with filesystem rules.
                     </p>
                   </Help>
                 </label>
@@ -182,14 +214,20 @@ const CreateWorkspace = ({ onClose }) => {
               ) : (
                 <PathDisplay baseName={formik.values.workspaceFolderName} />
               )}
-              {formik.touched.workspaceFolderName && formik.errors.workspaceFolderName ? (
-                <div className="text-red-500 text-sm mt-1">{formik.errors.workspaceFolderName}</div>
-              ) : null}
+              {formik.touched.workspaceFolderName
+                && formik.errors.workspaceFolderName ? (
+                    <div className="text-red-500 text-sm mt-1">
+                      {formik.errors.workspaceFolderName}
+                    </div>
+                  ) : null}
             </div>
           )}
 
           <div className="mb-4">
-            <label htmlFor="workspaceLocation" className="font-semibold mb-2 flex items-center">
+            <label
+              htmlFor="workspaceLocation"
+              className="font-semibold mb-2 flex items-center"
+            >
               Location
               <Help>
                 <p>
@@ -213,9 +251,12 @@ const CreateWorkspace = ({ onClose }) => {
               value={formik.values.workspaceLocation || ''}
               onClick={browse}
             />
-            {formik.touched.workspaceLocation && formik.errors.workspaceLocation ? (
-              <div className="text-red-500 text-sm mt-1">{formik.errors.workspaceLocation}</div>
-            ) : null}
+            {formik.touched.workspaceLocation
+              && formik.errors.workspaceLocation ? (
+                  <div className="text-red-500 text-sm mt-1">
+                    {formik.errors.workspaceLocation}
+                  </div>
+                ) : null}
             <div className="mt-1">
               <span
                 className="text-link cursor-pointer hover:underline"

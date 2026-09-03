@@ -15,7 +15,18 @@
     "ADD": "Add",
     "COPY": "Copy",
     "SAVE": "Save",
-    "CONFIRM": "Confirm"
+    "CONFIRM": "Confirm",
+    "NAME": "Name"
+  },
+  "WORKSPACE": {
+    "CREATE_TITLE": "Create Workspace",
+    "CREATE_DESCRIPTION": "Give your new workspace a name and choose its type to get started.",
+    "CREATING": "Creating...",
+    "CREATED": "Workspace created!",
+    "CREATE_FAILED": "An error occurred while creating the workspace",
+    "COLLECTION_CREATE_TITLE": "Create Collection",
+    "COLLECTION_CREATED": "Collection created!",
+    "COLLECTION_CREATE_FAILED": "An error occurred while creating the collection"
   },
   "MENU": {
     "FILE": "File",
