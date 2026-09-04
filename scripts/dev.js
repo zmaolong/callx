@@ -1,4 +1,5 @@
 const { spawn } = require('child_process');
+const os = require('os');
 const path = require('path');
 
 // ANSI color codes
@@ -77,7 +78,12 @@ function startElectron(port) {
     env: {
       ...process.env,
       BRUNO_DEV_PORT: port,
-      BRUNO_INSTALL_DEVTOOLS: 'false'
+      BRUNO_INSTALL_DEVTOOLS: 'false',
+      // 开发版使用独立数据目录，避免与安装版共享锁、配置和本地数据库
+      ELECTRON_USER_DATA_PATH: path.join(
+        process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
+        'CallX-dev'
+      )
     }
   });
 
