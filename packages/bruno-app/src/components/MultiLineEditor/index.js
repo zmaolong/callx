@@ -15,6 +15,7 @@ import StyledWrapper from './StyledWrapper';
 import { setupLinkAware } from 'utils/codemirror/linkAware';
 import { resolveLinkClickHandler } from 'utils/codemirror/linkClickHandler';
 import { IconEye, IconEyeOff } from '@tabler/icons';
+import { registerActiveEditor } from 'utils/codemirror/activeEditor';
 
 const CodeMirror = require('codemirror');
 
@@ -216,6 +217,7 @@ class MultiLineEditor extends Component {
     this.cachedValue = String(this.props.value) || '';
     this.editor.on('change', this._onEdit);
     this.editor.on('blur', this._onBlur);
+    this.unregisterActiveEditor = registerActiveEditor(this.editor);
     this.addOverlay(variables);
     this._setupViewPersistence();
 
@@ -342,6 +344,7 @@ class MultiLineEditor extends Component {
   }
 
   componentWillUnmount() {
+    this.unregisterActiveEditor?.();
     if (this.brunoAutoCompleteCleanup) {
       this.brunoAutoCompleteCleanup();
     }

@@ -26,8 +26,15 @@ const Wrapper = styled.div`
     background-color: rgba(0, 0, 0, 0.5);
   }
 
-  .bruno-modal-card {
-    animation-duration: 0.85s;
+    &.modal-centered {
+      align-items: center;
+
+      .bruno-modal-card {
+        margin-top: 0;
+      }
+    }
+
+    .bruno-modal-card {
     animation-delay: 0.1s;
     background: ${(props) => props.theme.modal.body.bg};
     border-radius: ${(props) => props.theme.border.radius.base};

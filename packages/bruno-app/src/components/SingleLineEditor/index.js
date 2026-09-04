@@ -7,6 +7,7 @@ import { resolveLinkClickHandler } from 'utils/codemirror/linkClickHandler';
 import { getAllVariables, getRequestTypeFromCollectionPresets } from 'utils/collections';
 import { defineCodeMirrorBrunoVariablesMode } from 'utils/common/codemirror';
 import { MaskedEditor } from 'utils/common/masked-editor';
+import { registerActiveEditor } from 'utils/codemirror/activeEditor';
 import StyledWrapper from './StyledWrapper';
 
 const CodeMirror = require('codemirror');
@@ -112,6 +113,7 @@ class SingleLineEditor extends Component {
     this.editor.on('change', this._onEdit);
     this.editor.on('paste', this._onPaste);
     this.editor.on('blur', this._onBlur);
+    this.unregisterActiveEditor = registerActiveEditor(this.editor);
     this.addOverlay(variables);
     this._enableMaskedEditor(this.props.isSecret);
     this.setState({ maskInput: this.props.isSecret });
@@ -249,6 +251,7 @@ class SingleLineEditor extends Component {
   }
 
   componentWillUnmount() {
+    this.unregisterActiveEditor?.();
     if (this.editor) {
       if (this.editor?._destroyLinkAware) {
         this.editor._destroyLinkAware();

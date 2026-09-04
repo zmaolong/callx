@@ -100,7 +100,8 @@ const Modal = ({
   dataTestId,
   confirmButtonColor = 'primary',
   noPadding,
-  footerClassName
+  footerClassName,
+  centered = false
 }) => {
   const modalRef = useRef(null);
   const [isClosing, setIsClosing] = useState(false);
@@ -147,6 +148,9 @@ const Modal = ({
   }
   if (hideFooter) {
     classes += ' modal-footer-none';
+  }
+  if (centered) {
+    classes += ' modal-centered';
   }
   return (
     <StyledWrapper className={classes} onClick={onClick ? (e) => onClick(e) : null}>

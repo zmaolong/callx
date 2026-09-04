@@ -50,6 +50,7 @@ import { useTheme } from 'providers/Theme';
 import { useBetaFeature, BETA_FEATURES } from 'utils/beta-features';
 import CreateMockServerModal from 'components/MockServer/CreateMockServerModal';
 import { getMockServerInstances, openMockServerDashboard } from 'utils/mock-server/mock-server-instances';
+import VariableReference from 'components/VariableReference';
 
 const readDismissedCollections = () => {
   try {
@@ -791,6 +792,7 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
                 </ToolHint>
               )}
               {/* Runner - always visible */}
+              <VariableReference collection={collection} item={activeItem} />
               <ToolHint text="Runner" toolhintId="RunnerToolhintId" place="bottom">
                 <ActionIcon onClick={handleRun} aria-label="Runner" size="sm" data-testid="runner">
                   <IconRun size={16} strokeWidth={1.5} />

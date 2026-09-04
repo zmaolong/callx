@@ -23,6 +23,7 @@ import { setupLinkAware } from 'utils/codemirror/linkAware';
 import { resolveLinkClickHandler } from 'utils/codemirror/linkClickHandler';
 import { setupLintErrorTooltip } from 'utils/codemirror/lint-errors';
 import { setupCodeMirrorResizeRefresh } from 'utils/codemirror/resize';
+import { registerActiveEditor } from 'utils/codemirror/activeEditor';
 import CodeMirrorSearch from 'components/CodeMirrorSearch/index';
 import { buildSearchKeyBindings } from 'components/CodeMirrorSearch/searchKeyBindings';
 import {
@@ -248,6 +249,7 @@ class CodeEditor extends React.Component {
         }
       }
     })));
+    this.unregisterActiveEditor = registerActiveEditor(this.editor);
     CodeMirror.registerHelper('lint', 'json', function (text) {
       const found = [];
       if (!window.jsonlint) {
@@ -595,6 +597,7 @@ class CodeEditor extends React.Component {
   }
 
   componentWillUnmount() {
+    this.unregisterActiveEditor?.();
     if (this.editor) {
       if (this.props.onScroll) {
         this.props.onScroll(this._lastScrollTop);
