@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import range from 'lodash/range';
 import filter from 'lodash/filter';
+import cloneDeep from 'lodash/cloneDeep';
 import classnames from 'classnames';
 import { useDrag, useDrop } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
@@ -41,7 +42,8 @@ import RunCollectionItem from './RunCollectionItem';
 import GenerateCodeItem from './GenerateCodeItem';
 import { isItemARequest, isItemAFolder, scrollToTheActiveTab } from 'utils/tabs';
 import { doesRequestMatchSearchText, doesFolderHaveItemsMatchSearchText } from 'utils/collections/search';
-import { getDefaultRequestPaneTab, getItemTypeLabel } from 'utils/collections';
+import { getDefaultRequestPaneTab, getItemTypeLabel, getGlobalEnvironmentVariables } from 'utils/collections';
+import { resolveInheritedAuth } from 'utils/auth';
 import toast from 'react-hot-toast';
 import StyledWrapper from './StyledWrapper';
 import NetworkError from 'components/ResponsePane/NetworkError/index';
@@ -75,6 +77,8 @@ import useKeybinding from 'hooks/useKeybinding';
 import useSidebarSelectionClick from 'hooks/useSidebarSelectionClick';
 import useMultiSelectDragDisabled from 'hooks/useMultiSelectDragDisabled';
 import { clearSidebarSelection } from 'providers/ReduxStore/slices/collections/index';
+import { generateSnippet } from './GenerateCodeItem/utils/snippet-generator';
+import { getLanguages } from 'utils/codegenerator/targets';
 
 const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, openBulkMenu }) => {
   const { dropdownContainerRef } = useSidebarAccordion();
@@ -105,6 +109,8 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
   const activeWorkspaceUid = useSelector((state) => state.workspaces.activeWorkspaceUid);
   const activeWorkspace = workspaces?.find((w) => w.uid === activeWorkspaceUid);
   const collectionSortOrder = useSelector((state) => state.collections.collectionSortOrder);
+  const generateCodePrefs = useSelector((state) => state.app.generateCode);
+  const { globalEnvironments, activeGlobalEnvironmentUid } = useSelector((state) => state.globalEnvironments);
   const dispatch = useDispatch();
 
   // When dragging a multi-selected row, carry all effectively-selected folders/requests
@@ -454,6 +460,16 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
     }
 
     if (isCloneable) {
+      if (!isFolder && (item.type === 'http-request' || item.type === 'graphql-request')) {
+        items.push({
+          id: 'copy-as-curl',
+          leftSection: IconCopy,
+          label: 'Copy as cURL',
+          onClick: handleCopyAsCurl,
+          testId: 'copy-as-curl-option'
+        });
+      }
+
       items.push({
         id: 'clone',
         leftSection: IconCopy,
@@ -666,6 +682,45 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
       setGenerateCodeItemModalOpen(true);
     } else {
       toast.error('URL is required');
+    }
+  };
+
+  const handleCopyAsCurl = async () => {
+    const request = item.draft?.request !== undefined ? item.draft.request : item.request;
+    if (!request?.url) {
+      toast.error('URL is required');
+      return;
+    }
+
+    try {
+      const curlLanguage = getLanguages().find((language) => language.name === 'Shell-curl');
+      const requestItem = {
+        ...item,
+        request: {
+          ...request,
+          auth: resolveInheritedAuth(item, collection).auth
+        }
+      };
+      const requestCollection = cloneDeep(collection);
+      requestCollection.globalEnvironmentVariables = getGlobalEnvironmentVariables({
+        globalEnvironments,
+        activeGlobalEnvironmentUid
+      });
+      const curl = await generateSnippet({
+        language: curlLanguage,
+        item: requestItem,
+        collection: requestCollection,
+        shouldInterpolate: generateCodePrefs.shouldInterpolate
+      });
+
+      if (!curl || curl === 'Error generating code snippet') {
+        throw new Error('Unable to generate cURL');
+      }
+      await navigator.clipboard.writeText(curl);
+      toast.success('Copied cURL to clipboard!');
+    } catch (error) {
+      console.error('Error copying cURL:', error);
+      toast.error('Failed to copy cURL');
     }
   };
 
