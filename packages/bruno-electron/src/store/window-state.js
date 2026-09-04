@@ -37,7 +37,7 @@ class WindowStateStore {
   }
 
   getThemeMode() {
-    return this.store.get('themeMode') || 'system';
+    return this.store.get('themeMode') || 'dark';
   }
 
   setThemeMode(mode) {
@@ -45,7 +45,7 @@ class WindowStateStore {
   }
 
   getThemeBg() {
-    return this.store.get('themeBg') || '#ffffff';
+    return this.store.get('themeBg') || '#1e1e1e';
   }
 
   setThemeBg(bg) {
