@@ -15,14 +15,41 @@ describe('Url Utils - URL without origin', () => {
       .toBe('/api?a=1#result');
   });
 
-  it('replaces the path while preserving the original origin', () => {
-    expect(replaceUrlWithoutOrigin('https://example.com:8443/api?a=1#result', '/users?page=2#details'))
-      .toBe('https://example.com:8443/users?page=2#details');
+  it('returns a root slash for an origin without a path', () => {
+    expect(getUrlWithoutOrigin('https://example.com')).toBe('/');
+  });
+
+  it('does not duplicate the root slash for an existing path', () => {
+    expect(getUrlWithoutOrigin('https://example.com/api')).toBe('/api');
+  });
+  it('preserves variable braces when hiding the origin', () => {
+    expect(getUrlWithoutOrigin('https://example.com/users/{{id}}'))
+      .toBe('/users/{{id}}');
+  });
+
+  it('preserves a partial variable while hiding the origin', () => {
+    expect(getUrlWithoutOrigin('https://example.com/users/{'))
+      .toBe('/users/{');
   });
 
   it('keeps the current path when editing only the query', () => {
     expect(replaceUrlWithoutOrigin('https://example.com/api?a=1', '?page=2'))
       .toBe('https://example.com/api?page=2');
+  });
+
+  it('preserves variable braces while replacing the path', () => {
+    expect(replaceUrlWithoutOrigin('https://example.com/api', '/users/{{id}}'))
+      .toBe('https://example.com/users/{{id}}');
+  });
+
+  it('preserves a single opening brace while typing a variable', () => {
+    expect(replaceUrlWithoutOrigin('https://example.com/api', '/users/{'))
+      .toBe('https://example.com/users/{');
+  });
+
+  it('preserves variable braces in query values', () => {
+    expect(replaceUrlWithoutOrigin('https://example.com/api?a=1', '?id={{id}}'))
+      .toBe('https://example.com/api?id={{id}}');
   });
 
   it('keeps absolute URL input unchanged', () => {

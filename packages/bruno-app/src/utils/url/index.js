@@ -202,6 +202,11 @@ export const getUrlWithoutOrigin = (url) => {
     return url;
   }
 
+  // URL 会编码变量模板中的花括号，编辑中的 URL 需要保留原始文本。
+  if (url.includes('{') || url.includes('}')) {
+    return url.replace(/^[a-z][a-z\d+.-]*:\/\/[^/?#]*/i, '') || '/';
+  }
+
   try {
     const parsed = new URL(prependDefaultScheme(url));
     return `${parsed.pathname || '/'}${parsed.search}${parsed.hash}`;
@@ -226,6 +231,16 @@ export const replaceUrlWithoutOrigin = (url, value) => {
 
   try {
     const parsed = new URL(prependDefaultScheme(url));
+    if (value.includes('{') || value.includes('}')) {
+      if (value.startsWith('?')) {
+        return `${parsed.origin}${parsed.pathname}${value}`;
+      }
+      if (value.startsWith('#')) {
+        return `${parsed.origin}${parsed.pathname}${parsed.search}${value}`;
+      }
+      return `${parsed.origin}${value.startsWith('/') ? value : `/${value}`}`;
+    }
+
     if (value.startsWith('?')) {
       parsed.search = value;
     } else if (value.startsWith('#')) {

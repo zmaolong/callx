@@ -60,7 +60,8 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   }, [allVariables]);
 
   const isHostEnabled = hostEnabled && Boolean(environmentHost);
-  const displayedUrl = isHostEnabled ? getUrlWithoutOrigin(url) : url;
+  const displayedUrl = isHostEnabled ? getUrlWithoutOrigin(url) || '/' : url;
+  const editableUrl = isHostEnabled ? displayedUrl.replace(/^\//, '') : displayedUrl;
 
   useEffect(() => {
     setHostEnabled(true);
@@ -110,7 +111,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   };
 
   const onEditorUrlChange = (value) => {
-    onUrlChange(isHostEnabled ? replaceUrlWithoutOrigin(url, value) : value);
+    onUrlChange(isHostEnabled ? replaceUrlWithoutOrigin(url, `/${value}`) : value);
   };
 
   const onMethodSelect = (verb) => {
@@ -472,13 +473,15 @@ const QueryUrl = ({ item, collection, handleRun }) => {
           data-testid="request-url"
           className="h-full w-full flex flex-row items-center input-container overflow-hidden"
         >
+          {isHostEnabled && <span className="url-path-prefix">/</span>}
           <SingleLineEditor
             ref={editorRef}
-            value={displayedUrl}
+            value={editableUrl}
             placeholder={t('REQUEST.URL_PLACEHOLDER')}
             onSave={(finalValue) => onSave(finalValue)}
             theme={storedTheme}
             onChange={(newValue) => onEditorUrlChange(newValue)}
+            showHintsFor={['variables']}
             onRun={onRunWithHost}
             onPaste={
               item.type === 'http-request'

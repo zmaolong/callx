@@ -5,6 +5,8 @@ const _mockedCodemirror = {
   getCursor: jest.fn(),
   getLine: jest.fn(),
   getRange: jest.fn(),
+  replaceRange: jest.fn(),
+  setCursor: jest.fn(),
   showHint: jest.fn(),
   on: jest.fn(),
   off: jest.fn(),
@@ -619,14 +621,89 @@ describe('Bruno Autocomplete', () => {
       });
     });
 
+    describe('Brace auto-completion', () => {
+      it('should insert closing braces and keep the cursor inside after typing {{', () => {
+        const options = { getAllVariables: mockGetAllVariables };
+        cleanupFn = setupAutoComplete(mockedCodemirror, options);
+        const inputReadHandler = mockedCodemirror.on.mock.calls.find((call) => call[0] === 'inputRead')[1];
+        const cursor = { line: 0, ch: 2 };
+
+        mockedCodemirror.getCursor.mockReturnValue(cursor);
+        mockedCodemirror.getLine.mockReturnValue('{{');
+
+        inputReadHandler(mockedCodemirror, {
+          from: { line: 0, ch: 1 },
+          to: { line: 0, ch: 1 },
+          origin: '+input',
+          text: ['{']
+        });
+
+        expect(mockedCodemirror.replaceRange).toHaveBeenCalledWith('}}', cursor, cursor, '+braces');
+        expect(mockedCodemirror.setCursor).toHaveBeenCalledWith(cursor);
+      });
+
+      it('should not insert braces for pasted or non-matching input', () => {
+        const options = { getAllVariables: mockGetAllVariables };
+        cleanupFn = setupAutoComplete(mockedCodemirror, options);
+        const inputReadHandler = mockedCodemirror.on.mock.calls.find((call) => call[0] === 'inputRead')[1];
+
+        mockedCodemirror.getCursor.mockReturnValue({ line: 0, ch: 2 });
+        mockedCodemirror.getLine.mockReturnValue('{{');
+        inputReadHandler(mockedCodemirror, { origin: 'paste', text: ['{'] });
+        inputReadHandler(mockedCodemirror, { origin: '+input', text: ['{{'] });
+        inputReadHandler(mockedCodemirror, { origin: '+input', text: ['a'] });
+
+        expect(mockedCodemirror.replaceRange).not.toHaveBeenCalled();
+      });
+
+      it('should not duplicate closing braces already following the cursor', () => {
+        const options = { getAllVariables: mockGetAllVariables };
+        cleanupFn = setupAutoComplete(mockedCodemirror, options);
+        const inputReadHandler = mockedCodemirror.on.mock.calls.find((call) => call[0] === 'inputRead')[1];
+
+        mockedCodemirror.getCursor.mockReturnValue({ line: 0, ch: 2 });
+        mockedCodemirror.getLine.mockReturnValue('{{}}');
+        inputReadHandler(mockedCodemirror, {
+          from: { line: 0, ch: 1 },
+          to: { line: 0, ch: 1 },
+          origin: '+input',
+          text: ['{']
+        });
+
+        expect(mockedCodemirror.replaceRange).not.toHaveBeenCalled();
+      });
+    });
+
     describe('Event handling', () => {
+      it('should trigger variable hints from inputRead events', () => {
+        const options = {
+          getAllVariables: mockGetAllVariables,
+          showHintsFor: ['variables']
+        };
+        cleanupFn = setupAutoComplete(mockedCodemirror, options);
+        const inputReadHandler = mockedCodemirror.on.mock.calls.find((call) => call[0] === 'inputRead')[1];
+
+        mockedCodemirror.getCursor.mockReturnValue({ line: 0, ch: 3 });
+        mockedCodemirror.getLine.mockReturnValue('{{a}}');
+        mockedCodemirror.getRange.mockReturnValue('{{a');
+        mockGetAllVariables.mockReturnValue({ account: 'value' });
+
+        inputReadHandler(mockedCodemirror, {
+          from: { line: 0, ch: 2 },
+          to: { line: 0, ch: 2 },
+          origin: '+input',
+          text: ['a']
+        });
+
+        expect(mockedCodemirror.showHint).toHaveBeenCalled();
+      });
       it('should trigger hints on character key press', () => {
         const options = {
           getAllVariables: mockGetAllVariables,
           showHintsFor: ['req']
         };
         cleanupFn = setupAutoComplete(mockedCodemirror, options);
-        const keyupHandler = mockedCodemirror.on.mock.calls[0][1];
+        const keyupHandler = mockedCodemirror.on.mock.calls.find((call) => call[0] === 'keyup')[1];
 
         mockedCodemirror.getCursor.mockReturnValue({ line: 0, ch: 4 });
         mockedCodemirror.getLine.mockReturnValue('req.');
@@ -704,7 +781,7 @@ describe('Bruno Autocomplete', () => {
 
         expect(mockedCodemirror.on).toHaveBeenCalledWith('keyup', expect.any(Function));
         expect(mockedCodemirror.on).toHaveBeenCalledWith('mousedown', expect.any(Function));
-        expect(mockedCodemirror.on).toHaveBeenCalledTimes(2);
+        expect(mockedCodemirror.on).toHaveBeenCalledTimes(3);
       });
 
       it('should not setup mousedown event listener when showHintsOnClick is disabled', () => {
@@ -715,7 +792,7 @@ describe('Bruno Autocomplete', () => {
         cleanupFn = setupAutoComplete(mockedCodemirror, options);
 
         expect(mockedCodemirror.on).toHaveBeenCalledWith('keyup', expect.any(Function));
-        expect(mockedCodemirror.on).toHaveBeenCalledTimes(1);
+        expect(mockedCodemirror.on).toHaveBeenCalledTimes(2);
       });
 
       it('should not setup mousedown event listener when showHintsOnClick is undefined', () => {
@@ -725,7 +802,7 @@ describe('Bruno Autocomplete', () => {
         cleanupFn = setupAutoComplete(mockedCodemirror, options);
 
         expect(mockedCodemirror.on).toHaveBeenCalledWith('keyup', expect.any(Function));
-        expect(mockedCodemirror.on).toHaveBeenCalledTimes(1);
+        expect(mockedCodemirror.on).toHaveBeenCalledTimes(2);
       });
 
       it('should show hints on click when showHintsOnClick is enabled', () => {
@@ -780,7 +857,7 @@ describe('Bruno Autocomplete', () => {
 
         expect(mockedCodemirror.off).toHaveBeenCalledWith('keyup', expect.any(Function));
         expect(mockedCodemirror.off).toHaveBeenCalledWith('mousedown', expect.any(Function));
-        expect(mockedCodemirror.off).toHaveBeenCalledTimes(2);
+        expect(mockedCodemirror.off).toHaveBeenCalledTimes(3);
       });
 
       it('should only cleanup keyup event listener when showHintsOnClick was disabled', () => {
@@ -793,7 +870,7 @@ describe('Bruno Autocomplete', () => {
         cleanupFn();
 
         expect(mockedCodemirror.off).toHaveBeenCalledWith('keyup', expect.any(Function));
-        expect(mockedCodemirror.off).toHaveBeenCalledTimes(1);
+        expect(mockedCodemirror.off).toHaveBeenCalledTimes(2);
       });
 
       it('should show all available hints on click based on showHintsFor configuration', () => {

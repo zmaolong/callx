@@ -680,6 +680,67 @@ export const getAutoCompleteHints = (cm, allVariables = {}, anywordAutocompleteH
 };
 
 /**
+ * Handle typing the second opening brace by inserting the matching braces.
+ * @param {Object} cm - CodeMirror instance
+ * @param {Object} change - CodeMirror input change
+ */
+const handleInputReadForBraces = (cm, change) => {
+  if (
+    change?.origin !== '+input'
+    || change.text?.length !== 1
+    || change.text[0] !== '{'
+    || change.from?.line !== change.to?.line
+    || change.from?.ch !== change.to?.ch
+  ) {
+    return;
+  }
+
+  const insertion = change.from;
+  const currentLine = cm.getLine(insertion.line);
+  const cursor = { line: insertion.line, ch: insertion.ch + 1 };
+  const beforeCursor = currentLine.slice(0, cursor.ch);
+
+  if (!beforeCursor.endsWith('{{') || currentLine.slice(cursor.ch).startsWith('}}')) {
+    return;
+  }
+
+  cm.replaceRange('}}', cursor, cursor, '+braces');
+  cm.setCursor(cursor);
+};
+
+/**
+ * Handle inputRead events for autocomplete hints.
+ * 中文输入法组合输入时 keyup 事件不可靠，inputRead 会在文本实际插入后触发，
+ * 因此在这里复用现有的候选逻辑，保证输入法场景也能弹出变量候选。
+ * @param {Object} cm - CodeMirror instance
+ * @param {Object} change - CodeMirror input change
+ * @param {Object} options - Configuration options
+ */
+const handleInputReadForAutocomplete = (cm, change, options) => {
+  // 仅响应真实用户输入，粘贴和撤销重做由 keyup 或专门的粘贴处理覆盖
+  if (change?.origin !== '+input') {
+    return;
+  }
+
+  const allVariables = options.getAllVariables?.() || {};
+  const anywordAutocompleteHints = options.getAnywordAutocompleteHints?.() || [];
+  const hints = getAutoCompleteHints(cm, allVariables, anywordAutocompleteHints, options);
+
+  if (!hints) {
+    const wordInfo = getCurrentWordWithContext(cm);
+    if (cm.state.completionActive && wordInfo) {
+      cm.state.completionActive.close();
+    }
+    return;
+  }
+
+  cm.showHint({
+    hint: () => hints,
+    completeSingle: false
+  });
+};
+
+/**
  * Handle click events for autocomplete
  * @param {Object} cm - CodeMirror instance
  * @param {Object} options - Configuration options
@@ -780,6 +841,13 @@ export const setupAutoComplete = (editor, options = {}) => {
 
   editor.on('keyup', keyupHandler);
 
+  const inputReadHandler = (cm, change) => {
+    handleInputReadForBraces(cm, change);
+    handleInputReadForAutocomplete(cm, change, options);
+  };
+
+  editor.on('inputRead', inputReadHandler);
+
   const clickHandler = (cm) => {
     // Only show hints on click if the option is enabled and there's no active completion
     if (options.showHintsOnClick) {
@@ -794,6 +862,7 @@ export const setupAutoComplete = (editor, options = {}) => {
 
   return () => {
     editor.off('keyup', keyupHandler);
+    editor.off('inputRead', inputReadHandler);
     if (options.showHintsOnClick) {
       editor.off('mousedown', clickHandler);
     }
