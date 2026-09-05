@@ -2980,7 +2980,7 @@ export const collectionsSlice = createSlice({
         let currentPath = collection.pathname;
         let currentSubItems = collection.items;
         for (const directoryName of subDirectories) {
-          let childItem = currentSubItems.find((f) => f.type === 'folder' && f.filename === directoryName);
+          let childItem = currentSubItems.find((f) => (f.type === 'folder' || f.type === 'flow') && f.filename === directoryName);
           currentPath = path.join(currentPath, directoryName);
           if (!childItem) {
             childItem = {
@@ -3062,7 +3062,7 @@ export const collectionsSlice = createSlice({
         let currentSubItems = collection.items;
         subDirectories.forEach((directoryName, idx) => {
           const isLeaf = idx === subDirectories.length - 1;
-          let childItem = currentSubItems.find((f) => f.type === 'folder' && f.filename === directoryName);
+          let childItem = currentSubItems.find((f) => (f.type === 'folder' || f.type === 'flow') && f.filename === directoryName);
           currentPath = path.join(currentPath, directoryName);
 
           // On a rename (e.g. a case-only rename on a case-insensitive filesystem),
@@ -3070,7 +3070,7 @@ export const collectionsSlice = createSlice({
           // node still carries the old filename. Reconcile the leaf folder by uid so
           // the existing node is updated in place instead of creating a duplicate.
           if (!childItem && isLeaf && dir?.meta?.uid) {
-            childItem = currentSubItems.find((f) => f.type === 'folder' && f.uid === dir.meta.uid);
+            childItem = currentSubItems.find((f) => (f.type === 'folder' || f.type === 'flow') && f.uid === dir.meta.uid);
             if (childItem) {
               childItem.name = dir?.meta?.name || directoryName;
               childItem.filename = directoryName;
