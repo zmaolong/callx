@@ -30,6 +30,7 @@ import RequestNotLoaded from './RequestNotLoaded';
 import RequestIsLoading from './RequestIsLoading';
 import RequestTabPanelLoading from './RequestTabPanelLoading';
 import FolderNotFound from './FolderNotFound';
+import FlowTab from 'components/FlowTab';
 import ExampleNotFound from './ExampleNotFound';
 import WsQueryUrl from 'components/RequestPane/WsQueryUrl';
 import WSRequestPane from 'components/RequestPane/WSRequestPane';
@@ -571,6 +572,10 @@ const RequestTabPanel = () => {
       return <RequestTabPanelLoading name={focusedTab.name} />;
     }
     return <FolderNotFound folderUid={focusedTab.folderUid} />;
+  }
+
+  if (focusedTab.type === 'flow') {
+    return item ? <FlowTab flow={item} /> : <RequestTabPanelLoading name={focusedTab.name || 'Flow'} />;
   }
 
   if (focusedTab.type === 'environment-settings') {

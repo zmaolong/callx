@@ -21,6 +21,7 @@ import {
   IconInfoCircle,
   IconTerminal2,
   IconAppWindow,
+  IconGitBranch,
   IconEyeOff
 } from '@tabler/icons';
 import { useSelector, useDispatch } from 'react-redux';
@@ -34,6 +35,7 @@ import { copyRequest, setFocusedSidebarPath, insertTaskIntoQueue } from 'provide
 import NewRequest from 'components/Sidebar/NewRequest';
 import NewFolder from 'components/Sidebar/NewFolder';
 import NewApp from 'components/Sidebar/NewApp';
+import NewFlow from 'components/Sidebar/NewFlow';
 import RenameCollectionItem from './RenameCollectionItem';
 import CloneCollectionItem from './CloneCollectionItem';
 import DeleteCollectionItems from './DeleteCollectionItems';
@@ -136,6 +138,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
   const [newRequestModalOpen, setNewRequestModalOpen] = useState(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newAppModalOpen, setNewAppModalOpen] = useState(false);
+  const [newFlowModalOpen, setNewFlowModalOpen] = useState(false);
   const [runCollectionModalOpen, setRunCollectionModalOpen] = useState(false);
   const [itemInfoModalOpen, setItemInfoModalOpen] = useState(false);
   const [examplesExpanded, setExamplesExpanded] = useState(false);
@@ -344,7 +347,8 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
     setTimeout(scrollToTheActiveTab, 50);
     const isRequest = isItemARequest(item);
     const isApp = item.type === 'app';
-    if (isRequest || isApp) {
+    const isFlow = item.type === 'flow';
+    if (isRequest || isApp || isFlow) {
       if (isTabForItemPresent) {
         dispatch(
           focusTab({
@@ -443,6 +447,12 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
           leftSection: IconFolderPlus,
           label: 'New Folder',
           onClick: () => setNewFolderModalOpen(true)
+        },
+        {
+          id: 'new-flow',
+          leftSection: IconGitBranch,
+          label: 'New Flow',
+          onClick: () => setNewFlowModalOpen(true)
         },
         {
           id: 'new-app',
@@ -805,6 +815,9 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
       )}
       {newAppModalOpen && (
         <NewApp item={item} collectionUid={collectionUid} onClose={() => setNewAppModalOpen(false)} />
+      )}
+      {newFlowModalOpen && (
+        <NewFlow item={item} collectionUid={collectionUid} onClose={() => setNewFlowModalOpen(false)} />
       )}
       {runCollectionModalOpen && (
         <RunCollectionItem collectionUid={collectionUid} item={item} onClose={() => setRunCollectionModalOpen(false)} />

@@ -1248,8 +1248,8 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
         deleteRequestUid(pathname);
 
         fs.unlinkSync(pathname);
-      } else if (type === 'app') {
-        // Standalone app items are single files with no per-line uid mapping.
+      } else if (type === 'app' || type === 'flow') {
+        // Standalone app and flow items are single files with no per-line uid mapping.
         if (!fs.existsSync(pathname)) {
           return Promise.reject(new Error('The file does not exist'));
         }

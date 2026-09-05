@@ -1840,6 +1840,26 @@ const DEFAULT_APP_STARTER = `<!DOCTYPE html>
 </html>
 `;
 
+export const newFlow = (params) => (dispatch, getState) => {
+  const { flowName, filename, collectionUid, itemUid } = params;
+  const state = getState();
+  const collection = findCollectionByUid(state.collections.collections, collectionUid);
+  if (!collection) return Promise.reject(new Error('Collection not found'));
+
+  const item = { uid: uuid(), type: 'flow', name: flowName, filename, flow: { steps: [] }, items: [], request: null, settings: {} };
+  const selectedItem = itemUid ? findItemInCollection(collection, itemUid) : null;
+  const parent = selectedItem && isItemAFolder(selectedItem)
+    ? selectedItem
+    : (selectedItem ? findParentItemInCollection(collection, selectedItem.uid) : null) || collection;
+  const siblings = parent.items || [];
+  item.seq = siblings.filter((i) => isItemAFolder(i) || isItemARequest(i) || i.type === 'app' || i.type === 'flow').length + 1;
+  const fullName = path.join(parent.pathname, resolveRequestFilename(filename, collection.format));
+
+  return window.ipcRenderer.invoke('renderer:new-request', fullName, item).then((result) => {
+    dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: result?.pathname || fullName }));
+  });
+};
+
 export const newApp = (params) => (dispatch, getState) => {
   const { appName, filename, collectionUid, itemUid } = params;
 

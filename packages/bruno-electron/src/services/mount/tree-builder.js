@@ -83,8 +83,8 @@ const sortByNameThenSequence = (items) => {
 };
 
 const sortLevel = (items) => {
-  const folders = items.filter((i) => i.type === 'folder');
-  const requests = items.filter((i) => i.type !== 'folder');
+  const folders = items.filter((i) => i.type === 'folder' || i.type === 'flow');
+  const requests = items.filter((i) => i.type !== 'folder' && i.type !== 'flow');
   const sortedFolders = sortByNameThenSequence(folders);
   for (const f of sortedFolders) f.items = sortLevel(f.items);
   const sortedRequests = [...requests].sort((a, b) => (a.seq ?? 1) - (b.seq ?? 1));
@@ -131,6 +131,7 @@ const buildRequestNode = (absolutePath, basename, entry, uidOverrides, uidFor) =
     settings: data.settings,
     examples: data.examples,
     app: data.app ?? null,
+    flow: data.flow ?? null,
     raw: entry.raw ?? null,
     size: sizeInMB(entry.raw ? Buffer.byteLength(entry.raw, 'utf8') : 0),
     filename: basename,

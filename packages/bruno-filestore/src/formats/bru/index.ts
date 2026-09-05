@@ -13,6 +13,18 @@ export const parseBruRequest = (data: string | any, parsed: boolean = false): an
   try {
     const json = parsed ? data : bruToJsonV2(data);
 
+    if (_.get(json, 'meta.type') === 'flow') {
+      return {
+        type: 'flow',
+        name: _.get(json, 'meta.name'),
+        seq: Number(_.get(json, 'meta.seq', 1)),
+        tags: _.get(json, 'meta.tags', []),
+        flow: { steps: _.get(json, 'flow.steps', []) },
+        request: null,
+        items: []
+      };
+    }
+
     if (_.get(json, 'meta.type') === 'app') {
       const seq = _.get(json, 'meta.seq');
       const tags = _.get(json, 'meta.tags', []);
@@ -138,6 +150,19 @@ export const parseBruRequest = (data: string | any, parsed: boolean = false): an
 
 export const stringifyBruRequest = (json: any): string => {
   try {
+    // Standalone flow item — emit only metadata and step references.
+    if (_.get(json, 'type') === 'flow') {
+      return jsonToBruV2({
+        meta: {
+          name: _.get(json, 'name'),
+          type: 'flow',
+          seq: Number(_.get(json, 'seq', 1)),
+          tags: _.get(json, 'tags', [])
+        },
+        flow: { steps: _.get(json, 'flow.steps', []) }
+      });
+    }
+
     // Standalone app item — emit only meta + the app code block.
     if (_.get(json, 'type') === 'app') {
       const seq = _.get(json, 'seq');

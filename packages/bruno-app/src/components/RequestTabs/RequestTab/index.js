@@ -190,6 +190,7 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
     'collection-overview',
     'collection-settings',
     'folder-settings',
+    'flow',
     'variables',
     'collection-runner',
     'environment-settings',
@@ -502,6 +503,8 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
             : <RequestTabNotFound handleCloseClick={handleCloseClick} />
         ) : tab.type === 'folder-settings' ? (
           <SpecialTab handleCloseClick={handleCloseFolderSettings} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} tabName={folder?.name} hasDraft={hasFolderDraft} />
+        ) : tab.type === 'flow' ? (
+          <SpecialTab handleCloseClick={handleCloseClick} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} tabName={item?.name} />
         ) : tab.type === 'collection-settings' ? (
           <SpecialTab handleCloseClick={handleCloseCollectionSettings} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} tabName={collection?.name} hasDraft={hasDraft} />
         ) : tab.type === 'environment-settings' ? (

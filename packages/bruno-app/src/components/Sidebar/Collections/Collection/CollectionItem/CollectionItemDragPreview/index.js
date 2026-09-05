@@ -22,7 +22,7 @@ function getItemStyles({ x, y }) {
 
 // Builds the "N folders, M requests and K apps"-style summary for a multi-item drag.
 function getMultiDragLabel(multiSelectedItems) {
-  const folders = multiSelectedItems.filter((i) => i.type === 'folder').length;
+  const folders = multiSelectedItems.filter((i) => i.type === 'folder' || i.type === 'flow').length; ;
   const apps = multiSelectedItems.filter((i) => i.type === 'app').length;
   const requests = multiSelectedItems.filter((i) => i.type && i.type.includes('request')).length;
   const collections = multiSelectedItems.filter((i) => !i.type || i.type === 'collection').length;
@@ -39,7 +39,7 @@ function getMultiDragLabel(multiSelectedItems) {
 
 function getSingleDragIcon(itemType, itemData) {
   if (itemType === 'collection' || (!itemData.type && itemData.pathname)) return IconBook;
-  if (itemData.type === 'folder') return IconFolder;
+  if (itemData.type === 'folder' || itemData.type === 'flow') return IconFolder;
   if (itemData.type === 'app') return IconFile;
   return IconFile;
 }

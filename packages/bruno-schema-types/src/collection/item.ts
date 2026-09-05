@@ -9,6 +9,7 @@ export type ItemType
     | 'folder'
     | 'js'
     | 'app'
+    | 'flow'
     | 'grpc-request'
     | 'ws-request';
 
@@ -35,6 +36,10 @@ export interface App {
   enabled?: boolean | null;
 }
 
+export interface Flow {
+  steps?: unknown[] | null;
+}
+
 export interface Item {
   uid: UID;
   type: ItemType;
@@ -45,6 +50,7 @@ export interface Item {
   request?: Request | null;
   settings?: ItemSettings;
   app?: App | null;
+  flow?: Flow | null;
   fileContent?: string | null;
   root?: FolderRoot | null;
   items?: Item[] | null;
