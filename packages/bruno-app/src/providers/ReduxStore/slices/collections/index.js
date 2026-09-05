@@ -1032,7 +1032,7 @@ export const collectionsSlice = createSlice({
       if (collection) {
         const item = findItemInCollection(collection, action.payload.itemUid);
 
-        if (item && item.type === 'folder') {
+        if (item && (item.type === 'folder' || item.type === 'flow')) {
           item.collapsed = false;
         }
       }
@@ -1043,7 +1043,7 @@ export const collectionsSlice = createSlice({
       if (collection) {
         const item = findItemInCollection(collection, action.payload.itemUid);
 
-        if (item && item.type === 'folder') {
+        if (item && (item.type === 'folder' || item.type === 'flow')) {
           item.collapsed = true;
         }
       }
@@ -1054,7 +1054,7 @@ export const collectionsSlice = createSlice({
       if (collection) {
         const item = findItemInCollection(collection, action.payload.itemUid);
 
-        if (item && item.type === 'folder') {
+        if (item && (item.type === 'folder' || item.type === 'flow')) {
           item.collapsed = !item.collapsed;
         }
       }
