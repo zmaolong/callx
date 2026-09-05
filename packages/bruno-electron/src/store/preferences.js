@@ -65,7 +65,8 @@ const defaultPreferences = {
   general: {
     language: 'en',
     defaultLocation: '',
-    defaultWorkspacePath: ''
+    defaultWorkspacePath: '',
+    tabPosition: 'top'
   },
   autoSave: {
     enabled: false,
@@ -188,7 +189,8 @@ const preferencesSchema = Yup.object().shape({
   general: Yup.object({
     language: Yup.string().oneOf(['en', 'zh-CN']),
     defaultLocation: Yup.string().max(1024).nullable(),
-    defaultWorkspacePath: Yup.string().max(1024).nullable()
+    defaultWorkspacePath: Yup.string().max(1024).nullable(),
+    tabPosition: Yup.string().oneOf(['top', 'right'])
   }),
   autoSave: Yup.object({
     enabled: Yup.boolean(),

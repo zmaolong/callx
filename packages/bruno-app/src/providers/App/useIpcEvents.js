@@ -350,7 +350,8 @@ const useIpcEvents = () => {
         ...val,
         general: {
           ...val.general,
-          language: nextLanguage
+          language: nextLanguage,
+          tabPosition: val?.general?.tabPosition === 'right' ? 'right' : 'top'
         }
       }));
     });

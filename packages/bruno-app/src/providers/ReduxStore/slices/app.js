@@ -59,7 +59,8 @@ const initialState = {
     },
     general: {
       language: 'en',
-      defaultLocation: ''
+      defaultLocation: '',
+      tabPosition: 'top'
     },
     onboarding: {
       hasLaunchedBefore: false,

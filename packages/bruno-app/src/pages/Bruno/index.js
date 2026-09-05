@@ -51,6 +51,7 @@ export default function Main() {
   const showManageWorkspacePage = useSelector((state) => state.app.showManageWorkspacePage);
   const isConsoleOpen = useSelector((state) => state.logs.isConsoleOpen);
   const saveTransientRequestModals = useSelector((state) => state.collections.saveTransientRequestModals);
+  const tabPosition = useSelector((state) => state.app.preferences?.general?.tabPosition === 'right' ? 'right' : 'top');
 
   // AI sidebar mounts here so it spans the full request-pane height. It reads
   // the active collection via the active tab so the sidebar follows tab switches.
@@ -129,12 +130,20 @@ export default function Main() {
               <ManageWorkspace />
             ) : (
               <>
-                <RequestTabs />
-                <div className="relative flex flex-col flex-grow overflow-hidden">
-                  <TabPanelErrorBoundary key={activeTabUid} tabUid={activeTabUid}>
-                    <RequestTabPanel key={activeTabUid} />
-                  </TabPanelErrorBoundary>
-                  <AppPreviewKeepAlive />
+                {tabPosition === 'right' && <RequestTabs headerOnly />}
+                <div
+                  className={classnames('relative flex flex-grow min-h-0 overflow-hidden', {
+                    'flex-col': tabPosition === 'top'
+                  })}
+                >
+                  {tabPosition === 'top' && <RequestTabs position="top" />}
+                  <div className="relative flex flex-col flex-grow min-w-0 overflow-hidden">
+                    <TabPanelErrorBoundary key={activeTabUid} tabUid={activeTabUid}>
+                      <RequestTabPanel key={activeTabUid} />
+                    </TabPanelErrorBoundary>
+                    <AppPreviewKeepAlive />
+                  </div>
+                  {tabPosition === 'right' && <RequestTabs position="right" showCollectionHeader={false} />}
                 </div>
               </>
             )}

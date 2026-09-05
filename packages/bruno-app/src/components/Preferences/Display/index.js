@@ -1,6 +1,7 @@
 import React from 'react';
 import Font from './Font/index';
 import Zoom from './Zoom/index';
+import RequestTabPosition from './RequestTabPosition/index';
 
 const Display = ({ close }) => {
   return (
@@ -12,6 +13,9 @@ const Display = ({ close }) => {
         </div>
         <div className="w-full flex flex-col gap-2">
           <Zoom />
+        </div>
+        <div className="w-full flex flex-col gap-2">
+          <RequestTabPosition />
         </div>
       </div>
     </div>
