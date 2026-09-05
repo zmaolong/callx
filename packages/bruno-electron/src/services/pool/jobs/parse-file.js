@@ -12,6 +12,7 @@ const parseLargeBru = (content, format, type) => {
   let data;
   switch (type) {
     case 'request':
+    case 'flow':
       data = filestore.parseRequest(skeleton, { format });
       break;
     case 'collection':
@@ -50,6 +51,7 @@ const parseContent = (content, format, type, byteSize) => {
   const isLargeBru = format === 'bru' && byteSize >= LARGE_FILE_REDACT_THRESHOLD;
   switch (type) {
     case 'request':
+    case 'flow':
       if (isLargeBru) return parseLargeBru(content, format, type);
       return filestore.parseRequest(content, options);
     case 'collection':

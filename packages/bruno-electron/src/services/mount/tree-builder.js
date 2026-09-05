@@ -98,7 +98,7 @@ const ensureFolder = (collectionPath, items, segments, uidFor) => {
   for (const seg of segments) {
     acc = acc ? path.join(acc, seg) : seg;
     const absolutePath = path.join(collectionPath, acc);
-    let folder = cursor.find((i) => i.type === 'folder' && i.filename === seg);
+    let folder = cursor.find((i) => (i.type === 'folder' || i.type === 'flow') && i.filename === seg);
     if (!folder) {
       folder = {
         uid: uidFor(absolutePath),
@@ -170,6 +170,7 @@ const buildTree = (collectionPath, parserResults, options = {}) => {
   };
 
   const folderRoots = new Map();
+  const flowRoots = new Map();
   const requests = [];
 
   for (const [relativePath, entry] of parserResults) {
@@ -195,6 +196,8 @@ const buildTree = (collectionPath, parserResults, options = {}) => {
       }
     } else if (cls.type === 'folder') {
       folderRoots.set(path.dirname(relativePath), entry);
+    } else if (cls.type === 'flow') {
+      flowRoots.set(path.dirname(relativePath), entry);
     } else if (cls.type === 'environment') {
       tree.environments.push(buildEnvironmentNode(collectionPath, relativePath, entry, uidFor));
     } else {
@@ -225,6 +228,21 @@ const buildTree = (collectionPath, parserResults, options = {}) => {
     if (!entry.error) {
       hydrateRequestUuids(entry.data, folder.uid, folder.pathname);
       folder.root = entry.data;
+    }
+  }
+
+  for (const [dirRel, entry] of flowRoots) {
+    const segments = dirRel.split(path.sep).filter((s) => s && s !== '.');
+    const { folder: flowNode } = ensureFolder(collectionPath, tree.items, segments, uidFor);
+    if (!flowNode) continue;
+    // Convert the folder node to a flow node
+    flowNode.type = 'flow';
+    const data = entry.data;
+    if (data) {
+      if (data.name) flowNode.name = data.name;
+      if (isSeqValid(data.seq)) flowNode.seq = data.seq;
+      flowNode.flow = { steps: data?.flow?.steps || [] };
+      flowNode.root = data;
     }
   }
 

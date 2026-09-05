@@ -2955,6 +2955,17 @@ export const collectionsSlice = createSlice({
           if (file?.data?.meta?.seq) {
             folderItem.seq = file.data?.meta?.seq;
           }
+          // Flow root: data has name/seq/type at top level, not inside meta
+          if (file?.data?.type === 'flow') {
+            folderItem.type = 'flow';
+            if (file?.data?.name) {
+              folderItem.name = file?.data?.name;
+            }
+            if (file?.data?.seq) {
+              folderItem.seq = file?.data?.seq;
+            }
+            folderItem.flow = { steps: file?.data?.flow?.steps || [] };
+          }
         }
         return;
       }

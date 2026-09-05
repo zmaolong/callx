@@ -68,6 +68,7 @@ const walk = (root, denylist) => {
 
 const COLLECTION_ROOT_BASENAMES = new Set(['collection.bru', 'collection.yml', 'opencollection.yml']);
 const FOLDER_ROOT_BASENAMES = new Set(['folder.bru', 'folder.yml']);
+const FLOW_ROOT_BASENAMES = new Set(['flow.bru', 'flow.yml']);
 const BRUNO_CONFIG_BASENAME = 'bruno.json';
 const ENVIRONMENTS_DIR = 'environments';
 
@@ -92,6 +93,9 @@ const defaultClassify = (relativePath) => {
   if (FOLDER_ROOT_BASENAMES.has(basename)) {
     return { format, type: 'folder' };
   }
+  if (FLOW_ROOT_BASENAMES.has(basename)) {
+    return { format, type: 'flow' };
+  }
   if (segments[0] === ENVIRONMENTS_DIR && segments.length === 1) {
     return { format, type: 'environment' };
   }
@@ -101,6 +105,7 @@ const defaultClassify = (relativePath) => {
 module.exports = {
   COLLECTION_ROOT_BASENAMES,
   FOLDER_ROOT_BASENAMES,
+  FLOW_ROOT_BASENAMES,
   BRUNO_CONFIG_BASENAME,
   ENVIRONMENTS_DIR,
   hashFile,

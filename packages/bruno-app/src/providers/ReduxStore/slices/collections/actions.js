@@ -1102,7 +1102,7 @@ export const deleteItem = (itemUid, collectionUid) => (dispatch, getState) => {
         .then(async () => {
           // Reorder items in parent directory after deletion
           if (parentDirectoryItem.items) {
-            const requestAndFolderTypes = [...REQUEST_TYPES, 'folder'];
+            const requestAndFolderTypes = [...REQUEST_TYPES, 'folder', 'flow'];
             const directoryItemsWithOnlyRequestAndFolders = parentDirectoryItem.items.filter((i) => requestAndFolderTypes.includes(i.type));
             const directoryItemsWithoutDeletedItem = directoryItemsWithOnlyRequestAndFolders.filter((i) => i.uid !== itemUid);
             const reorderedSourceItems = getReorderedItemsInSourceDirectory({
@@ -1846,16 +1846,22 @@ export const newFlow = (params) => (dispatch, getState) => {
   const collection = findCollectionByUid(state.collections.collections, collectionUid);
   if (!collection) return Promise.reject(new Error('Collection not found'));
 
-  const item = { uid: uuid(), type: 'flow', name: flowName, filename, flow: { steps: [] }, items: [], request: null, settings: {} };
   const selectedItem = itemUid ? findItemInCollection(collection, itemUid) : null;
   const parent = selectedItem && isItemAFolder(selectedItem)
     ? selectedItem
     : (selectedItem ? findParentItemInCollection(collection, selectedItem.uid) : null) || collection;
   const siblings = parent.items || [];
-  item.seq = siblings.filter((i) => isItemAFolder(i) || isItemARequest(i) || i.type === 'app' || i.type === 'flow').length + 1;
-  const fullName = path.join(parent.pathname, resolveRequestFilename(filename, collection.format));
+  const seq = siblings.filter((i) => isItemAFolder(i) || isItemARequest(i) || i.type === 'app' || i.type === 'flow').length + 1;
+  const fullName = path.join(parent.pathname, filename);
 
-  return window.ipcRenderer.invoke('renderer:new-request', fullName, item).then((result) => {
+  const flowData = {
+    type: 'flow',
+    name: flowName,
+    seq,
+    flow: { steps: [] }
+  };
+
+  return window.ipcRenderer.invoke('renderer:new-flow', { pathname: fullName, flowData, format: collection.format }).then((result) => {
     dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: result?.pathname || fullName }));
   });
 };

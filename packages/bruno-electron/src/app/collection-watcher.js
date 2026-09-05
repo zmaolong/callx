@@ -81,6 +81,19 @@ const isFolderRootFile = (pathname, collectionPath) => {
   return false;
 };
 
+const isFlowRootFile = (pathname, collectionPath) => {
+  const basename = path.basename(pathname);
+  const format = getCollectionFormat(collectionPath);
+
+  if (format === 'yml') {
+    return basename === 'flow.yml';
+  } else if (format === 'bru') {
+    return basename === 'flow.bru';
+  }
+
+  return false;
+};
+
 const isCollectionRootFile = (pathname, collectionPath) => {
   const dirname = path.dirname(pathname);
   const basename = path.basename(pathname);
@@ -325,6 +338,31 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
     }
   }
 
+  if (isFlowRootFile(pathname, collectionPath)) {
+    const file = {
+      meta: {
+        collectionUid,
+        pathname,
+        name: path.basename(pathname),
+        folderRoot: true
+      }
+    };
+
+    try {
+      const format = getCollectionFormat(collectionPath);
+      const content = fs.readFileSync(pathname, 'utf8');
+      file.data = await parseRequest(content, { format });
+      stageToCache(collectionPath, pathname, file.data);
+
+      hydrateCollectionRootWithUuid(file.data);
+      win.webContents.send('main:collection-tree-updated', 'addFile', file);
+      return;
+    } catch (err) {
+      console.error(err);
+      return;
+    }
+  }
+
   const format = getCollectionFormat(collectionPath);
   if (hasRequestExtension(pathname, format)) {
     watcher.addFileToProcessing(collectionUid, pathname);
@@ -439,6 +477,7 @@ const addDirectory = async (win, pathname, collectionUid, collectionPath) => {
 
   const format = getCollectionFormat(collectionPath);
   const folderFilePath = path.join(pathname, `folder.${format}`);
+  const flowFilePath = path.join(pathname, `flow.${format}`);
 
   try {
     if (fs.existsSync(folderFilePath)) {
@@ -446,9 +485,14 @@ const addDirectory = async (win, pathname, collectionUid, collectionPath) => {
       const folderData = await parseFolder(folderFileContent, { format });
       name = folderData?.meta?.name || name;
       seq = folderData?.meta?.seq;
+    } else if (fs.existsSync(flowFilePath)) {
+      const flowFileContent = fs.readFileSync(flowFilePath, 'utf8');
+      const flowData = await parseRequest(flowFileContent, { format });
+      name = flowData?.name || name;
+      seq = flowData?.seq;
     }
   } catch (error) {
-    console.error(`Error occured while parsing folder.${format} file`);
+    console.error(`Error occured while parsing folder/flow.${format} file`);
     console.error(error);
   }
 
@@ -560,6 +604,31 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
       const format = getCollectionFormat(collectionPath);
       const content = fs.readFileSync(pathname, 'utf8');
       file.data = await parseFolder(content, { format });
+      stageToCache(collectionPath, pathname, file.data);
+
+      hydrateCollectionRootWithUuid(file.data);
+      win.webContents.send('main:collection-tree-updated', 'change', file);
+      return;
+    } catch (err) {
+      console.error(err);
+      return;
+    }
+  }
+
+  if (isFlowRootFile(pathname, collectionPath)) {
+    const file = {
+      meta: {
+        collectionUid,
+        pathname,
+        name: path.basename(pathname),
+        folderRoot: true
+      }
+    };
+
+    try {
+      const format = getCollectionFormat(collectionPath);
+      const content = fs.readFileSync(pathname, 'utf8');
+      file.data = await parseRequest(content, { format });
       stageToCache(collectionPath, pathname, file.data);
 
       hydrateCollectionRootWithUuid(file.data);

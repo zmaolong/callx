@@ -1061,22 +1061,32 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
 
       if (isDirectory(itemPath)) {
         const format = getCollectionFormat(collectionPathname);
+        // Try flow file first, then folder file
+        const flowFilePath = path.join(itemPath, `flow.${format}`);
         const folderFilePath = path.join(itemPath, `folder.${format}`);
-        let folderFileJsonContent;
-        if (fs.existsSync(folderFilePath)) {
-          const oldFolderFileContent = await fs.promises.readFile(folderFilePath, 'utf8');
-          folderFileJsonContent = await parseFolder(oldFolderFileContent, { format });
-          folderFileJsonContent.meta.name = newName;
+        if (fs.existsSync(flowFilePath)) {
+          const oldFlowFileContent = await fs.promises.readFile(flowFilePath, 'utf8');
+          const flowJsonData = parseRequest(oldFlowFileContent, { format });
+          flowJsonData.name = newName;
+          const content = stringifyRequest(flowJsonData, { format });
+          await writeFile(flowFilePath, content);
         } else {
-          folderFileJsonContent = {
-            meta: {
-              name: newName
-            }
-          };
-        }
+          let folderFileJsonContent;
+          if (fs.existsSync(folderFilePath)) {
+            const oldFolderFileContent = await fs.promises.readFile(folderFilePath, 'utf8');
+            folderFileJsonContent = await parseFolder(oldFolderFileContent, { format });
+            folderFileJsonContent.meta.name = newName;
+          } else {
+            folderFileJsonContent = {
+              meta: {
+                name: newName
+              }
+            };
+          }
 
-        const folderFileContent = await stringifyFolder(folderFileJsonContent, { format });
-        await writeFile(folderFilePath, folderFileContent);
+          const folderFileContent = await stringifyFolder(folderFileJsonContent, { format });
+          await writeFile(folderFilePath, folderFileContent);
+        }
 
         return;
       }
@@ -1223,6 +1233,27 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
     }
   });
 
+  // new flow (directory-based, like folder)
+  ipcMain.handle('renderer:new-flow', async (event, { pathname, flowData, format }) => {
+    const resolvedFlowName = sanitizeName(path.basename(pathname));
+    try {
+      validatePathIsInsideCollection(pathname);
+
+      if (!validateName(resolvedFlowName)) {
+        throw new Error(utils.validateNameError(resolvedFlowName));
+      }
+
+      const { pathname: createdPath } = await mkdirUnique(path.dirname(pathname), resolvedFlowName);
+
+      const flowFilePath = path.join(createdPath, `flow.${format}`);
+      const content = await stringifyRequestViaWorker(flowData, { format });
+      await writeFile(flowFilePath, content);
+      return { pathname: createdPath, name: path.basename(createdPath) };
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  });
+
   // delete file/folder
   ipcMain.handle('renderer:delete-item', async (event, pathname, type, collectionPathname) => {
     try {
@@ -1248,13 +1279,26 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
         deleteRequestUid(pathname);
 
         fs.unlinkSync(pathname);
-      } else if (type === 'app' || type === 'flow') {
-        // Standalone app and flow items are single files with no per-line uid mapping.
+      } else if (type === 'app') {
+        // Standalone app items are single files with no per-line uid mapping.
         if (!fs.existsSync(pathname)) {
           return Promise.reject(new Error('The file does not exist'));
         }
 
         fs.unlinkSync(pathname);
+      } else if (type === 'flow') {
+        // Flow is a directory (like folder), delete recursively
+        if (!fs.existsSync(pathname)) {
+          return Promise.reject(new Error('The directory does not exist'));
+        }
+
+        // delete the request uid mappings
+        const requestFilesAtSource = await searchForRequestFiles(pathname, collectionPathname);
+        for (const requestFile of requestFilesAtSource) {
+          deleteRequestUid(requestFile);
+        }
+
+        fs.rmSync(pathname, { recursive: true, force: true });
       } else {
         return Promise.reject(new Error(`Unsupported item type for delete: ${type}`));
       }
@@ -1601,6 +1645,32 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
               await parseCollectionItems(item.items, folderPath);
             }
           }
+          if (item.type === 'flow') {
+            const flowName = path.basename(item.filename);
+
+            if (!validateName(flowName)) {
+              throw new Error(`${flowName} is not a valid flow name`);
+            }
+
+            const flowPath = path.join(currentPath, flowName);
+            validatePathIsInsideCollection(flowPath);
+            fs.mkdirSync(flowPath);
+
+            // Write the flow metadata file
+            const flowData = {
+              name: item.name,
+              type: 'flow',
+              seq: item.seq,
+              flow: { steps: item.flow?.steps || [] }
+            };
+            const flowContent = await stringifyRequestViaWorker(flowData, { format });
+            const flowFilePath = path.join(flowPath, `flow.${format}`);
+            safeWriteFileSync(flowFilePath, flowContent);
+
+            if (item.items && item.items.length) {
+              await parseCollectionItems(item.items, flowPath);
+            }
+          }
         }
       };
 
@@ -1665,6 +1735,26 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
             const itemToSave = transformRequestToSaveToFilesystem(item);
             const content = await stringifyRequestViaWorker(itemToSave, { format });
             await writeFile(item.pathname, content);
+          }
+        } else if (item?.type === 'flow') {
+          if (fs.existsSync(item.pathname)) {
+            const flowFilePath = path.join(item.pathname, `flow.${format}`);
+            let flowJsonData = {
+              name: path.basename(item.pathname),
+              type: 'flow',
+              seq: item.seq,
+              flow: { steps: item.flow?.steps || [] }
+            };
+            if (fs.existsSync(flowFilePath)) {
+              const flowContent = fs.readFileSync(flowFilePath, 'utf8');
+              const parsed = parseRequest(flowContent, { format });
+              if (parsed?.seq === item.seq) {
+                continue;
+              }
+              flowJsonData = { ...parsed, seq: item.seq };
+            }
+            const content = await stringifyRequestViaWorker(flowJsonData, { format });
+            await writeFile(flowFilePath, content);
           }
         } else if (item?.type === 'app') {
           if (fs.existsSync(item.pathname)) {

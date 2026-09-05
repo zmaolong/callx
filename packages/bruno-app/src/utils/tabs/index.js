@@ -5,7 +5,7 @@ export const isItemARequest = (item) => {
 };
 
 export const isItemAFolder = (item) => {
-  return !item.hasOwnProperty('request') && item.type === 'folder';
+  return item.type === 'flow' || (!item.hasOwnProperty('request') && item.type === 'folder');
 };
 
 export const itemIsOpenedInTabs = (item, tabs) => {

@@ -347,8 +347,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
     setTimeout(scrollToTheActiveTab, 50);
     const isRequest = isItemARequest(item);
     const isApp = item.type === 'app';
-    const isFlow = item.type === 'flow';
-    if (isRequest || isApp || isFlow) {
+    if (isRequest || isApp) {
       if (isTabForItemPresent) {
         dispatch(
           focusTab({
@@ -367,14 +366,23 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
         })
       );
     } else {
-      dispatch(
-        addTab({
-          uid: item.uid,
-          collectionUid: collectionUid,
-          type: 'folder-settings',
-          pathname: item.pathname
-        })
-      );
+      const tabType = item.type === 'flow' ? 'flow' : 'folder-settings';
+      if (isTabForItemPresent) {
+        dispatch(
+          focusTab({
+            uid: tabUidForItem || item.uid
+          })
+        );
+      } else {
+        dispatch(
+          addTab({
+            uid: item.uid,
+            collectionUid: collectionUid,
+            type: tabType,
+            pathname: item.pathname
+          })
+        );
+      }
       if (item.collapsed) {
         dispatch(
           toggleCollectionItem({
@@ -744,7 +752,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText, o
         addTab({
           uid: item.uid,
           collectionUid,
-          type: 'folder-settings',
+          type: item.type === 'flow' ? 'flow' : 'folder-settings',
           pathname: item.pathname
         })
       );
