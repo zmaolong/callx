@@ -1287,18 +1287,23 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
 
         fs.unlinkSync(pathname);
       } else if (type === 'flow') {
-        // Flow is a directory (like folder), delete recursively
+        // Flow can be a directory (new format) or a single file (old format)
         if (!fs.existsSync(pathname)) {
-          return Promise.reject(new Error('The directory does not exist'));
+          return Promise.reject(new Error('The item does not exist'));
         }
 
-        // delete the request uid mappings
-        const requestFilesAtSource = await searchForRequestFiles(pathname, collectionPathname);
-        for (const requestFile of requestFilesAtSource) {
-          deleteRequestUid(requestFile);
-        }
+        if (isDirectory(pathname)) {
+          // Directory-based flow: delete recursively
+          const requestFilesAtSource = await searchForRequestFiles(pathname, collectionPathname);
+          for (const requestFile of requestFilesAtSource) {
+            deleteRequestUid(requestFile);
+          }
 
-        fs.rmSync(pathname, { recursive: true, force: true });
+          fs.rmSync(pathname, { recursive: true, force: true });
+        } else {
+          // File-based flow (old format): delete single file
+          fs.unlinkSync(pathname);
+        }
       } else {
         return Promise.reject(new Error(`Unsupported item type for delete: ${type}`));
       }
