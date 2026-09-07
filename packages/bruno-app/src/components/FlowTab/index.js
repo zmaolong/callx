@@ -4,6 +4,7 @@ import FlowCanvas from './FlowCanvas';
 import FlowSidebar from './FlowSidebar';
 import StyledWrapper from './StyledWrapper';
 import { reconcileFlowNodes, removeOrphanedNodes } from 'utils/flow/reconcile';
+import { findItemInCollection } from 'utils/collections';
 import { validateGraph } from 'utils/flow/graph';
 import {
   addFlowNode,
@@ -11,13 +12,18 @@ import {
   updateFlowNode,
   updateFlowNodes
 } from 'providers/ReduxStore/slices/collections';
+import { deleteItem, cloneItem } from 'providers/ReduxStore/slices/collections/actions';
+import { addTab } from 'providers/ReduxStore/slices/tabs';
+import { sanitizeName } from 'utils/common/regex';
 import { executeFlow, cancelFlow } from 'utils/flow/executor';
 import { clearFlowRunState } from 'providers/ReduxStore/slices/flowRun';
+import Modal from 'components/Modal';
 
 const FlowTab = ({ flow }) => {
   const dispatch = useDispatch();
   const [selectedNode, setSelectedNode] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const flowRun = useSelector((state) => state.flowRun?.runs?.[flow?.uid]);
 
@@ -203,21 +209,48 @@ const FlowTab = ({ flow }) => {
 
   // 编辑请求
   const handleEditRequest = useCallback((nodeData) => {
-    // TODO: 阶段 3 完善 - 打开 Request Tab
-    console.log('Edit request:', nodeData);
-  }, []);
+    const requestUid = nodeData?.requestUid;
+    if (!requestUid || !collection) return;
+    const item = findItemInCollection(collection, requestUid);
+    if (!item) return;
+    dispatch(addTab({
+      uid: item.uid,
+      collectionUid: collection.uid,
+      type: item.type,
+      pathname: item.pathname
+    }));
+  }, [collection, dispatch]);
 
   // 删除请求
   const handleDeleteRequest = useCallback((nodeData) => {
-    // TODO: 阶段 3 完善 - 走 deleteItem action
-    console.log('Delete request:', nodeData);
-  }, []);
+    const requestUid = nodeData?.requestUid;
+    if (!requestUid || !collectionUid) return;
+    setDeleteTarget(nodeData);
+  }, [collectionUid]);
+
+  // 确认删除
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    const requestUid = deleteTarget?.requestUid;
+    if (!requestUid || !collectionUid) return;
+    try {
+      await dispatch(deleteItem(requestUid, collectionUid));
+    } catch (error) {
+      console.error('Error deleting flow request:', error);
+    }
+    setDeleteTarget(null);
+  }, [deleteTarget, collectionUid, dispatch]);
 
   // 复制请求
   const handleDuplicateRequest = useCallback((nodeData) => {
-    // TODO: 阶段 3 完善 - 走 cloneItem action
-    console.log('Duplicate request:', nodeData);
-  }, []);
+    const requestUid = nodeData?.requestUid;
+    if (!requestUid || !collectionUid) return;
+    const item = findItemInCollection(collection, requestUid);
+    if (!item) return;
+    const newName = `${item.name} copy`;
+    const newFilename = sanitizeName(newName);
+    dispatch(cloneItem(newName, newFilename, requestUid, collectionUid));
+  }, [collection, collectionUid, dispatch]);
 
   return (
     <StyledWrapper className="flex flex-col flex-grow">
@@ -244,6 +277,19 @@ const FlowTab = ({ flow }) => {
           onDuplicateRequest={handleDuplicateRequest}
         />
       </div>
+
+      {deleteTarget && (
+        <Modal
+          size="md"
+          title="删除请求"
+          confirmText="Delete"
+          confirmButtonColor="danger"
+          handleConfirm={handleConfirmDelete}
+          handleCancel={() => setDeleteTarget(null)}
+        >
+          确定要删除 <span className="font-medium">{deleteTarget?.alias || deleteTarget?.label || '此请求'}</span> 吗？
+        </Modal>
+      )}
     </StyledWrapper>
   );
 };
