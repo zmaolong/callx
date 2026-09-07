@@ -134,57 +134,63 @@ const FlowTab = ({ flow }) => {
     const nodes = flow.flow.nodes;
     const edges = flow.flow.edges || [];
 
-    // 从 Start 出发 BFS 计算层级
-    const levels = {};
-    const queue = [{ id: 'start', level: 0 }];
-    const visited = new Set();
+    const cUid = collectionUid;
+    const fUid = flow.uid;
 
-    while (queue.length > 0) {
-      const { id, level } = queue.shift();
-      if (visited.has(id)) continue;
-      visited.add(id);
-      levels[id] = level;
+    // 延迟执行，让 UI 先响应点击反馈，避免布局计算和 Redux 更新链阻塞主线程
+    setTimeout(() => {
+      // 从 Start 出发 BFS 计算层级
+      const levels = {};
+      const queue = [{ id: 'start', level: 0 }];
+      const visited = new Set();
 
-      const outEdges = edges.filter((e) => e.source === id);
-      for (const edge of outEdges) {
-        queue.push({ id: edge.target, level: level + 1 });
+      while (queue.length > 0) {
+        const { id, level } = queue.shift();
+        if (visited.has(id)) continue;
+        visited.add(id);
+        levels[id] = level;
+
+        const outEdges = edges.filter((e) => e.source === id);
+        for (const edge of outEdges) {
+          queue.push({ id: edge.target, level: level + 1 });
+        }
       }
-    }
 
-    // 未连接节点放在最右边
-    let maxLevel = Math.max(...Object.values(levels), 0);
-    const updatedNodes = nodes.map((node) => {
-      let level = levels[node.id];
-      if (level === undefined) {
-        maxLevel += 1;
-        level = maxLevel;
+      // 未连接节点放在最右边
+      let maxLevel = Math.max(...Object.values(levels), 0);
+      const updatedNodes = nodes.map((node) => {
+        let level = levels[node.id];
+        if (level === undefined) {
+          maxLevel += 1;
+          level = maxLevel;
+        }
+        return {
+          ...node,
+          position: { x: 80 + level * 280, y: 100 + node.position.y * 0 }
+        };
+      });
+
+      // 垂直微调：同一层级分散
+      const levelCounts = {};
+      for (const node of updatedNodes) {
+        const level = levels[node.id] || maxLevel;
+        levelCounts[level] = (levelCounts[level] || 0) + 1;
       }
-      return {
-        ...node,
-        position: { x: 80 + level * 280, y: 100 + node.position.y * 0 }
-      };
-    });
+      const levelIndex = {};
+      for (const node of updatedNodes) {
+        const level = levels[node.id] || maxLevel;
+        levelIndex[level] = (levelIndex[level] || 0) + 1;
+        const count = levelCounts[level];
+        const idx = levelIndex[level];
+        node.position.y = 200 + (idx - count / 2) * 120;
+      }
 
-    // 垂直微调：同一层级分散
-    const levelCounts = {};
-    for (const node of updatedNodes) {
-      const level = levels[node.id] || maxLevel;
-      levelCounts[level] = (levelCounts[level] || 0) + 1;
-    }
-    const levelIndex = {};
-    for (const node of updatedNodes) {
-      const level = levels[node.id] || maxLevel;
-      levelIndex[level] = (levelIndex[level] || 0) + 1;
-      const count = levelCounts[level];
-      const idx = levelIndex[level];
-      node.position.y = 200 + (idx - count / 2) * 120;
-    }
-
-    dispatch(updateFlowNodes({
-      collectionUid,
-      itemUid: flow.uid,
-      nodes: updatedNodes
-    }));
+      dispatch(updateFlowNodes({
+        collectionUid: cUid,
+        itemUid: fUid,
+        nodes: updatedNodes
+      }));
+    }, 50);
   }, [flow?.flow, collectionUid, flow?.uid]);
 
   // 更新节点
