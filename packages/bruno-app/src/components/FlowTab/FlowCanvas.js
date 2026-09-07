@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import isEqual from 'lodash/isEqual';
 import {
   ReactFlow,
   Background,
@@ -56,11 +57,10 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
       data: {
         ...n,
         label: n.alias || n.id,
-        flowItem: flow,
         collectionUid
       }
     }));
-  }, [flow?.flow?.nodes, flow?.uid, collectionUid]);
+  }, [flow?.flow?.nodes, collectionUid]);
 
   const initialEdges = useMemo(() => {
     if (!flow?.flow?.edges) return [];
@@ -76,10 +76,18 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNode, setSelectedNode] = useState(null);
 
-  // 同步外部数据变化到 React Flow 状态
-  React.useEffect(() => {
-    setNodes(initialNodes);
-    setEdges(initialEdges);
+  // 同步外部数据变化到 React Flow 状态（使用深比较避免不必要的状态重置）
+  const prevNodesRef = useRef(initialNodes);
+  const prevEdgesRef = useRef(initialEdges);
+  useEffect(() => {
+    if (!isEqual(prevNodesRef.current, initialNodes)) {
+      setNodes(initialNodes);
+      prevNodesRef.current = initialNodes;
+    }
+    if (!isEqual(prevEdgesRef.current, initialEdges)) {
+      setEdges(initialEdges);
+      prevEdgesRef.current = initialEdges;
+    }
   }, [initialNodes, initialEdges]);
 
   // 连线回调：校验合法性
@@ -246,4 +254,4 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
   );
 };
 
-export default FlowCanvas;
+export default React.memo(FlowCanvas, (prev, next) => prev.flow?.uid === next.flow?.uid && prev.collectionUid === next.collectionUid);

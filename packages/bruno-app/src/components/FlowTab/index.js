@@ -1,10 +1,10 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import FlowCanvas from './FlowCanvas';
 import FlowSidebar from './FlowSidebar';
 import StyledWrapper from './StyledWrapper';
 import { reconcileFlowNodes, removeOrphanedNodes } from 'utils/flow/reconcile';
-import { findItemInCollection } from 'utils/collections';
+import { findItemInCollection, findCollectionByItemUid } from 'utils/collections';
 import { validateGraph } from 'utils/flow/graph';
 import {
   addFlowNode,
@@ -26,23 +26,13 @@ const FlowTab = ({ flow }) => {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const flowRun = useSelector((state) => state.flowRun?.runs?.[flow?.uid]);
+  const collections = useSelector((state) => state.collections.collections);
 
-  // 查找 Flow 所在集合
-  const collection = useSelector((state) => {
+  // 使用 useMemo 缓存集合查找结果，避免每次 Redux 状态变化都重建所有扁平化数组
+  const collection = useMemo(() => {
     if (!flow) return null;
-    return state.collections.collections.find((c) => {
-      if (!c.items) return false;
-      const flattened = [];
-      const flatten = (items) => {
-        items.forEach((item) => {
-          flattened.push(item);
-          if (item.items) flatten(item.items);
-        });
-      };
-      flatten(c.items);
-      return flattened.some((item) => item.uid === flow.uid);
-    });
-  });
+    return findCollectionByItemUid(collections, flow.uid);
+  }, [collections, flow?.uid]);
 
   const collectionUid = collection?.uid;
 
@@ -294,4 +284,4 @@ const FlowTab = ({ flow }) => {
   );
 };
 
-export default FlowTab;
+export default React.memo(FlowTab, (prev, next) => prev.flow?.uid === next.flow?.uid);
