@@ -189,7 +189,8 @@ export const saveFlow = (itemUid, collectionUid, silent = false) => (dispatch, g
       return reject(new Error('Collection not found'));
     }
 
-    const item = findItemInCollection(collection, itemUid);
+    const collectionCopy = cloneDeep(collection);
+    const item = findItemInCollection(collectionCopy, itemUid);
     if (!item) {
       return reject(new Error('Not able to locate item'));
     }
