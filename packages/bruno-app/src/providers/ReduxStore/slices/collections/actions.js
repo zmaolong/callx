@@ -181,6 +181,45 @@ export const saveRequest = (itemUid, collectionUid, silent = false) => (dispatch
   });
 };
 
+export const saveFlow = (itemUid, collectionUid, silent = false) => (dispatch, getState) => {
+  const state = getState();
+  const collection = findCollectionByUid(state.collections.collections, collectionUid);
+  return new Promise((resolve, reject) => {
+    if (!collection) {
+      return reject(new Error('Collection not found'));
+    }
+
+    const collectionCopy = cloneDeep(collection);
+    const item = findItemInCollection(collectionCopy, itemUid);
+    if (!item) {
+      return reject(new Error('Not able to locate item'));
+    }
+
+    const itemToSave = transformRequestToSaveToFilesystem(item);
+    const { ipcRenderer } = window;
+
+    itemSchema
+      .validate(itemToSave)
+      .then(() => ipcRenderer.invoke('renderer:save-request', item.pathname, itemToSave, collection.format))
+      .then(() => {
+        if (!silent) {
+          toast.success('Flow saved successfully');
+        }
+        dispatch(
+          _saveRequest({
+            itemUid,
+            collectionUid
+          })
+        );
+      })
+      .then(resolve)
+      .catch((err) => {
+        toast.error(err.message || 'Failed to save flow!');
+        reject(err);
+      });
+  });
+};
+
 export const saveFile = (content, itemUid, collectionUid, silent = false) => async (dispatch, getState) => {
   const state = getState();
   const collection = findCollectionByUid(state.collections.collections, collectionUid);
@@ -918,8 +957,8 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
     if (!collection) {
       throw new Error('Collection not found');
     }
-    const collectionCopy = cloneDeep(collection);
-    const item = findItemInCollection(collectionCopy, itemUid);
+    // 注意：不要 cloneDeep 整个集合，只需从原集合中查找，避免深拷贝大集合阻塞主线程
+    const item = findItemInCollection(collection, itemUid);
     if (!item) {
       throw new Error('Unable to locate item');
     }
@@ -940,7 +979,7 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
       return;
     }
 
-    const parentItem = findParentItemInCollection(collectionCopy, itemUid);
+    const parentItem = findParentItemInCollection(collection, itemUid);
     const filename = resolveRequestFilename(newFilename, collection.format);
     const itemToSave = refreshUidsInItem(transformRequestToSaveToFilesystem(item));
     set(itemToSave, 'name', trim(newName));
@@ -1858,7 +1897,23 @@ export const newFlow = (params) => (dispatch, getState) => {
     type: 'flow',
     name: flowName,
     seq,
-    flow: { steps: [] }
+    flow: {
+      nodes: [
+        {
+          id: 'start',
+          type: 'start',
+          position: { x: 80, y: 200 },
+          data: { label: 'Start' }
+        },
+        {
+          id: 'end',
+          type: 'end',
+          position: { x: 920, y: 200 },
+          data: { label: 'End' }
+        }
+      ],
+      edges: []
+    }
   };
 
   return window.ipcRenderer.invoke('renderer:new-flow', { pathname: fullName, flowData, format: collection.format }).then((result) => {

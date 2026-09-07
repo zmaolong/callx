@@ -239,10 +239,7 @@ const FlowTab = ({ flow }) => {
     if (!item) return;
     const newName = `${item.name} copy`;
     const newFilename = sanitizeName(newName);
-    // 使用 setTimeout 延迟执行，让 UI 先响应点击反馈，避免 cloneDeep(collection) 阻塞主线程
-    setTimeout(() => {
-      dispatch(cloneItem(newName, newFilename, requestUid, collectionUid));
-    }, 80);
+    dispatch(cloneItem(newName, newFilename, requestUid, collectionUid));
   }, [collection, collectionUid, dispatch]);
 
   return (
