@@ -104,12 +104,11 @@ export async function executeFlow({
         return { success: false, error: `节点 ${stepId} 不存在` };
       }
 
-      // 标记为 running
+      // 标记为 running（此时尚未解析输入映射，不传 variables）
       dispatch(updateFlowNodeStatus({
         flowUid,
         stepId,
-        status: NODE_STATUS.RUNNING,
-        inputVariables: variables
+        status: NODE_STATUS.RUNNING
       }));
 
       // 查找对应的请求 item

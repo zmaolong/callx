@@ -315,7 +315,7 @@ const FlowRunPanel = ({ flowRun, nodes, isRunning }) => {
           <span>运行结果</span>
           {flowStatusInfo && (
             <StatusBadge $bg={flowStatusInfo.bg} $color={flowStatusInfo.color}>
-              {isFlowRunning && <IconRefresh size={12} style={{ animation: `${spin} 1s linear infinite` }} />}
+              {isFlowRunning && <SpinningIcon size={12} />}
               {flowStatusInfo.label}
             </StatusBadge>
           )}
