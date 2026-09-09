@@ -108,7 +108,8 @@ export async function executeFlow({
       dispatch(updateFlowNodeStatus({
         flowUid,
         stepId,
-        status: NODE_STATUS.RUNNING
+        status: NODE_STATUS.RUNNING,
+        inputVariables: variables
       }));
 
       // 查找对应的请求 item
@@ -147,7 +148,8 @@ export async function executeFlow({
           flowUid,
           stepId,
           status: NODE_STATUS.FAILED,
-          error: `输入映射失败: ${errorMsg}`
+          error: `输入映射失败: ${errorMsg}`,
+          inputVariables: variables
         }));
         const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
         if (remaining.length > 0) {
@@ -177,8 +179,10 @@ export async function executeFlow({
             stepId,
             status: NODE_STATUS.FAILED,
             body: response.data || null,
+            httpStatus: response.status,
             duration,
-            error: response.error
+            error: response.error,
+            inputVariables: variables
           }));
           const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
           if (remaining.length > 0) {
@@ -200,7 +204,9 @@ export async function executeFlow({
           stepId,
           status: NODE_STATUS.SUCCESS,
           body: response.data,
-          duration
+          httpStatus: response.status,
+          duration,
+          inputVariables: variables
         }));
       } catch (error) {
         // 检查是否取消
@@ -208,7 +214,8 @@ export async function executeFlow({
           dispatch(updateFlowNodeStatus({
             flowUid,
             stepId,
-            status: NODE_STATUS.CANCELLED
+            status: NODE_STATUS.CANCELLED,
+            inputVariables: variables
           }));
           const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
           if (remaining.length > 0) {
@@ -223,7 +230,8 @@ export async function executeFlow({
           flowUid,
           stepId,
           status: NODE_STATUS.FAILED,
-          error: error.message || '网络请求失败'
+          error: error.message || '网络请求失败',
+          inputVariables: variables
         }));
         const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
         if (remaining.length > 0) {

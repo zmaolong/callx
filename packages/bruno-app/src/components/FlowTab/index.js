@@ -2,6 +2,7 @@ import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import FlowCanvas from './FlowCanvas';
 import FlowSidebar from './FlowSidebar';
+import FlowRunPanel from './FlowRunPanel';
 import StyledWrapper from './StyledWrapper';
 import { reconcileFlowNodes, removeOrphanedNodes } from 'utils/flow/reconcile';
 import { findItemInCollection, findCollectionByItemUid } from 'utils/collections';
@@ -19,6 +20,7 @@ import { sanitizeName } from 'utils/common/regex';
 import { executeFlow, cancelFlow } from 'utils/flow/executor';
 import { clearFlowRunState } from 'providers/ReduxStore/slices/flowRun';
 import Modal from 'components/Modal';
+import toast from 'react-hot-toast';
 
 const FlowTab = ({ flow }) => {
   const dispatch = useDispatch();
@@ -86,9 +88,22 @@ const FlowTab = ({ flow }) => {
   // 运行
   const handleRun = useCallback(async () => {
     const validationErrors = handleValidate();
-    if (validationErrors && validationErrors.length > 0) return;
+    if (validationErrors && validationErrors.length > 0) {
+      toast.error(`校验失败：${validationErrors.map((e) => e.message).join('；')}`);
+      return;
+    }
 
-    if (!flow || !collection || !flow.flow) return;
+    if (!flow || !collection || !flow.flow) {
+      toast.error('Flow 数据不完整，无法运行');
+      return;
+    }
+
+    // 检查是否有从 Start 出发的连线
+    const hasStartEdge = flow.flow.edges?.some((e) => e.source === 'start');
+    if (!hasStartEdge) {
+      toast.error('没有可执行的节点，请先连接 Start 到请求节点');
+      return;
+    }
 
     setIsRunning(true);
 
@@ -109,7 +124,7 @@ const FlowTab = ({ flow }) => {
     const collectionCopy = JSON.parse(JSON.stringify(collection));
 
     try {
-      await executeFlow({
+      const result = await executeFlow({
         flowUid: flow.uid,
         collectionUid: collection.uid,
         flow: flow.flow,
@@ -118,6 +133,9 @@ const FlowTab = ({ flow }) => {
         dispatch,
         getState: store.getState
       });
+      if (result && !result.success) {
+        toast.error(result.error || 'Flow 执行失败');
+      }
     } finally {
       setIsRunning(false);
     }
@@ -125,7 +143,7 @@ const FlowTab = ({ flow }) => {
 
   // 取消
   const handleCancel = useCallback(() => {
-    dispatch(cancelFlow(flow?.uid, null, dispatch));
+    cancelFlow(flow?.uid, null, dispatch);
     setIsRunning(false);
   }, [flow?.uid, dispatch]);
 
@@ -139,7 +157,7 @@ const FlowTab = ({ flow }) => {
   }, [flow?.uid, dispatch]);
 
   // 校验错误（从 flowRun 状态和 Graph 校验获取）
-  const errors = useCallback(() => {
+  const errors = useMemo(() => {
     if (!flow?.flow) return [];
     return validateGraph(flow.flow.nodes || [], flow.flow.edges || []);
   }, [flow?.flow]);
@@ -271,18 +289,25 @@ const FlowTab = ({ flow }) => {
   return (
     <StyledWrapper className="flex flex-col flex-grow">
       <div style={{ display: 'flex', flexGrow: 1, overflow: 'hidden' }}>
-        <div style={{ flexGrow: 1, position: 'relative' }}>
-          <FlowCanvas
-            flow={flow}
-            collectionUid={collectionUid}
-            onSelectNode={(node) => setSelectedNodeId(node.id)}
-            toolbarProps={{
-              onRun: handleRun,
-              onCancel: handleCancel,
-              onAutoLayout: handleAutoLayout,
-              isRunning,
-              errors
-            }}
+        <div style={{ flexGrow: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flexGrow: 1, position: 'relative' }}>
+            <FlowCanvas
+              flow={flow}
+              collectionUid={collectionUid}
+              onSelectNode={(node) => setSelectedNodeId(node.id)}
+              toolbarProps={{
+                onRun: handleRun,
+                onCancel: handleCancel,
+                onAutoLayout: handleAutoLayout,
+                isRunning,
+                errors
+              }}
+            />
+          </div>
+          <FlowRunPanel
+            flowRun={flowRun}
+            nodes={flow?.flow?.nodes}
+            isRunning={isRunning}
           />
         </div>
         <FlowSidebar

@@ -40,6 +40,8 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
   const theme = useTheme();
   const edgeColor = theme.colors?.text?.muted || theme.border?.border2 || '#64748b';
 
+  const flowRun = useSelector((state) => state.flowRun?.runs?.[flow?.uid]);
+
   const defaultEdgeOptions = {
     type: 'smoothstep',
     animated: false,
@@ -89,6 +91,38 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
       prevEdgesRef.current = initialEdges;
     }
   }, [initialNodes, initialEdges]);
+
+  // 同步运行态到节点（executionStatus、duration、httpStatus）
+  useEffect(() => {
+    if (!flowRun?.nodes) return;
+    setNodes((nds) =>
+      nds.map((n) => {
+        const nodeState = flowRun.nodes[n.id];
+        if (!nodeState) return n;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            executionStatus: nodeState.status,
+            duration: nodeState.duration,
+            httpStatus: nodeState.httpStatus
+          }
+        };
+      })
+    );
+  }, [flowRun?.nodes]);
+
+  // 边动画：当前正在运行的节点对应的入边设置 animated: true
+  useEffect(() => {
+    if (!flowRun?.nodes) return;
+    setEdges((eds) =>
+      eds.map((e) => {
+        const targetNodeState = flowRun.nodes[e.target];
+        const isActive = targetNodeState?.status === 'running';
+        return { ...e, animated: isActive };
+      })
+    );
+  }, [flowRun?.nodes]);
 
   // 连线回调：校验合法性
   const onConnect = useCallback(

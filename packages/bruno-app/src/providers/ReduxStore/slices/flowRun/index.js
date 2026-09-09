@@ -61,8 +61,10 @@ const flowRunSlice = createSlice({
         nodeStates[node.id] = {
           status: NODE_STATUS.IDLE,
           body: null,
+          httpStatus: null,
           duration: null,
-          error: null
+          error: null,
+          inputVariables: null
         };
       }
 
@@ -79,7 +81,7 @@ const flowRunSlice = createSlice({
      * 更新单个节点的状态。
      */
     updateFlowNodeStatus: (state, action) => {
-      const { flowUid, stepId, status, body, duration, error } = action.payload;
+      const { flowUid, stepId, status, body, httpStatus, duration, error, inputVariables } = action.payload;
       const run = state.runs[flowUid];
       if (!run) return;
 
@@ -87,8 +89,10 @@ const flowRunSlice = createSlice({
         run.nodes[stepId] = {
           status: status || run.nodes[stepId].status,
           body: body !== undefined ? body : run.nodes[stepId].body,
+          httpStatus: httpStatus !== undefined ? httpStatus : run.nodes[stepId].httpStatus,
           duration: duration !== undefined ? duration : run.nodes[stepId].duration,
-          error: error !== undefined ? error : run.nodes[stepId].error
+          error: error !== undefined ? error : run.nodes[stepId].error,
+          inputVariables: inputVariables !== undefined ? inputVariables : run.nodes[stepId].inputVariables
         };
       }
     },
