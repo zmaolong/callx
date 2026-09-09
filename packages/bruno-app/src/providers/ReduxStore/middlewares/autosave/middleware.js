@@ -1,4 +1,4 @@
-import { saveRequest, saveCollectionSettings, saveFolderRoot, saveFile, saveEnvironment } from '../../slices/collections/actions';
+import { saveRequest, saveCollectionSettings, saveFolderRoot, saveFile, saveEnvironment, saveFlow } from '../../slices/collections/actions';
 import { saveGlobalEnvironment } from '../../slices/global-environments';
 import { flattenItems, isItemARequest, isItemAFolder, findItemInCollection, findCollectionByUid, isItemTransientRequest } from 'utils/collections';
 import { isEnvironmentValidationError } from 'utils/environments';
@@ -96,7 +96,17 @@ const actionsToIntercept = [
 
   // Environment draft actions
   'collections/setEnvironmentsDraft',
-  'global-environments/setGlobalEnvironmentDraft'
+  'global-environments/setGlobalEnvironmentDraft',
+
+  // Flow actions
+  'collections/updateFlowNodes',
+  'collections/updateFlowEdges',
+  'collections/updateFlowNode',
+  'collections/addFlowNode',
+  'collections/removeFlowNode',
+  'collections/addFlowEdge',
+  'collections/removeFlowEdge',
+  'collections/updateFlowNodeInputs'
 ];
 
 // Simple object to track pending save timers
@@ -238,6 +248,19 @@ const determineSaveHandler = (actionType, payload, dispatch, getState) => {
       const item = findItemInCollection(collection, itemUid);
       if (item && isItemTransientRequest(item)) {
         return null; // Skip auto-save for transient requests
+      }
+      // Flow items use saveFlow instead of saveRequest
+      if (item && item.type === 'flow') {
+        if (actionType === 'collections/updateFileContent') {
+          return {
+            key: `file-${itemUid}`,
+            save: () => dispatch(saveFile(payload.content, itemUid, collectionUid, true))
+          };
+        }
+        return {
+          key: `flow-${itemUid}`,
+          save: () => dispatch(saveFlow(itemUid, collectionUid, true))
+        };
       }
     }
 

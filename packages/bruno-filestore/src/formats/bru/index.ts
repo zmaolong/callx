@@ -19,7 +19,10 @@ export const parseBruRequest = (data: string | any, parsed: boolean = false): an
         name: _.get(json, 'meta.name'),
         seq: Number(_.get(json, 'meta.seq', 1)),
         tags: _.get(json, 'meta.tags', []),
-        flow: { steps: _.get(json, 'flow.steps', []) },
+        flow: {
+          nodes: _.get(json, 'flow.nodes', []),
+          edges: _.get(json, 'flow.edges', [])
+        },
         request: null,
         items: []
       };
@@ -159,7 +162,10 @@ export const stringifyBruRequest = (json: any): string => {
           seq: Number(_.get(json, 'seq', 1)),
           tags: _.get(json, 'tags', [])
         },
-        flow: { steps: _.get(json, 'flow.steps', []) }
+        flow: {
+          nodes: _.get(json, 'flow.nodes', []),
+          edges: _.get(json, 'flow.edges', [])
+        }
       });
     }
 

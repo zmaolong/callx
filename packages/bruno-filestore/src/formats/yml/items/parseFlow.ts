@@ -1,6 +1,31 @@
 import type { Item as BrunoItem } from '@usebruno/schema-types/collection/item';
 import { uuid } from '../../../utils';
 
+export interface FlowNode {
+  id: string;
+  type: 'start' | 'end' | 'request';
+  requestUid?: string;
+  requestPath?: string;
+  alias?: string;
+  position: { x: number; y: number };
+  inputs?: Array<{
+    name: string;
+    source: {
+      kind: 'flow' | 'literal';
+      expression?: string;
+      value?: unknown;
+      valueType?: string;
+    };
+  }>;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  type?: string;
+}
+
 export interface FlowFile {
   info?: {
     name?: string;
@@ -8,12 +33,15 @@ export interface FlowFile {
     seq?: number;
     tags?: string[];
   };
-  steps?: unknown[];
-  flow?: { steps?: unknown[] };
+  flow?: {
+    nodes?: FlowNode[];
+    edges?: FlowEdge[];
+  };
 }
 
 const parseFlow = (ocFlow: FlowFile): BrunoItem => {
   const info = ocFlow.info || { type: 'flow' as const };
+  const flowData = ocFlow.flow || {};
   return {
     uid: uuid(),
     type: 'flow',
@@ -26,7 +54,10 @@ const parseFlow = (ocFlow: FlowFile): BrunoItem => {
     fileContent: null,
     root: null,
     items: [],
-    flow: { steps: Array.isArray(ocFlow.flow?.steps) ? ocFlow.flow!.steps : (Array.isArray(ocFlow.steps) ? ocFlow.steps : []) },
+    flow: {
+      nodes: Array.isArray(flowData.nodes) ? flowData.nodes : [],
+      edges: Array.isArray(flowData.edges) ? flowData.edges : []
+    },
     examples: [],
     filename: null,
     pathname: null

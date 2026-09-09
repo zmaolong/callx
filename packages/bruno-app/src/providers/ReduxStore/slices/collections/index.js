@@ -14,9 +14,11 @@ import {
   findEnvironmentInCollection,
   findItemInCollection,
   findItemInCollectionByPathname,
+  findParentItemInCollectionByPathname,
   isItemAFolder,
   isItemARequest
 } from 'utils/collections';
+import { createNodeForRequest } from 'utils/flow/reconcile';
 import { parsePathParams, splitOnFirst } from 'utils/url';
 import { applyScriptEnvVars, getScriptModifiedKeys } from 'utils/environments';
 import { getSubdirectoriesFromRoot } from 'utils/common/platform';
@@ -563,6 +565,119 @@ export const collectionsSlice = createSlice({
         collection.runtimeVariables = runtimeVariables;
       }
     },
+    // Flow graph reducers
+    updateFlowNodes: (state, action) => {
+      const { collectionUid, itemUid, nodes } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        const item = itemUid ? findItemInCollection(collection, itemUid) : null;
+        const target = item || collection;
+        if (target.flow) {
+          target.flow.nodes = nodes;
+        } else {
+          target.flow = { nodes: nodes || [], edges: target.flow?.edges || [] };
+        }
+      }
+    },
+    updateFlowEdges: (state, action) => {
+      const { collectionUid, itemUid, edges } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        const item = itemUid ? findItemInCollection(collection, itemUid) : null;
+        const target = item || collection;
+        if (target.flow) {
+          target.flow.edges = edges;
+        } else {
+          target.flow = { nodes: target.flow?.nodes || [], edges: edges || [] };
+        }
+      }
+    },
+    updateFlowNode: (state, action) => {
+      const { collectionUid, itemUid, nodeId, updates } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        const item = itemUid ? findItemInCollection(collection, itemUid) : null;
+        const target = item || collection;
+        if (target.flow?.nodes) {
+          const index = target.flow.nodes.findIndex((n) => n.id === nodeId);
+          if (index !== -1) {
+            target.flow.nodes[index] = { ...target.flow.nodes[index], ...updates };
+          }
+        }
+      }
+    },
+    addFlowNode: (state, action) => {
+      const { collectionUid, itemUid, node } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        const item = itemUid ? findItemInCollection(collection, itemUid) : null;
+        const target = item || collection;
+        if (!target.flow) {
+          target.flow = { nodes: [], edges: [] };
+        }
+        if (!Array.isArray(target.flow.nodes)) {
+          target.flow.nodes = [];
+        }
+        target.flow.nodes.push(node);
+      }
+    },
+    removeFlowNode: (state, action) => {
+      const { collectionUid, itemUid, nodeId } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        const item = itemUid ? findItemInCollection(collection, itemUid) : null;
+        const target = item || collection;
+        if (target.flow?.nodes) {
+          target.flow.nodes = target.flow.nodes.filter((n) => n.id !== nodeId);
+          // Also remove edges connected to this node
+          if (target.flow.edges) {
+            target.flow.edges = target.flow.edges.filter(
+              (e) => e.source !== nodeId && e.target !== nodeId
+            );
+          }
+        }
+      }
+    },
+    addFlowEdge: (state, action) => {
+      const { collectionUid, itemUid, edge } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        const item = itemUid ? findItemInCollection(collection, itemUid) : null;
+        const target = item || collection;
+        if (!target.flow) {
+          target.flow = { nodes: [], edges: [] };
+        }
+        if (!Array.isArray(target.flow.edges)) {
+          target.flow.edges = [];
+        }
+        target.flow.edges.push(edge);
+      }
+    },
+    removeFlowEdge: (state, action) => {
+      const { collectionUid, itemUid, edgeId } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        const item = itemUid ? findItemInCollection(collection, itemUid) : null;
+        const target = item || collection;
+        if (target.flow?.edges) {
+          target.flow.edges = target.flow.edges.filter((e) => e.id !== edgeId);
+        }
+      }
+    },
+    updateFlowNodeInputs: (state, action) => {
+      const { collectionUid, itemUid, nodeId, inputs } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        const item = itemUid ? findItemInCollection(collection, itemUid) : null;
+        const target = item || collection;
+        if (target.flow?.nodes) {
+          const index = target.flow.nodes.findIndex((n) => n.id === nodeId);
+          if (index !== -1) {
+            target.flow.nodes[index].inputs = inputs;
+          }
+        }
+      }
+    },
     processEnvUpdateEvent: (state, action) => {
       const { collectionUid, processEnvVariables } = action.payload;
       const collection = findCollectionByUid(state.collections, collectionUid);
@@ -653,7 +768,7 @@ export const collectionsSlice = createSlice({
             : timelineRequest?.timestamp || Date.now();
 
           // Append the new timeline entry with numeric timestamp
-          collection.timeline.push({
+          const timelineEntry = {
             type: 'request',
             collectionUid: collection.uid,
             folderUid: null,
@@ -665,7 +780,16 @@ export const collectionsSlice = createSlice({
               response: action.payload.response,
               timestamp: timestamp
             }
-          });
+          };
+
+          // Flow 运行上下文：附加 Flow 元数据
+          if (action.payload.flowRunId) {
+            timelineEntry.flowRunId = action.payload.flowRunId;
+            timelineEntry.flowUid = action.payload.flowUid;
+            timelineEntry.stepId = action.payload.stepId;
+          }
+
+          collection.timeline.push(timelineEntry);
         }
       }
     },
@@ -2964,7 +3088,10 @@ export const collectionsSlice = createSlice({
             if (file?.data?.seq) {
               folderItem.seq = file?.data?.seq;
             }
-            folderItem.flow = { steps: file?.data?.flow?.steps || [] };
+            folderItem.flow = {
+              nodes: file?.data?.flow?.nodes || [],
+              edges: file?.data?.flow?.edges || []
+            };
           }
         }
         return;
@@ -3046,6 +3173,23 @@ export const collectionsSlice = createSlice({
           }
         }
         addDepth(collection.items);
+
+        // Auto-sync: when a request file is added to a Flow directory, create a corresponding node
+        if (!isCollectionRoot && !isFolderRoot) {
+          const parentItem = findParentItemInCollectionByPathname(collection, file.meta.pathname);
+          if (parentItem && parentItem.type === 'flow' && parentItem.flow) {
+            const existingNode = (parentItem.flow.nodes || []).find(
+              (n) => n.requestUid === file.data.uid
+            );
+            if (!existingNode) {
+              const newNode = createNodeForRequest(file.data);
+              if (!parentItem.flow.nodes) {
+                parentItem.flow.nodes = [];
+              }
+              parentItem.flow.nodes.push(newNode);
+            }
+          }
+        }
       }
     },
     collectionAddDirectoryEvent: (state, action) => {
@@ -3123,6 +3267,20 @@ export const collectionsSlice = createSlice({
             folderItem.seq = file?.data?.meta?.seq;
           }
           folderItem.root = mergeRootWithPreservedUids(folderItem.root, file.data);
+          // Flow root: data has name/seq/type at top level, not inside meta
+          if (file?.data?.type === 'flow') {
+            folderItem.type = 'flow';
+            if (file?.data?.name) {
+              folderItem.name = file?.data?.name;
+            }
+            if (file?.data?.seq) {
+              folderItem.seq = file?.data?.seq;
+            }
+            folderItem.flow = {
+              nodes: file?.data?.flow?.nodes || [],
+              edges: file?.data?.flow?.edges || []
+            };
+          }
         }
         return;
       }
@@ -3197,6 +3355,24 @@ export const collectionsSlice = createSlice({
         const item = findItemInCollectionByPathname(collection, file.meta.pathname);
 
         if (item) {
+          // Remove the node from the parent Flow graph if the parent is a Flow
+          const parentItem = findParentItemInCollectionByPathname(collection, file.meta.pathname);
+          if (parentItem && parentItem.type === 'flow' && parentItem.flow) {
+            const nodeIndex = (parentItem.flow.nodes || []).findIndex(
+              (n) => n.requestUid === item.uid
+            );
+            if (nodeIndex !== -1) {
+              const nodeId = parentItem.flow.nodes[nodeIndex].id;
+              parentItem.flow.nodes.splice(nodeIndex, 1);
+              // Remove edges connected to this node
+              if (parentItem.flow.edges) {
+                parentItem.flow.edges = parentItem.flow.edges.filter(
+                  (e) => e.source !== nodeId && e.target !== nodeId
+                );
+              }
+            }
+          }
+
           deleteItemInCollectionByPathname(file.meta.pathname, collection);
         }
       }
@@ -4128,6 +4304,14 @@ export const {
   processEnvUpdateEvent,
   workspaceEnvUpdateEvent,
   setDotEnvVariables,
+  updateFlowNodes,
+  updateFlowEdges,
+  updateFlowNode,
+  addFlowNode,
+  removeFlowNode,
+  addFlowEdge,
+  removeFlowEdge,
+  updateFlowNodeInputs,
   requestCancelled,
   responseReceived,
   runGrpcRequestEvent,

@@ -21,7 +21,8 @@ Object.defineProperty(window, 'matchMedia', {
 
 jest.mock('nanoid', () => {
   return {
-    nanoid: () => {}
+    nanoid: () => {},
+    customAlphabet: () => () => 'test_nano_id_1234567890abcdef'
   };
 });
 

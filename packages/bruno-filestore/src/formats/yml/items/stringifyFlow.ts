@@ -8,7 +8,10 @@ const stringifyFlow = (item: BrunoItem): string => stringifyYml({
     ...(typeof item.seq === 'number' ? { seq: item.seq } : {}),
     ...(item.tags?.length ? { tags: item.tags } : {})
   },
-  flow: { steps: item.flow?.steps || [] }
+  flow: {
+    nodes: item.flow?.nodes || [],
+    edges: item.flow?.edges || []
+  }
 });
 
 export default stringifyFlow;

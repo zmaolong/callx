@@ -1666,7 +1666,10 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
               name: item.name,
               type: 'flow',
               seq: item.seq,
-              flow: { steps: item.flow?.steps || [] }
+              flow: {
+                nodes: item.flow?.nodes || [],
+                edges: item.flow?.edges || []
+              }
             };
             const flowContent = await stringifyRequestViaWorker(flowData, { format });
             const flowFilePath = path.join(flowPath, `flow.${format}`);
@@ -1748,7 +1751,10 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
               name: path.basename(item.pathname),
               type: 'flow',
               seq: item.seq,
-              flow: { steps: item.flow?.steps || [] }
+              flow: {
+                nodes: item.flow?.nodes || [],
+                edges: item.flow?.edges || []
+              }
             };
             if (fs.existsSync(flowFilePath)) {
               const flowContent = fs.readFileSync(flowFilePath, 'utf8');

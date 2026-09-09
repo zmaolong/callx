@@ -718,6 +718,21 @@ export const transformRequestToSaveToFilesystem = (item) => {
     };
   }
 
+  // Flow items have no request, emit only the flow graph structure.
+  if (_item.type === 'flow') {
+    return {
+      uid: _item.uid,
+      type: 'flow',
+      name: _item.name,
+      seq: _item.seq,
+      tags: _item.tags,
+      flow: {
+        nodes: _item.flow?.nodes || [],
+        edges: _item.flow?.edges || []
+      }
+    };
+  }
+
   // Transform examples to ensure status is a number
   const transformExamples = (examples = []) => {
     return map(examples, (example) => ({
