@@ -214,6 +214,11 @@ const Wrapper = styled.div`
       min-height: 0;
       overflow-x: clip;
       overflow-y: auto;
+
+      .create-transient-request {
+        display: flex;
+        padding: 0 3px;
+      }
     }
 
     ul {

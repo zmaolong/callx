@@ -11,7 +11,7 @@ import { get } from 'lodash';
 import { formatIpcError } from 'utils/common/error';
 import { PRESET_REQUEST_TYPES as REQUEST_TYPE } from 'utils/common/constants';
 
-const CreateTransientRequest = ({ collectionUid }) => {
+const CreateTransientRequest = ({ collectionUid, appendTo }) => {
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const dropdownTippyRef = useRef();
   const dispatch = useDispatch();
@@ -175,6 +175,7 @@ const CreateTransientRequest = ({ collectionUid }) => {
       onCreate={onDropdownCreate}
       onClickOutside={() => setDropdownVisible(false)}
       placement="bottom-end"
+      appendTo={appendTo}
     >
       <div className="dropdown-item" onClick={() => handleItemClick(REQUEST_TYPE.HTTP)}>
         <div className="dropdown-icon">

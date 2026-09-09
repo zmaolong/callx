@@ -58,7 +58,7 @@ const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly
     const checkOverflow = () => {
       if (tabsRef.current && scrollContainerRef.current) {
         const hasOverflow = isRightPosition
-          ? tabsRef.current.scrollHeight > scrollContainerRef.current.clientHeight + 1
+          ? scrollContainerRef.current.scrollHeight > scrollContainerRef.current.clientHeight + 1
           : tabsRef.current.scrollWidth > scrollContainerRef.current.clientWidth + 1;
         setShowChevrons(hasOverflow);
       }
@@ -184,8 +184,16 @@ const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly
                 </DraggableTab>
               ))}
             </ul>
+            {isRightPosition && activeCollection && (
+              <div className="create-transient-request">
+                <CreateTransientRequest
+                  collectionUid={activeCollection.uid}
+                  appendTo={() => collectionTabsRef.current}
+                />
+              </div>
+            )}
           </div>
-          {activeCollection && (
+          {!isRightPosition && activeCollection && (
             <CreateTransientRequest collectionUid={activeCollection.uid} />
           )}
           <div className={classnames('scroll-chevrons', { hidden: !showChevrons })}>
