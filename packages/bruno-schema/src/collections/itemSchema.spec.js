@@ -89,6 +89,78 @@ describe('Item Schema Validation', () => {
     ]);
   });
 
+  it('item schema accepts Flow nodes with input mappings', async () => {
+    const item = {
+      uid: uuid(),
+      name: 'Supplier Flow',
+      type: 'flow',
+      flow: {
+        nodes: [
+          { id: 'start', type: 'start', position: { x: 80, y: 200 } },
+          {
+            id: 'step_login',
+            type: 'request',
+            requestUid: uuid(),
+            requestPath: 'login.bru',
+            alias: '登录',
+            position: { x: 320, y: 200 },
+            inputs: [
+              {
+                name: 'supplierId',
+                source: {
+                  kind: 'flow',
+                  expression: '{{$flow.last.body.id}}'
+                }
+              },
+              {
+                name: 'retryCount',
+                source: {
+                  kind: 'literal',
+                  value: 3,
+                  valueType: 'number'
+                }
+              }
+            ]
+          },
+          { id: 'end', type: 'end', position: { x: 920, y: 200 } }
+        ],
+        edges: [
+          { id: 'edge_start_login', source: 'start', target: 'step_login' },
+          { id: 'edge_login_end', source: 'step_login', target: 'end' }
+        ]
+      }
+    };
+
+    await expect(itemSchema.validate(item)).resolves.toMatchObject({
+      flow: {
+        nodes: expect.arrayContaining([
+          expect.objectContaining({ id: 'step_login', inputs: expect.any(Array) })
+        ])
+      }
+    });
+  });
+
+  it('item schema rejects unknown Flow node fields', async () => {
+    const item = {
+      uid: uuid(),
+      name: 'Invalid Flow',
+      type: 'flow',
+      flow: {
+        nodes: [
+          {
+            id: 'start',
+            type: 'start',
+            position: { x: 80, y: 200 },
+            data: { label: 'Start' }
+          }
+        ],
+        edges: []
+      }
+    };
+
+    await expect(itemSchema.validate(item)).rejects.toThrow();
+  });
+
   describe('settings.maxRedirects', () => {
     const itemWithMaxRedirects = (maxRedirects) => ({
       uid: uuid(),

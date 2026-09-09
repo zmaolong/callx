@@ -651,6 +651,68 @@ const folderRootSchema = Yup.object({
   .noUnknown(true)
   .nullable();
 
+const flowInputSourceSchema = Yup.object({
+  kind: Yup.string().oneOf(['flow', 'literal']).required('input source kind is required'),
+  expression: Yup.string().when('kind', {
+    is: 'flow',
+    then: Yup.string().min(1, 'flow input expression is required').required('flow input expression is required'),
+    otherwise: Yup.string().nullable()
+  }),
+  value: Yup.mixed().when('kind', {
+    is: 'literal',
+    then: Yup.mixed().nullable().defined('literal input value is required'),
+    otherwise: Yup.mixed().nullable()
+  }),
+  valueType: Yup.string().when('kind', {
+    is: 'literal',
+    then: Yup.string().oneOf(['string', 'number', 'boolean', 'json', 'null']).nullable(),
+    otherwise: Yup.string().nullable()
+  })
+})
+  .noUnknown(true)
+  .strict();
+
+const flowInputMappingSchema = Yup.object({
+  name: Yup.string().trim().min(1, 'input mapping name is required').required('input mapping name is required'),
+  source: flowInputSourceSchema.required('input mapping source is required')
+})
+  .noUnknown(true)
+  .strict();
+
+const flowNodeSchema = Yup.object({
+  id: Yup.string().min(1, 'flow node id is required').required('flow node id is required'),
+  type: Yup.string().oneOf(['start', 'end', 'request']).required('flow node type is required'),
+  requestUid: Yup.string().nullable(),
+  requestPath: Yup.string().nullable(),
+  alias: Yup.string().nullable(),
+  position: Yup.object({
+    x: Yup.number().required('flow node position x is required'),
+    y: Yup.number().required('flow node position y is required')
+  })
+    .noUnknown(true)
+    .strict()
+    .required('flow node position is required'),
+  inputs: Yup.array().of(flowInputMappingSchema).nullable()
+})
+  .noUnknown(true)
+  .strict();
+
+const flowEdgeSchema = Yup.object({
+  id: Yup.string().min(1, 'flow edge id is required').required('flow edge id is required'),
+  source: Yup.string().min(1, 'flow edge source is required').required('flow edge source is required'),
+  target: Yup.string().min(1, 'flow edge target is required').required('flow edge target is required'),
+  type: Yup.string().nullable()
+})
+  .noUnknown(true)
+  .strict();
+
+const flowSchema = Yup.object({
+  nodes: Yup.array().of(flowNodeSchema).required('flow nodes are required'),
+  edges: Yup.array().of(flowEdgeSchema).required('flow edges are required')
+})
+  .noUnknown(true)
+  .strict();
+
 const itemSchema = Yup.object({
   uid: uidSchema,
   type: Yup.string().oneOf(['http-request', 'graphql-request', 'folder', 'js', 'app', 'grpc-request', 'ws-request', 'flow']).required('type is required'),
@@ -710,6 +772,11 @@ const itemSchema = Yup.object({
   })
     .noUnknown(true)
     .nullable(),
+  flow: Yup.mixed().when('type', {
+    is: 'flow',
+    then: flowSchema.required('flow is required'),
+    otherwise: Yup.mixed().nullable().notRequired()
+  }),
   filename: Yup.string().nullable(),
   pathname: Yup.string().nullable()
 })

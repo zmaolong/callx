@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { IconPencil, IconCopy, IconTrash, IconSettings } from '@tabler/icons';
+import {
+  IconPencil,
+  IconCopy,
+  IconTrash,
+  IconPlus,
+  IconCheck
+} from '@tabler/icons';
+import { validateInputMappings } from 'utils/flow/input-mapping';
 
 const SidebarContainer = styled.div`
   width: 280px;
@@ -53,6 +60,21 @@ const SidebarInput = styled.input`
   }
 `;
 
+const SidebarSelect = styled.select`
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: ${(props) => props.theme.border.radius.sm};
+  border: 1px solid ${(props) => props.theme.input.border};
+  background: ${(props) => props.theme.input.bg || props.theme.background.surface0};
+  color: ${(props) => props.theme.text};
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: ${(props) => props.theme.input.focusBorder};
+  }
+`;
+
 const ButtonGroup = styled.div`
   display: flex;
   flex-direction: column;
@@ -81,21 +103,87 @@ const ActionButton = styled.button`
   }
 `;
 
-const InputMappingItem = styled.div`
-  padding: 6px 8px;
-  margin-bottom: 4px;
+const MappingHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+`;
+
+const MappingActions = styled.div`
+  display: flex;
+  gap: 4px;
+`;
+
+const MappingButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 4px 6px;
+  border: 1px solid ${(props) => props.theme.border.border1};
   border-radius: ${(props) => props.theme.border.radius.sm};
   background: ${(props) => props.theme.background.surface0};
-  font-size: 12px;
-  color: ${(props) => props.theme.colors.text.muted};
-`;
-
-const InputMappingName = styled.div`
   color: ${(props) => props.theme.text};
+  cursor: pointer;
+  font-size: 11px;
+
+  &:hover {
+    background: ${(props) => props.theme.background.surface1};
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
 `;
 
-const InputMappingSource = styled.div`
+const MappingRow = styled.div`
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid ${(props) => props.theme.border.border1};
+  border-radius: ${(props) => props.theme.border.radius.sm};
+  background: ${(props) => props.theme.background.surface0};
+`;
+
+const MappingRowHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+`;
+
+const MappingField = styled.div`
+  margin-top: 6px;
+`;
+
+const MappingError = styled.div`
+  margin-top: 6px;
+  color: ${(props) => props.theme.status.danger.text};
   font-size: 11px;
+  line-height: 1.35;
+`;
+
+const IconButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: ${(props) => props.theme.border.radius.sm};
+  background: transparent;
+  color: ${(props) => props.theme.colors.text.muted};
+  cursor: pointer;
+
+  &:hover {
+    background: ${(props) => props.theme.background.surface1};
+    color: ${(props) => props.theme.button.danger.color};
+  }
 `;
 
 const EmptyMappings = styled.div`
@@ -104,13 +192,70 @@ const EmptyMappings = styled.div`
   font-style: italic;
 `;
 
+const LITERAL_TYPES = [
+  { value: 'string', label: '字符串' },
+  { value: 'number', label: '数字' },
+  { value: 'boolean', label: '布尔' },
+  { value: 'json', label: 'JSON' },
+  { value: 'null', label: 'Null' }
+];
+
+const createEmptyMapping = () => ({
+  name: '',
+  source: {
+    kind: 'flow',
+    expression: ''
+  }
+});
+
+const normalizeMapping = (mapping) => {
+  if (mapping?.source?.kind === 'literal') {
+    return {
+      name: mapping.name || '',
+      source: {
+        kind: 'literal',
+        value: mapping.source.value === undefined ? '' : mapping.source.value,
+        valueType: mapping.source.valueType || 'string'
+      }
+    };
+  }
+
+  return {
+    name: mapping?.name || '',
+    source: {
+      kind: 'flow',
+      expression: mapping?.source?.expression || ''
+    }
+  };
+};
+
+const isEmptyMapping = (mapping) => {
+  if (mapping.name.trim()) return false;
+  if (mapping.source.kind === 'flow') return !mapping.source.expression?.trim();
+  return mapping.source.valueType !== 'null' && String(mapping.source.value ?? '').trim() === '';
+};
+
+const getMappingsFromNode = (selectedNode) => (selectedNode?.data?.inputs || []).map(normalizeMapping);
+
 const FlowSidebar = ({
   selectedNode,
   onUpdateNode,
+  onUpdateInputs,
   onEditRequest,
   onDeleteRequest,
   onDuplicateRequest
 }) => {
+  const selectedNodeId = selectedNode?.id;
+  const mappingSignature = JSON.stringify(selectedNode?.data?.inputs || []);
+  const [mappings, setMappings] = useState(() => getMappingsFromNode(selectedNode));
+  const [mappingErrors, setMappingErrors] = useState({});
+  const [isSavingMappings, setIsSavingMappings] = useState(false);
+
+  useEffect(() => {
+    setMappings(getMappingsFromNode(selectedNode));
+    setMappingErrors({});
+  }, [selectedNodeId, mappingSignature]);
+
   if (!selectedNode) {
     return (
       <SidebarEmpty>
@@ -135,26 +280,96 @@ const FlowSidebar = ({
     );
   }
 
-  // Request 节点配置面板
+  const updateMapping = (index, updates) => {
+    setMappings((currentMappings) => currentMappings.map((mapping, mappingIndex) => (
+      mappingIndex === index ? { ...mapping, ...updates } : mapping
+    )));
+    setMappingErrors({});
+  };
+
+  const updateMappingSource = (index, updates) => {
+    setMappings((currentMappings) => currentMappings.map((mapping, mappingIndex) => (
+      mappingIndex === index
+        ? { ...mapping, source: { ...mapping.source, ...updates } }
+        : mapping
+    )));
+    setMappingErrors({});
+  };
+
+  const handleSourceKindChange = (index, kind) => {
+    updateMapping(index, {
+      source: kind === 'flow'
+        ? { kind: 'flow', expression: '' }
+        : { kind: 'literal', value: '', valueType: 'string' }
+    });
+  };
+
+  const handleLiteralTypeChange = (index, valueType) => {
+    updateMappingSource(index, {
+      valueType,
+      value: valueType === 'null' ? null : ''
+    });
+  };
+
+  const handleSaveMappings = async () => {
+    if (isSavingMappings) return;
+
+    const preparedMappings = mappings.reduce((result, mapping, index) => {
+      if (isEmptyMapping(mapping)) return result;
+
+      result.push({
+        index,
+        mapping: {
+          name: mapping.name.trim(),
+          source: mapping.source.kind === 'flow'
+            ? {
+                kind: 'flow',
+                expression: mapping.source.expression.trim()
+              }
+            : {
+                kind: 'literal',
+                value: mapping.source.value,
+                valueType: mapping.source.valueType || 'string'
+              }
+        }
+      });
+      return result;
+    }, []);
+    const errors = validateInputMappings(preparedMappings.map(({ mapping }) => mapping));
+
+    if (errors.length > 0) {
+      setMappingErrors(Object.fromEntries(errors.map(({ index, error }) => [preparedMappings[index].index, error])));
+      return;
+    }
+
+    setMappingErrors({});
+    setIsSavingMappings(true);
+    try {
+      await onUpdateInputs?.(selectedNode.id, preparedMappings.map(({ mapping }) => mapping));
+    } catch {
+      // 保存失败由 saveFlow 统一展示错误提示。
+    } finally {
+      setIsSavingMappings(false);
+    }
+  };
+
   return (
     <SidebarContainer>
       <SidebarTitle $large>
         卡片配置
       </SidebarTitle>
 
-      {/* Alias 编辑 */}
       <div style={{ marginBottom: 12 }}>
         <InputLabel>
           别名 (Alias)
         </InputLabel>
         <SidebarInput
           value={nodeData.alias || ''}
-          onChange={(e) => onUpdateNode && onUpdateNode(selectedNode.id, { alias: e.target.value })}
+          onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, { alias: event.target.value })}
           placeholder="输入别名"
         />
       </div>
 
-      {/* 操作按钮 */}
       <ButtonGroup>
         <ActionButton onClick={() => onEditRequest && onEditRequest(nodeData)}>
           <IconPencil size={14} />
@@ -170,24 +385,126 @@ const FlowSidebar = ({
         </ActionButton>
       </ButtonGroup>
 
-      {/* 输入映射列表 */}
       <div style={{ marginTop: 12 }}>
-        <SidebarTitle style={{ fontSize: 13, marginBottom: 8 }}>
-          输入映射
-        </SidebarTitle>
-        {(nodeData.inputs || []).length === 0 ? (
+        <MappingHeader>
+          <SidebarTitle style={{ fontSize: 13, marginBottom: 0 }}>
+            输入映射
+          </SidebarTitle>
+          <MappingActions>
+            <MappingButton
+              onClick={() => setMappings((currentMappings) => [...currentMappings, createEmptyMapping()])}
+              disabled={isSavingMappings}
+              title={isSavingMappings ? '正在保存输入映射' : '添加输入映射'}
+              aria-label="添加输入映射"
+            >
+              <IconPlus size={14} />
+              添加
+            </MappingButton>
+            <MappingButton
+              onClick={handleSaveMappings}
+              disabled={isSavingMappings}
+              title={isSavingMappings ? '正在保存输入映射' : '保存输入映射'}
+              aria-label={isSavingMappings ? '正在保存输入映射' : '保存输入映射'}
+            >
+              <IconCheck size={14} />
+              {isSavingMappings ? '保存中' : '保存'}
+            </MappingButton>
+          </MappingActions>
+        </MappingHeader>
+
+        {mappings.length === 0 ? (
           <EmptyMappings>
             暂无输入映射
           </EmptyMappings>
         ) : (
-          (nodeData.inputs || []).map((input, index) => (
-            <InputMappingItem key={index}>
-              <InputMappingName>{input.name}</InputMappingName>
-              <InputMappingSource>
-                {input.source?.kind === 'flow' ? input.source.expression : `字面量: ${input.source?.value}`}
-              </InputMappingSource>
-            </InputMappingItem>
-          ))
+          mappings.map((mapping, index) => {
+            const error = mappingErrors[index];
+            const isFlowSource = mapping.source.kind === 'flow';
+            const isNullLiteral = mapping.source.valueType === 'null';
+
+            return (
+              <MappingRow key={`${selectedNode.id}-${index}`}>
+                <MappingRowHeader>
+                  <InputLabel style={{ marginBottom: 0 }}>映射 {index + 1}</InputLabel>
+                  <IconButton
+                    disabled={isSavingMappings}
+                    onClick={() => setMappings((currentMappings) => currentMappings.filter((_, mappingIndex) => mappingIndex !== index))}
+                    title="删除输入映射"
+                    aria-label={`删除输入映射 ${index + 1}`}
+                  >
+                    <IconTrash size={14} />
+                  </IconButton>
+                </MappingRowHeader>
+
+                <MappingField>
+                  <InputLabel>变量名</InputLabel>
+                  <SidebarInput
+                    disabled={isSavingMappings}
+                    value={mapping.name}
+                    onChange={(event) => updateMapping(index, { name: event.target.value })}
+                    placeholder="例如 supplierId"
+                    aria-label={`映射 ${index + 1} 变量名`}
+                  />
+                </MappingField>
+
+                <MappingField>
+                  <InputLabel>来源</InputLabel>
+                  <SidebarSelect
+                    disabled={isSavingMappings}
+                    value={mapping.source.kind}
+                    onChange={(event) => handleSourceKindChange(index, event.target.value)}
+                    aria-label={`映射 ${index + 1} 来源`}
+                  >
+                    <option value="flow">Flow 响应</option>
+                    <option value="literal">字面量</option>
+                  </SidebarSelect>
+                </MappingField>
+
+                {isFlowSource ? (
+                  <MappingField>
+                    <InputLabel>表达式</InputLabel>
+                    <SidebarInput
+                      disabled={isSavingMappings}
+                      value={mapping.source.expression || ''}
+                      onChange={(event) => updateMappingSource(index, { expression: event.target.value })}
+                      placeholder="{{$flow.step_x.body.id}}"
+                      aria-label={`映射 ${index + 1} Flow 表达式`}
+                    />
+                  </MappingField>
+                ) : (
+                  <>
+                    <MappingField>
+                      <InputLabel>字面量类型</InputLabel>
+                      <SidebarSelect
+                        disabled={isSavingMappings}
+                        value={mapping.source.valueType || 'string'}
+                        onChange={(event) => handleLiteralTypeChange(index, event.target.value)}
+                        aria-label={`映射 ${index + 1} 字面量类型`}
+                      >
+                        {LITERAL_TYPES.map((type) => (
+                          <option key={type.value} value={type.value}>{type.label}</option>
+                        ))}
+                      </SidebarSelect>
+                    </MappingField>
+                    {!isNullLiteral && (
+                      <MappingField>
+                        <InputLabel>字面量值</InputLabel>
+                        <SidebarInput
+                          disabled={isSavingMappings}
+                          value={mapping.source.value == null ? '' : String(mapping.source.value)}
+                          onChange={(event) => updateMappingSource(index, { value: event.target.value })}
+                          placeholder={mapping.source.valueType === 'json' ? '{"id": 1}' : '输入值'}
+                          aria-label={`映射 ${index + 1} 字面量值`}
+                        />
+                      </MappingField>
+                    )}
+                  </>
+                )}
+
+                {error && <MappingError role="alert">{error}</MappingError>}
+              </MappingRow>
+            );
+          })
         )}
       </div>
     </SidebarContainer>

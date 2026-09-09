@@ -718,8 +718,18 @@ export const transformRequestToSaveToFilesystem = (item) => {
     };
   }
 
-  // Flow items have no request, emit only the flow graph structure.
+  // Flow 项目没有 request，仅写入规范化后的流程图结构。
   if (_item.type === 'flow') {
+    const nodes = (_item.flow?.nodes || []).map((node) => ({
+      id: node.id,
+      type: node.type,
+      ...(node.requestUid ? { requestUid: node.requestUid } : {}),
+      ...(node.requestPath ? { requestPath: node.requestPath } : {}),
+      ...(node.alias ? { alias: node.alias } : {}),
+      position: node.position,
+      ...(node.type === 'request' ? { inputs: node.inputs || [] } : {})
+    }));
+
     return {
       uid: _item.uid,
       type: 'flow',
@@ -727,7 +737,7 @@ export const transformRequestToSaveToFilesystem = (item) => {
       seq: _item.seq,
       tags: _item.tags,
       flow: {
-        nodes: _item.flow?.nodes || [],
+        nodes,
         edges: _item.flow?.edges || []
       }
     };

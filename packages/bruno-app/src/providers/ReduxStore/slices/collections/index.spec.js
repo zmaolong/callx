@@ -5,6 +5,7 @@ const {
   setFolderVars,
   setCollectionVars,
   updateFile,
+  updateFlowNodeInputs,
   wsResponseReceived,
   toggleSidebarSelection,
   setSidebarSelection,
@@ -91,6 +92,74 @@ describe('setCollectionVars — strips dataType: \'string\' (implicit default)',
     );
 
     assertGuardedVars(next.collections[0].draft.root.request.vars.req);
+  });
+});
+
+describe('updateFlowNodeInputs', () => {
+  it('updates only the selected Flow node input mappings', () => {
+    const flow = {
+      uid: 'flow1',
+      type: 'flow',
+      flow: {
+        nodes: [
+          { id: 'start', type: 'start', position: { x: 80, y: 200 } },
+          {
+            id: 'step_a',
+            type: 'request',
+            alias: '登录',
+            position: { x: 320, y: 200 },
+            inputs: []
+          },
+          {
+            id: 'step_b',
+            type: 'request',
+            alias: '查询供应商',
+            position: { x: 600, y: 200 },
+            inputs: []
+          },
+          { id: 'end', type: 'end', position: { x: 920, y: 200 } }
+        ],
+        edges: [
+          { id: 'edge_a_b', source: 'step_a', target: 'step_b' }
+        ]
+      }
+    };
+    const inputs = [
+      {
+        name: 'supplierId',
+        source: {
+          kind: 'flow',
+          expression: '{{$flow.step_a.body.id}}'
+        }
+      },
+      {
+        name: 'retryCount',
+        source: {
+          kind: 'literal',
+          value: '3',
+          valueType: 'number'
+        }
+      }
+    ];
+
+    const next = reducer(
+      makeStateWith(flow),
+      updateFlowNodeInputs({
+        collectionUid: 'col1',
+        itemUid: 'flow1',
+        nodeId: 'step_b',
+        inputs
+      })
+    );
+
+    const savedFlow = next.collections[0].items[0];
+    expect(savedFlow.flow.nodes.find((node) => node.id === 'step_b').inputs).toEqual(inputs);
+    expect(savedFlow.flow.nodes.find((node) => node.id === 'step_a')).toMatchObject({
+      alias: '登录',
+      position: { x: 320, y: 200 },
+      inputs: []
+    });
+    expect(savedFlow.flow.edges).toEqual([{ id: 'edge_a_b', source: 'step_a', target: 'step_b' }]);
   });
 });
 

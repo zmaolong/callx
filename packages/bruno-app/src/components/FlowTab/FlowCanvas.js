@@ -167,7 +167,6 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
           id: n.id,
           type: n.data?.type || n.type,
           position: n.position,
-          data: n.data,
           requestUid: n.data?.requestUid,
           requestPath: n.data?.requestPath,
           alias: n.data?.alias,
@@ -254,4 +253,4 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
   );
 };
 
-export default React.memo(FlowCanvas, (prev, next) => prev.flow?.uid === next.flow?.uid && prev.collectionUid === next.collectionUid);
+export default FlowCanvas;

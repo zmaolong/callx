@@ -36,8 +36,38 @@ export interface App {
   enabled?: boolean | null;
 }
 
+export type FlowInputSource = {
+  kind: 'flow' | 'literal';
+  expression?: string;
+  value?: unknown;
+  valueType?: 'string' | 'number' | 'boolean' | 'json' | 'null';
+};
+
+export interface FlowInputMapping {
+  name: string;
+  source: FlowInputSource;
+}
+
+export interface FlowNode {
+  id: string;
+  type: 'start' | 'end' | 'request';
+  requestUid?: string;
+  requestPath?: string;
+  alias?: string;
+  position: { x: number; y: number };
+  inputs?: FlowInputMapping[];
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  type?: string;
+}
+
 export interface Flow {
-  steps?: unknown[] | null;
+  nodes?: FlowNode[] | null;
+  edges?: FlowEdge[] | null;
 }
 
 export interface Item {

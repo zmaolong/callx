@@ -241,7 +241,10 @@ const buildTree = (collectionPath, parserResults, options = {}) => {
     if (data) {
       if (data.name) flowNode.name = data.name;
       if (isSeqValid(data.seq)) flowNode.seq = data.seq;
-      flowNode.flow = { steps: data?.flow?.steps || [] };
+      flowNode.flow = {
+        nodes: Array.isArray(data?.flow?.nodes) ? data.flow.nodes : [],
+        edges: Array.isArray(data?.flow?.edges) ? data.flow.edges : []
+      };
       flowNode.root = data;
     }
   }

@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState, useMemo } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import FlowCanvas from './FlowCanvas';
 import FlowSidebar from './FlowSidebar';
 import StyledWrapper from './StyledWrapper';
@@ -10,9 +10,10 @@ import {
   addFlowNode,
   removeFlowNode,
   updateFlowNode,
+  updateFlowNodeInputs,
   updateFlowNodes
 } from 'providers/ReduxStore/slices/collections';
-import { deleteItem, cloneItem } from 'providers/ReduxStore/slices/collections/actions';
+import { deleteItem, cloneItem, saveFlow } from 'providers/ReduxStore/slices/collections/actions';
 import { addTab } from 'providers/ReduxStore/slices/tabs';
 import { sanitizeName } from 'utils/common/regex';
 import { executeFlow, cancelFlow } from 'utils/flow/executor';
@@ -21,7 +22,8 @@ import Modal from 'components/Modal';
 
 const FlowTab = ({ flow }) => {
   const dispatch = useDispatch();
-  const [selectedNode, setSelectedNode] = useState(null);
+  const store = useStore();
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -35,6 +37,18 @@ const FlowTab = ({ flow }) => {
   }, [collections, flow?.uid]);
 
   const collectionUid = collection?.uid;
+
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    const node = flow?.flow?.nodes?.find((candidate) => candidate.id === selectedNodeId);
+    if (!node) return null;
+
+    return {
+      id: node.id,
+      type: node.type,
+      data: node
+    };
+  }, [flow?.flow?.nodes, selectedNodeId]);
 
   // 挂载时执行 reconcile
   useEffect(() => {
@@ -94,18 +108,20 @@ const FlowTab = ({ flow }) => {
 
     const collectionCopy = JSON.parse(JSON.stringify(collection));
 
-    await executeFlow({
-      flowUid: flow.uid,
-      collectionUid: collection.uid,
-      flow: flow.flow,
-      collection: collectionCopy,
-      collectionItems,
-      dispatch,
-      getState: () => ({}) // 简化版，实际执行器从 Redux 读取 flowRun 状态
-    });
-
-    setIsRunning(false);
-  }, [handleValidate, flow, collection, dispatch]);
+    try {
+      await executeFlow({
+        flowUid: flow.uid,
+        collectionUid: collection.uid,
+        flow: flow.flow,
+        collection: collectionCopy,
+        collectionItems,
+        dispatch,
+        getState: store.getState
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  }, [handleValidate, flow, collection, dispatch, store]);
 
   // 取消
   const handleCancel = useCallback(() => {
@@ -197,6 +213,16 @@ const FlowTab = ({ flow }) => {
     }));
   }, [collectionUid, flow?.uid]);
 
+  const handleUpdateNodeInputs = useCallback((nodeId, inputs) => {
+    dispatch(updateFlowNodeInputs({
+      collectionUid,
+      itemUid: flow.uid,
+      nodeId,
+      inputs
+    }));
+    return dispatch(saveFlow(flow.uid, collectionUid));
+  }, [collectionUid, flow?.uid, dispatch]);
+
   // 编辑请求
   const handleEditRequest = useCallback((nodeData) => {
     const requestUid = nodeData?.requestUid;
@@ -249,7 +275,7 @@ const FlowTab = ({ flow }) => {
           <FlowCanvas
             flow={flow}
             collectionUid={collectionUid}
-            onSelectNode={setSelectedNode}
+            onSelectNode={(node) => setSelectedNodeId(node.id)}
             toolbarProps={{
               onRun: handleRun,
               onCancel: handleCancel,
@@ -262,6 +288,7 @@ const FlowTab = ({ flow }) => {
         <FlowSidebar
           selectedNode={selectedNode}
           onUpdateNode={handleUpdateNode}
+          onUpdateInputs={handleUpdateNodeInputs}
           onEditRequest={handleEditRequest}
           onDeleteRequest={handleDeleteRequest}
           onDuplicateRequest={handleDuplicateRequest}
@@ -284,4 +311,4 @@ const FlowTab = ({ flow }) => {
   );
 };
 
-export default React.memo(FlowTab, (prev, next) => prev.flow?.uid === next.flow?.uid);
+export default FlowTab;

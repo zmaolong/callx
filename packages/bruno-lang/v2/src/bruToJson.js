@@ -41,7 +41,7 @@ const ANNOTATIONS_KEY = Symbol('annotations');
  *
  */
 const grammar = ohm.grammar(`Bru {
-  BruFile = (meta | http | grpc | ws | query | params | headers | metadata | auths | bodies | varsandassert | script | tests | app | settings | docs | example)*
+  BruFile = (meta | http | grpc | ws | query | params | headers | metadata | auths | bodies | varsandassert | script | tests | app | settings | docs | flow | example)*
   auths = authawsv4 | authbasic | authbearer | authdigest | authNTLM | authOAuth1 | authOAuth2 | authwsse | authapikey | authedgegrid | authOauth2Configs
   bodies = bodyjson | bodytext | bodyxml | bodysparql | bodygraphql | bodygraphqlvars | bodyforms | body | bodygrpc | bodyws
   bodyforms = bodyformurlencoded | bodymultipart | bodyfile
@@ -191,6 +191,7 @@ const grammar = ohm.grammar(`Bru {
   scriptres = "script:post-response" st* "{" nl* textblock tagend
   tests = "tests" st* "{" nl* textblock tagend
   docs = "docs" st* "{" nl* textblock tagend
+  flow = "flow" st* "{" nl* textblock tagend
 }`);
 
 const mapPairListToKeyValPairs = (pairList = [], parseEnabled = true, extractTypes = false) => {
@@ -1210,6 +1211,11 @@ const sem = grammar.createSemantics().addAttribute('ast', {
     return {
       tests: outdentString(textblock.sourceString)
     };
+  },
+  // 解析 Flow 专用 JSON 块，保留完整嵌套图结构。
+  flow(_1, _2, _3, _4, textblock, _5) {
+    const content = outdentString(textblock.sourceString);
+    return { flow: safeParseJson(content) };
   },
   docs(_1, _2, _3, _4, textblock, _5) {
     return {

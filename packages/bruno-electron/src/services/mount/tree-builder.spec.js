@@ -33,6 +33,70 @@ const requestWithEveryList = () => {
   return data;
 };
 
+describe('buildTree — Flow', () => {
+  it('保留 Flow 图及卡片输入映射', () => {
+    const flow = {
+      name: '供应商流程',
+      type: 'flow',
+      flow: {
+        nodes: [
+          { id: 'start', type: 'start', position: { x: 80, y: 200 } },
+          {
+            id: 'step_supplier',
+            type: 'request',
+            requestUid: 'request_1',
+            position: { x: 320, y: 200 },
+            inputs: [
+              {
+                name: 'supplierId',
+                source: {
+                  kind: 'flow',
+                  expression: '{{$flow.last.body.id}}'
+                }
+              }
+            ]
+          },
+          { id: 'end', type: 'end', position: { x: 920, y: 200 } }
+        ],
+        edges: [
+          { id: 'edge_start_supplier', source: 'start', target: 'step_supplier' },
+          { id: 'edge_supplier_end', source: 'step_supplier', target: 'end' }
+        ]
+      }
+    };
+
+    const tree = buildTree(COLLECTION_PATH, new Map([
+      [path.join('supplier-flow', 'flow.yml'), { data: flow, raw: '' }]
+    ]));
+    const mountedFlow = tree.items[0];
+
+    expect(mountedFlow).toMatchObject({
+      type: 'flow',
+      name: '供应商流程',
+      flow: {
+        nodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'step_supplier',
+            inputs: [
+              {
+                name: 'supplierId',
+                source: {
+                  kind: 'flow',
+                  expression: '{{$flow.last.body.id}}'
+                }
+              }
+            ]
+          })
+        ]),
+        edges: [
+          { id: 'edge_start_supplier', source: 'start', target: 'step_supplier' },
+          { id: 'edge_supplier_end', source: 'step_supplier', target: 'end' }
+        ]
+      }
+    });
+  });
+});
+
 describe('buildTree — app code', () => {
   it('carries a request app block so the App view survives a cold mount', () => {
     const app = { enabled: true, code: '<h1>hello</h1>' };

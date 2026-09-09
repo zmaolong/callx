@@ -13,7 +13,7 @@ const stripLastLine = (text) => {
 };
 
 const jsonToBru = (json) => {
-  const { meta, http, grpc, ws, params, headers, metadata, auth, body, script, tests, vars, assertions, settings, app, docs, examples } = json;
+  const { meta, http, grpc, ws, params, headers, metadata, auth, body, script, tests, vars, assertions, settings, app, docs, flow, examples } = json;
 
   let bru = '';
 
@@ -808,6 +808,15 @@ ${indentString(tests)}
 
       bru += '}\n\n';
     }
+  }
+
+  // 将 Flow 图写入专用 JSON 块，避免扁平化键值语法丢失嵌套字段。
+  if (flow) {
+    bru += `flow {
+${indentString(JSON.stringify(flow, null, 2))}
+}
+
+`;
   }
 
   if (docs && docs.length) {

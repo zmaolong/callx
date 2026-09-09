@@ -9,6 +9,7 @@
 import { uuid } from 'utils/common';
 import { resolveMainChain, getPredecessorStepId } from 'utils/flow/graph';
 import { resolveInputMappings } from 'utils/flow/input-mapping';
+import { findEnvironmentInCollection } from 'utils/collections';
 import { sendNetworkRequest } from 'utils/network/index';
 import { cancelNetworkRequest } from 'utils/network/index';
 import {
@@ -158,6 +159,7 @@ export async function executeFlow({
 
       // 5. 构建 runtime variables 并执行请求
       const collectionCopy = JSON.parse(JSON.stringify(collection));
+      const environment = findEnvironmentInCollection(collectionCopy, collectionCopy.activeEnvironmentUid);
       collectionCopy.runtimeVariables = {
         ...(collectionCopy.runtimeVariables || {}),
         ...variables
@@ -165,7 +167,7 @@ export async function executeFlow({
 
       try {
         const startTime = Date.now();
-        const response = await sendNetworkRequest(item, collectionCopy, null, collectionCopy.runtimeVariables);
+        const response = await sendNetworkRequest(item, collectionCopy, environment, collectionCopy.runtimeVariables);
         const duration = Date.now() - startTime;
 
         if (response?.error) {

@@ -572,6 +572,23 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
     }
   });
 
+  // 保存 Flow
+  ipcMain.handle('renderer:save-flow', async (event, flowPathname, flow, format) => {
+    try {
+      if (!fs.existsSync(flowPathname) || !fs.statSync(flowPathname).isDirectory()) {
+        throw new Error(`Flow directory does not exist: ${flowPathname}`);
+      }
+
+      validatePathIsInsideCollection(flowPathname);
+
+      const flowFilePath = path.join(flowPathname, `flow.${format}`);
+      const content = await stringifyRequestViaWorker(flow, { format });
+      await writeFile(flowFilePath, content);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  });
+
   // save request
   ipcMain.handle('renderer:save-request', async (event, pathname, request, format) => {
     try {

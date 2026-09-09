@@ -199,7 +199,7 @@ export const saveFlow = (itemUid, collectionUid, silent = false) => (dispatch, g
 
     itemSchema
       .validate(itemToSave)
-      .then(() => ipcRenderer.invoke('renderer:save-request', item.pathname, itemToSave, collection.format))
+      .then(() => ipcRenderer.invoke('renderer:save-flow', item.pathname, itemToSave, collection.format))
       .then(() => {
         if (!silent) {
           toast.success('Flow saved successfully');
@@ -1901,14 +1901,12 @@ export const newFlow = (params) => (dispatch, getState) => {
         {
           id: 'start',
           type: 'start',
-          position: { x: 80, y: 200 },
-          data: { label: 'Start' }
+          position: { x: 80, y: 200 }
         },
         {
           id: 'end',
           type: 'end',
-          position: { x: 920, y: 200 },
-          data: { label: 'End' }
+          position: { x: 920, y: 200 }
         }
       ],
       edges: []
