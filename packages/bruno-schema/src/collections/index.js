@@ -526,7 +526,8 @@ const requestSchema = Yup.object({
     .nullable(),
   assertions: Yup.array().of(assertionSchema).nullable(),
   tests: Yup.string().nullable(),
-  docs: Yup.string().nullable()
+  docs: Yup.string().nullable(),
+  hostEnabled: Yup.boolean().nullable()
 })
   .noUnknown(true)
   .strict();

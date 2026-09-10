@@ -17,7 +17,8 @@ import {
   updateRequestGraphqlQuery,
   updateRequestGraphqlVariables,
   updateRequestAuthMode,
-  updateAuth
+  updateAuth,
+  updateRequestHostEnabled
 } from 'providers/ReduxStore/slices/collections';
 import {
   saveRequest,
@@ -52,20 +53,27 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   const saveShortcut = isMac ? 'Cmd + S' : 'Ctrl + S';
   const editorRef = useRef(null);
   const isLoading = ['queued', 'sending'].includes(item.requestState);
-  const [hostEnabled, setHostEnabled] = useState(true);
+  const requestSource = item.draft ? item.draft.request : item.request;
+  const persistedHostEnabled = requestSource.hostEnabled !== undefined ? requestSource.hostEnabled : true;
   const allVariables = useMemo(() => getAllVariables(collection, item), [collection, item]);
   const environmentHost = useMemo(() => {
     const value = interpolateUrl({ url: '{{host}}', variables: allVariables });
     return value && value !== '{{host}}' ? String(value).trim() : '';
   }, [allVariables]);
 
-  const isHostEnabled = hostEnabled && Boolean(environmentHost);
+  const isHostEnabled = persistedHostEnabled && Boolean(environmentHost);
   const displayedUrl = isHostEnabled ? getUrlWithoutOrigin(url) || '/' : url;
   const editableUrl = isHostEnabled ? displayedUrl.replace(/^\//, '') : displayedUrl;
 
-  useEffect(() => {
-    setHostEnabled(true);
-  }, [environmentHost, item.uid]);
+  const handleHostToggle = useCallback(() => {
+    dispatch(
+      updateRequestHostEnabled({
+        itemUid: item.uid,
+        collectionUid: collection.uid,
+        hostEnabled: !persistedHostEnabled
+      })
+    );
+  }, [dispatch, item.uid, collection.uid, persistedHostEnabled]);
 
   const [generateCodeItemModalOpen, setGenerateCodeItemModalOpen]
     = useState(false);
@@ -78,8 +86,8 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   }, [item.uid]);
 
   const onRunWithHost = useCallback((event) => {
-    handleRun(event, hostEnabled && environmentHost ? environmentHost : undefined);
-  }, [handleRun, hostEnabled, environmentHost]);
+    handleRun(event, persistedHostEnabled && environmentHost ? environmentHost : undefined);
+  }, [handleRun, persistedHostEnabled, environmentHost]);
 
   const onSave = () => {
     dispatch(saveRequest(item.uid, collection.uid));
@@ -466,7 +474,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         <HostSelector
           host={environmentHost}
           enabled={isHostEnabled}
-          onChange={() => setHostEnabled((enabled) => !enabled)}
+          onChange={handleHostToggle}
         />
         <div
           id="request-url"

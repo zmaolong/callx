@@ -56,6 +56,7 @@ const actionsToIntercept = [
   'collections/addRequestTag',
   'collections/deleteRequestTag',
   'collections/updateFileContent',
+  'collections/updateRequestHostEnabled',
 
   // Folder-level actions
   'collections/addFolderHeader',

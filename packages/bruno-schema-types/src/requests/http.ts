@@ -52,4 +52,5 @@ export interface HttpRequest {
   assertions?: KeyValue[] | null;
   tests?: string | null;
   docs?: string | null;
+  hostEnabled?: boolean;
 }

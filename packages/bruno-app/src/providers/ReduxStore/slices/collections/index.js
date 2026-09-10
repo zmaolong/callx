@@ -2158,6 +2158,18 @@ export const collectionsSlice = createSlice({
         }
       }
     },
+    updateRequestHostEnabled: (state, action) => {
+      const collection = findCollectionByUid(state.collections, action.payload.collectionUid);
+      if (!collection) return;
+
+      const item = findItemInCollection(collection, action.payload.itemUid);
+      if (!item || !isItemARequest(item)) return;
+
+      if (!item.draft) {
+        item.draft = cloneDeep(item);
+      }
+      item.draft.request.hostEnabled = action.payload.hostEnabled;
+    },
     addAssertion: (state, action) => {
       const collection = findCollectionByUid(state.collections, action.payload.collectionUid);
 
@@ -4374,6 +4386,7 @@ export const {
   updateRequestTests,
   updateRequestMethod,
   updateRequestProtoPath,
+  updateRequestHostEnabled,
   addAssertion,
   updateAssertion,
   deleteAssertion,
