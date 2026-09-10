@@ -165,6 +165,13 @@ export function resolveInputMapping(mapping, flowContext, currentStepId) {
     }
 
     if (!result) {
+      // 区分 $flow.last 在 Start 后第一个节点的场景
+      if (parsed.stepId === 'last') {
+        return {
+          name: mapping.name,
+          error: `当前节点是链中首个节点，不存在前驱节点的响应数据。请在前一个请求节点执行完毕后使用 $flow.last: ${expression}`
+        };
+      }
       return {
         name: mapping.name,
         error: `表达式求值失败，无法找到节点 ${parsed.stepId} 的响应数据: ${expression}`

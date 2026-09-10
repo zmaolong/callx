@@ -238,14 +238,18 @@ const FlowRunPanel = ({ flowRun, nodes, isRunning }) => {
     return node.alias || node.id;
   };
 
-  // 计算总耗时
+  // 计算总耗时：仅统计已完成的步骤（duration != null）
   const totalDuration = useMemo(() => {
     if (!flowRun?.nodes) return null;
     let total = 0;
+    let hasNonZero = false;
     for (const state of Object.values(flowRun.nodes)) {
-      if (state.duration) total += state.duration;
+      if (state.duration != null && state.duration > 0) {
+        total += state.duration;
+        hasNonZero = true;
+      }
     }
-    return total;
+    return hasNonZero ? total : null;
   }, [flowRun?.nodes]);
 
   // 获取状态图标和颜色

@@ -49,7 +49,7 @@ const flowRunSlice = createSlice({
      * 若该 Flow 正在运行中，则拒绝。
      */
     initFlowRun: (state, action) => {
-      const { flowUid, nodes } = action.payload;
+      const { flowUid, nodes, cancelTokenUid } = action.payload;
       const existing = state.runs[flowUid];
       if (existing && existing.status === FLOW_STATUS.RUNNING) {
         return; // 拒绝并发
@@ -73,6 +73,7 @@ const flowRunSlice = createSlice({
         flowUid,
         status: FLOW_STATUS.RUNNING,
         cancelled: false,
+        cancelTokenUid: cancelTokenUid || null,
         nodes: nodeStates
       };
     },

@@ -8,9 +8,6 @@ import {
   useNodesState,
   useEdgesState,
   addEdge,
-  Connection,
-  Edge,
-  Node,
   MarkerType
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -20,13 +17,12 @@ import StartNode from './nodes/StartNode';
 import EndNode from './nodes/EndNode';
 import RequestNode from './nodes/RequestNode';
 import FlowToolbar from './FlowToolbar';
-import FlowSidebar from './FlowSidebar';
 import StyledWrapper from './StyledWrapper';
 import {
   updateFlowNodes,
-  updateFlowEdges,
   addFlowEdge,
-  removeFlowEdge
+  removeFlowEdge,
+  removeFlowNode
 } from 'providers/ReduxStore/slices/collections';
 
 const nodeTypes = {
@@ -220,6 +216,12 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
     [onSelectNode]
   );
 
+  // 点击画布空白区域取消选中
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
+    if (onSelectNode) onSelectNode(null);
+  }, [onSelectNode]);
+
   // 删除边
   const onEdgeDoubleClick = useCallback(
     (event, edge) => {
@@ -241,9 +243,38 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
         // 不允许删除 Start/End
         const nodeType = selectedNode.data?.type || selectedNode.type;
         if (nodeType === 'start' || nodeType === 'end') return;
+
+        // 删除关联的边（ReactFlow state）
+        const connectedEdgeIds = edges
+          .filter((e) => e.source === selectedNode.id || e.target === selectedNode.id)
+          .map((e) => e.id);
+        connectedEdgeIds.forEach((edgeId) => {
+          dispatch(removeFlowEdge({
+            collectionUid,
+            itemUid: flow.uid,
+            edgeId
+          }));
+        });
+
+        // 从 ReactFlow state 中删除
+        setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
+        setEdges((eds) => eds.filter(
+          (e) => e.source !== selectedNode.id && e.target !== selectedNode.id
+        ));
+
+        // 从 Redux 中删除节点（removeFlowNode 也会自动删除关联边）
+        dispatch(removeFlowNode({
+          collectionUid,
+          itemUid: flow.uid,
+          nodeId: selectedNode.id
+        }));
+
+        // 清除选中状态
+        setSelectedNode(null);
+        if (onSelectNode) onSelectNode(null);
       }
     },
-    [selectedNode]
+    [selectedNode, edges, dispatch, collectionUid, flow?.uid, onSelectNode]
   );
 
   return (
@@ -263,12 +294,14 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         onEdgeDoubleClick={onEdgeDoubleClick}
         onKeyDown={onKeyDown}
         nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        deleteKeyCode="Delete"
+        deleteKeyCode={null}
+        nodesDraggable={true}
         snapToGrid
         snapGrid={[16, 16]}
       >

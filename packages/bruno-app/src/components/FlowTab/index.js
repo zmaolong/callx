@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import FlowCanvas from './FlowCanvas';
 import FlowSidebar from './FlowSidebar';
@@ -52,7 +52,10 @@ const FlowTab = ({ flow }) => {
     };
   }, [flow?.flow?.nodes, selectedNodeId]);
 
-  // 挂载时执行 reconcile
+  // 用 ref 跟踪请求 uid 签名，检测是否有新增或删除
+  const prevRequestUidSignature = useRef('');
+
+  // 挂载时以及 Flow 目录请求变化时执行 reconcile
   useEffect(() => {
     if (!flow || !collection) return;
 
@@ -63,6 +66,13 @@ const FlowTab = ({ flow }) => {
     const requestItems = (flow.items || []).filter(
       (item) => item.request && ['http-request', 'graphql-request'].includes(item.type)
     );
+
+    // 如果请求 uid 签名未变化，跳过 reconcile 避免循环
+    const currentSignature = requestItems.map((r) => r.uid).sort().join(',');
+    if (currentSignature === prevRequestUidSignature.current) {
+      return;
+    }
+    prevRequestUidSignature.current = currentSignature;
 
     // 补建缺失节点
     const newNodes = reconcileFlowNodes(flowNodes, requestItems);
@@ -143,9 +153,9 @@ const FlowTab = ({ flow }) => {
 
   // 取消
   const handleCancel = useCallback(() => {
-    cancelFlow(flow?.uid, null, dispatch);
+    cancelFlow(flow?.uid, null, dispatch, store.getState);
     setIsRunning(false);
-  }, [flow?.uid, dispatch]);
+  }, [flow?.uid, dispatch, store]);
 
   // 清理运行态
   useEffect(() => {
@@ -162,7 +172,7 @@ const FlowTab = ({ flow }) => {
     return validateGraph(flow.flow.nodes || [], flow.flow.edges || []);
   }, [flow?.flow]);
 
-  // 自动布局（简单分层）
+  // 自动布局（简单分层，固定 Start/End 位置）
   const handleAutoLayout = useCallback(() => {
     if (!flow?.flow?.nodes) return;
     const nodes = flow.flow.nodes;
@@ -187,7 +197,17 @@ const FlowTab = ({ flow }) => {
 
     // 未连接节点放在最右边
     let maxLevel = Math.max(...Object.values(levels), 0);
+    const unconnectedCount = nodes.filter((n) => levels[n.id] === undefined && n.type !== 'start' && n.type !== 'end').length;
+
     const updatedNodes = nodes.map((node) => {
+      if (node.type === 'start') {
+        return { ...node, position: { x: 80, y: 200 } };
+      }
+      if (node.type === 'end') {
+        const endLevel = maxLevel + 1 + unconnectedCount;
+        return { ...node, position: { x: 80 + endLevel * 280, y: 200 } };
+      }
+
       let level = levels[node.id];
       if (level === undefined) {
         maxLevel += 1;
@@ -195,19 +215,21 @@ const FlowTab = ({ flow }) => {
       }
       return {
         ...node,
-        position: { x: 80 + level * 280, y: 100 + node.position.y * 0 }
+        position: { ...node.position, x: 80 + level * 280 }
       };
     });
 
-    // 垂直微调：同一层级分散
+    // 垂直微调：同一层级分散，固定在稳定的 Y 位置
     const levelCounts = {};
     for (const node of updatedNodes) {
-      const level = levels[node.id] || maxLevel;
+      if (node.type === 'start' || node.type === 'end') continue;
+      const level = levels[node.id] || 0;
       levelCounts[level] = (levelCounts[level] || 0) + 1;
     }
     const levelIndex = {};
     for (const node of updatedNodes) {
-      const level = levels[node.id] || maxLevel;
+      if (node.type === 'start' || node.type === 'end') continue;
+      const level = levels[node.id] || 0;
       levelIndex[level] = (levelIndex[level] || 0) + 1;
       const count = levelCounts[level];
       const idx = levelIndex[level];
@@ -221,7 +243,8 @@ const FlowTab = ({ flow }) => {
     }));
   }, [flow?.flow, collectionUid, flow?.uid]);
 
-  // 更新节点
+  // 更新节点（别名等修改 → 即时更新 Redux，防抖持久化到磁盘）
+  const debouncedSaveRef = useRef(null);
   const handleUpdateNode = useCallback((nodeId, updates) => {
     dispatch(updateFlowNode({
       collectionUid,
@@ -229,7 +252,24 @@ const FlowTab = ({ flow }) => {
       nodeId,
       updates
     }));
-  }, [collectionUid, flow?.uid]);
+
+    // 防抖持久化：300ms 内连续触发只保存最后一次
+    if (debouncedSaveRef.current) {
+      clearTimeout(debouncedSaveRef.current);
+    }
+    debouncedSaveRef.current = setTimeout(() => {
+      dispatch(saveFlow(flow.uid, collectionUid));
+    }, 300);
+  }, [collectionUid, flow?.uid, dispatch]);
+
+  // 组件卸载时清除防抖定时器
+  useEffect(() => {
+    return () => {
+      if (debouncedSaveRef.current) {
+        clearTimeout(debouncedSaveRef.current);
+      }
+    };
+  }, []);
 
   const handleUpdateNodeInputs = useCallback((nodeId, inputs) => {
     dispatch(updateFlowNodeInputs({
@@ -294,7 +334,7 @@ const FlowTab = ({ flow }) => {
             <FlowCanvas
               flow={flow}
               collectionUid={collectionUid}
-              onSelectNode={(node) => setSelectedNodeId(node.id)}
+              onSelectNode={(node) => setSelectedNodeId(node ? node.id : null)}
               toolbarProps={{
                 onRun: handleRun,
                 onCancel: handleCancel,

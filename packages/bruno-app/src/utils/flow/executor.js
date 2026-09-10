@@ -56,7 +56,8 @@ export async function executeFlow({
   }
 
   // 2. 初始化运行态
-  dispatch(initFlowRun({ flowUid, nodes }));
+  const cancelTokenUid = uuid();
+  dispatch(initFlowRun({ flowUid, nodes, cancelTokenUid }));
 
   const flowRunState = getState().flowRun;
   const run = flowRunState.runs[flowUid];
@@ -64,7 +65,6 @@ export async function executeFlow({
     return { success: false, error: '无法初始化运行态' };
   }
 
-  const cancelTokenUid = uuid();
   let flowContext = {};
 
   try {
@@ -254,13 +254,26 @@ export async function executeFlow({
  * 取消 Flow 运行。
  *
  * @param {string} flowUid
- * @param {string} cancelTokenUid
+ * @param {string|null} cancelTokenUid 兼容旧调用方，传入 null 时从 Redux 读取
  * @param {function} dispatch
+ * @param {function} [getState] Redux getState（可选，用于读取 cancelTokenUid）
  */
-export async function cancelFlow(flowUid, cancelTokenUid, dispatch) {
+export async function cancelFlow(flowUid, cancelTokenUid, dispatch, getState) {
   dispatch(cancelFlowRunAction({ flowUid }));
+
+  let token = cancelTokenUid;
+  if (!token && getState) {
+    try {
+      const state = getState();
+      const run = state.flowRun?.runs?.[flowUid];
+      token = run?.cancelTokenUid || null;
+    } catch {
+      // 忽略读取失败
+    }
+  }
+
   try {
-    await cancelNetworkRequest(cancelTokenUid);
+    await cancelNetworkRequest(token);
   } catch (err) {
     // 忽略取消错误
   }
