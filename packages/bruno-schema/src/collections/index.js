@@ -742,7 +742,8 @@ const itemSchema = Yup.object({
         maxRedirects: Yup.number().integer().min(0).nullable(),
         timeout: Yup.mixed().nullable(),
         forwardAuthorizationHeader: Yup.boolean().nullable(),
-        omitHeaders: Yup.array().of(Yup.string().min(1)).nullable()
+        omitHeaders: Yup.array().of(Yup.string().min(1)).nullable(),
+        hostEnabled: Yup.boolean().nullable()
       }).noUnknown(true)
     .strict()
     .nullable()
