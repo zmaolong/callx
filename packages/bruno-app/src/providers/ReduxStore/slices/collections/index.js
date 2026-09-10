@@ -3314,6 +3314,7 @@ export const collectionsSlice = createSlice({
               // we don't want to lose the draft in this case
               item.seq = file.data.seq;
               item.raw = file.data.raw;
+              item.settings = file.data.settings;
               if (item?.draft) {
                 item.draft.seq = file.data.seq;
               }
