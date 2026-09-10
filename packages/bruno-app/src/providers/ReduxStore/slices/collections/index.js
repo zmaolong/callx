@@ -2168,7 +2168,10 @@ export const collectionsSlice = createSlice({
       if (!item.draft) {
         item.draft = cloneDeep(item);
       }
-      item.draft.request.hostEnabled = action.payload.hostEnabled;
+      item.draft.settings = {
+        ...item.draft.settings,
+        hostEnabled: action.payload.hostEnabled
+      };
     },
     addAssertion: (state, action) => {
       const collection = findCollectionByUid(state.collections, action.payload.collectionUid);

@@ -781,8 +781,7 @@ export const transformRequestToSaveToFilesystem = (item) => {
       vars: _item.request.vars,
       assertions: _item.request.assertions,
       tests: _item.request.tests,
-      docs: _item.request.docs,
-      ...(_item.request.hostEnabled !== undefined ? { hostEnabled: _item.request.hostEnabled } : {})
+      docs: _item.request.docs
     }
   };
 

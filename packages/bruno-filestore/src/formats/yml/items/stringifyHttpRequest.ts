@@ -141,6 +141,10 @@ const stringifyHttpRequest = (item: BrunoItem): string => {
       settings.omitHeaders = omitHeaders;
     }
 
+    if (httpSettings?.hostEnabled !== undefined) {
+      (settings as any).hostEnabled = httpSettings.hostEnabled;
+    }
+
     ocRequest.settings = settings;
 
     // examples

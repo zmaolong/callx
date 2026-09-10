@@ -20,6 +20,7 @@ export interface HttpItemSettings {
   timeout?: number | 'inherit' | null;
   forwardAuthorizationHeader?: boolean | null;
   omitHeaders?: string[] | null;
+  hostEnabled?: boolean | null;
 }
 
 export interface WebSocketItemSettings {

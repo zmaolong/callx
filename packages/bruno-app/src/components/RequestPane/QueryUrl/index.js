@@ -53,8 +53,8 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   const saveShortcut = isMac ? 'Cmd + S' : 'Ctrl + S';
   const editorRef = useRef(null);
   const isLoading = ['queued', 'sending'].includes(item.requestState);
-  const requestSource = item.draft ? item.draft.request : item.request;
-  const persistedHostEnabled = requestSource.hostEnabled !== undefined ? requestSource.hostEnabled : true;
+  const requestSource = item.draft ? item.draft : item;
+  const persistedHostEnabled = requestSource.settings?.hostEnabled !== undefined ? requestSource.settings.hostEnabled : true;
   const allVariables = useMemo(() => getAllVariables(collection, item), [collection, item]);
   const environmentHost = useMemo(() => {
     const value = interpolateUrl({ url: '{{host}}', variables: allVariables });

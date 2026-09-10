@@ -135,6 +135,10 @@ const parseHttpRequest = (ocRequest: HttpRequest): BrunoItem => {
       settings.omitHeaders = omitHeaders;
     }
 
+    if (ocRequest.settings.hostEnabled !== undefined) {
+      settings.hostEnabled = ocRequest.settings.hostEnabled;
+    }
+
     brunoItem.settings = settings;
   }
 

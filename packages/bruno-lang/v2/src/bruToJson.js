@@ -613,6 +613,10 @@ const sem = grammar.createSemantics().addAttribute('ast', {
         .filter((name) => name.length > 0);
     }
 
+    if (settings.hostEnabled !== undefined) {
+      _settings.hostEnabled = toBool(settings.hostEnabled);
+    }
+
     return {
       settings: _settings
     };
