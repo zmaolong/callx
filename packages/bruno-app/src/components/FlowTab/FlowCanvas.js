@@ -13,12 +13,13 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import toast from 'react-hot-toast';
+import { IconFocusCentered, IconMap, IconMapOff } from '@tabler/icons';
 import StartNode from './nodes/StartNode';
 import EndNode from './nodes/EndNode';
 import RequestNode from './nodes/RequestNode';
 import ConditionEdge from './edges/ConditionEdge';
-import FlowToolbar from './FlowToolbar';
 import FlowContextMenu from './FlowContextMenu';
 import StyledWrapper from './StyledWrapper';
 import { STATUS_COLORS } from './constants';
@@ -39,11 +40,47 @@ const edgeTypes = {
   condition: ConditionEdge
 };
 
+// 画布内视图控制条：适应视图 / 小地图开关（运行等全局操作已移至顶栏）
+const ViewBar = styled.div`
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: ${(props) => props.theme.background.crust};
+  border: 1px solid ${(props) => props.theme.border.border1};
+  border-radius: ${(props) => props.theme.border.radius.md};
+  box-shadow: ${(props) => props.theme.shadow.sm};
+`;
+
+const ViewButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: ${(props) => props.theme.border.radius.sm};
+  background: transparent;
+  color: ${(props) => props.$active
+    ? props.theme.colors?.accent || '#3b82f6'
+    : props.theme.colors?.text?.muted || '#64748b'};
+  cursor: pointer;
+
+  &:hover {
+    background: ${(props) => props.theme.background.surface1};
+    color: ${(props) => props.theme.text};
+  }
+`;
+
 const FlowCanvas = ({
   flow,
   collectionUid,
   onSelectNode,
-  toolbarProps,
   onContextMenu,
   onUndo,
   onRedo,
@@ -63,10 +100,17 @@ const FlowCanvas = ({
   // 右键菜单状态
   const [contextMenu, setContextMenu] = useState(null); // { x, y, paneX, paneY, node, edge }
 
+  // 小地图开关
+  const [showMiniMap, setShowMiniMap] = useState(true);
+
   const handleInit = useCallback((instance) => {
     instanceRef.current = instance;
     if (onInstanceReady) onInstanceReady(instance);
   }, [onInstanceReady]);
+
+  const handleFitView = useCallback(() => {
+    instanceRef.current?.fitView({ padding: 0.2, duration: 300 });
+  }, []);
 
   const defaultEdgeOptions = {
     type: 'smoothstep',
@@ -125,7 +169,7 @@ const FlowCanvas = ({
     }
   }, [initialNodes, initialEdges]);
 
-  // 同步运行态到节点（executionStatus、duration、httpStatus）
+  // 同步运行态到节点（executionStatus、duration、httpStatus、errorMessage）
   useEffect(() => {
     if (!flowRun?.nodes) return;
     setNodes((nds) =>
@@ -138,7 +182,8 @@ const FlowCanvas = ({
             ...n.data,
             executionStatus: nodeState.status,
             duration: nodeState.duration,
-            httpStatus: nodeState.httpStatus
+            httpStatus: nodeState.httpStatus,
+            errorMessage: nodeState.error
           }
         };
       })
@@ -369,19 +414,19 @@ const FlowCanvas = ({
 
   return (
     <StyledWrapper className="flow-canvas-wrapper" ref={reactFlowWrapper}>
-      <FlowToolbar
-        onRun={toolbarProps?.onRun}
-        onCancel={toolbarProps?.onCancel}
-        onAutoLayout={toolbarProps?.onAutoLayout}
-        onUndo={toolbarProps?.onUndo}
-        onRedo={toolbarProps?.onRedo}
-        onSave={toolbarProps?.onSave}
-        canUndo={toolbarProps?.canUndo}
-        canRedo={toolbarProps?.canRedo}
-        isRunning={toolbarProps?.isRunning}
-        errors={toolbarProps?.errors}
-        onFocusError={toolbarProps?.onFocusError}
-      />
+      <ViewBar>
+        <ViewButton onClick={handleFitView} title="适应视图" aria-label="适应视图">
+          <IconFocusCentered size={16} />
+        </ViewButton>
+        <ViewButton
+          $active={showMiniMap}
+          onClick={() => setShowMiniMap((prev) => !prev)}
+          title={showMiniMap ? '隐藏小地图' : '显示小地图'}
+          aria-label={showMiniMap ? '隐藏小地图' : '显示小地图'}
+        >
+          {showMiniMap ? <IconMap size={16} /> : <IconMapOff size={16} />}
+        </ViewButton>
+      </ViewBar>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -408,16 +453,18 @@ const FlowCanvas = ({
       >
         <Background color={theme.border?.border2 || '#aaa'} gap={16} />
         <Controls />
-        <MiniMap
-          nodeColor={(node) => {
-            if (node.type === 'start') return STATUS_COLORS.success;
-            if (node.type === 'end') return STATUS_COLORS.failed;
-            const executionStatus = node.data?.executionStatus;
-            if (executionStatus && STATUS_COLORS[executionStatus]) return STATUS_COLORS[executionStatus];
-            return STATUS_COLORS.running;
-          }}
-          maskColor={theme.mode === 'dark' ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.08)'}
-        />
+        {showMiniMap && (
+          <MiniMap
+            nodeColor={(node) => {
+              if (node.type === 'start') return STATUS_COLORS.success;
+              if (node.type === 'end') return STATUS_COLORS.failed;
+              const executionStatus = node.data?.executionStatus;
+              if (executionStatus && STATUS_COLORS[executionStatus]) return STATUS_COLORS[executionStatus];
+              return STATUS_COLORS.idle;
+            }}
+            maskColor={theme.mode === 'dark' ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.08)'}
+          />
+        )}
       </ReactFlow>
 
       {!hasRequestNodes && (

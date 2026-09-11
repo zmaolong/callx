@@ -3,15 +3,19 @@ import React, { useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
-import FlowSidebar from './FlowSidebar';
+import FlowWorkbench from './FlowWorkbench';
+
+// 响应视图在 jest 环境下的传递依赖（linkClickHandler → ReduxStore）使用了
+// import.meta（ESM-only），CJS 转换无法解析；它不是本 spec 的被测对象，mock 为空渲染
+jest.mock('./FlowResponseView', () => () => null);
 
 const theme = {
   background: { base: '#fff', surface0: '#f7f7f7', surface1: '#eee' },
   border: { border1: '#ddd', radius: { sm: '4px' } },
   input: { border: '#bbb', bg: '#fff', focusBorder: '#666' },
   button: { danger: { bg: '#fee2e2', color: '#b91c1c' } },
-  colors: { text: { muted: '#666' } },
-  status: { danger: { text: '#b91c1c' } },
+  colors: { text: { muted: '#666' }, accent: '#3b82f6' },
+  status: { danger: { text: '#b91c1c', background: 'rgba(239,68,68,0.1)' } },
   text: '#111'
 };
 
@@ -37,7 +41,7 @@ const advanceAutosave = () => {
   });
 };
 
-describe('FlowSidebar 输入映射（即时保存）', () => {
+describe('FlowWorkbench 输入映射（即时保存）', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     window.localStorage.clear();
@@ -52,7 +56,7 @@ describe('FlowSidebar 输入映射（即时保存）', () => {
     const onUpdateInputs = jest.fn();
 
     renderWithTheme(
-      <FlowSidebar
+      <FlowWorkbench
         selectedNode={selectedNode}
         onUpdateNode={jest.fn()}
         onUpdateInputs={onUpdateInputs}
@@ -97,7 +101,7 @@ describe('FlowSidebar 输入映射（即时保存）', () => {
     const onUpdateInputs = jest.fn();
 
     renderWithTheme(
-      <FlowSidebar
+      <FlowWorkbench
         selectedNode={selectedNode}
         onUpdateNode={jest.fn()}
         onUpdateInputs={onUpdateInputs}
@@ -115,12 +119,12 @@ describe('FlowSidebar 输入映射（即时保存）', () => {
 
   it('外部回写后不重复保存（无循环）', async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    const ControlledSidebar = () => {
+    const ControlledWorkbench = () => {
       const [node, setNode] = useState(selectedNode);
       const [saveCount, setSaveCount] = useState(0);
       return (
         <>
-          <FlowSidebar
+          <FlowWorkbench
             selectedNode={node}
             onUpdateNode={jest.fn()}
             onUpdateInputs={(nodeId, inputs) => {
@@ -137,7 +141,7 @@ describe('FlowSidebar 输入映射（即时保存）', () => {
       );
     };
 
-    renderWithTheme(<ControlledSidebar />);
+    renderWithTheme(<ControlledWorkbench />);
 
     await user.click(screen.getByRole('button', { name: '添加输入映射' }));
     await user.type(screen.getByLabelText('映射 1 变量名'), 'apiKey');
@@ -169,7 +173,7 @@ describe('FlowSidebar 输入映射（即时保存）', () => {
     };
 
     renderWithTheme(
-      <FlowSidebar
+      <FlowWorkbench
         selectedNode={nodeWithInputs}
         onUpdateNode={jest.fn()}
         onUpdateInputs={onUpdateInputs}
@@ -186,7 +190,7 @@ describe('FlowSidebar 输入映射（即时保存）', () => {
   });
 });
 
-describe('FlowSidebar 错误处理', () => {
+describe('FlowWorkbench 错误处理', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     window.localStorage.clear();
@@ -215,7 +219,7 @@ describe('FlowSidebar 错误处理', () => {
     };
 
     renderWithTheme(
-      <FlowSidebar
+      <FlowWorkbench
         selectedNode={nodeWithJump}
         onUpdateNode={onUpdateNode}
         onUpdateInputs={jest.fn()}
@@ -241,7 +245,7 @@ describe('FlowSidebar 错误处理', () => {
     const onUpdateNode = jest.fn();
 
     renderWithTheme(
-      <FlowSidebar
+      <FlowWorkbench
         selectedNode={selectedNode}
         onUpdateNode={onUpdateNode}
         onUpdateInputs={jest.fn()}
@@ -261,7 +265,7 @@ describe('FlowSidebar 错误处理', () => {
   });
 });
 
-describe('FlowSidebar 折叠与调宽', () => {
+describe('FlowWorkbench 折叠', () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
@@ -270,19 +274,71 @@ describe('FlowSidebar 折叠与调宽', () => {
     const user = userEvent.setup();
 
     renderWithTheme(
-      <FlowSidebar
+      <FlowWorkbench
         selectedNode={selectedNode}
         onUpdateNode={jest.fn()}
         onUpdateInputs={jest.fn()}
       />
     );
 
-    await user.click(screen.getByRole('button', { name: '折叠配置面板' }));
-    expect(screen.queryByText('卡片配置')).not.toBeInTheDocument();
-    expect(window.localStorage.getItem('bruno.flowSidebarCollapsed')).toBe('1');
+    await user.click(screen.getByRole('button', { name: '折叠工作台' }));
+    expect(screen.queryByLabelText('别名 (Alias)')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('bruno.flowWorkbenchCollapsed')).toBe('1');
 
-    await user.click(screen.getByRole('button', { name: '展开配置面板' }));
-    expect(screen.getByText('卡片配置')).toBeInTheDocument();
-    expect(window.localStorage.getItem('bruno.flowSidebarCollapsed')).toBe('0');
+    await user.click(screen.getByRole('button', { name: '展开工作台' }));
+    expect(screen.getByLabelText('别名 (Alias)')).toBeInTheDocument();
+    expect(window.localStorage.getItem('bruno.flowWorkbenchCollapsed')).toBe('0');
+  });
+});
+
+describe('FlowWorkbench 运行结果 Tab', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('展示成功节点的状态、耗时与 HTTP 状态码', async () => {
+    const user = userEvent.setup();
+    const flowRun = {
+      status: 'success',
+      nodes: {
+        step_b: {
+          status: 'success',
+          body: { id: 1 },
+          httpStatus: 200,
+          duration: 120,
+          error: null,
+          inputVariables: null
+        }
+      }
+    };
+
+    renderWithTheme(
+      <FlowWorkbench
+        selectedNode={selectedNode}
+        flowRun={flowRun}
+        onUpdateNode={jest.fn()}
+        onUpdateInputs={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /运行结果/ }));
+    expect(screen.getByText('成功')).toBeInTheDocument();
+    expect(screen.getByText('120ms')).toBeInTheDocument();
+    expect(screen.getByText('HTTP 200')).toBeInTheDocument();
+  });
+
+  it('节点未运行时显示空态提示', async () => {
+    const user = userEvent.setup();
+
+    renderWithTheme(
+      <FlowWorkbench
+        selectedNode={selectedNode}
+        onUpdateNode={jest.fn()}
+        onUpdateInputs={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /运行结果/ }));
+    expect(screen.getByText(/该节点尚未运行/)).toBeInTheDocument();
   });
 });

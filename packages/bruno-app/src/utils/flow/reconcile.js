@@ -5,7 +5,6 @@
  * 所有函数都是纯函数，不依赖 Redux 或外部状态。
  */
 import { generateNodeStepId } from './graph';
-import { uuid } from 'utils/common';
 
 /**
  * 对 Flow 目录中的每个请求，若图中无对应节点则生成未连接 Request 节点。
@@ -109,7 +108,7 @@ export function removeOrphanedNodes(nodes, edges, requestItems) {
         // requestPath 也不匹配，但 alias 匹配（已保存的旧数据没有 requestPath），保留并更新
         const newUid = aliasToUid.get(node.alias);
         // 补全 requestPath
-        const request = requestItems.find(r => r.uid === newUid);
+        const request = requestItems.find((r) => r.uid === newUid);
         const rp = request ? (request.filename || request.pathname || '') : '';
         keptNodes.push({ ...node, requestUid: newUid, requestPath: rp });
         nodesToUpdateUid.push({ nodeId: node.id, newUid });

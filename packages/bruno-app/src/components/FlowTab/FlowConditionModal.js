@@ -102,6 +102,12 @@ const InlineButton = styled.button`
   }
 `;
 
+const InlineError = styled.div`
+  color: ${(props) => props.theme.status?.danger?.text || '#ef4444'};
+  font-size: 12px;
+  margin-top: 8px;
+`;
+
 const FooterRow = styled.div`
   display: flex;
   justify-content: space-between;
@@ -328,7 +334,7 @@ const FlowConditionModal = ({ edge, nodes, edges, flowRun, onSave, onClose }) =>
           )}
 
           {error && (
-            <div role="alert" style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{error}</div>
+            <InlineError role="alert">{error}</InlineError>
           )}
 
           <FooterRow>

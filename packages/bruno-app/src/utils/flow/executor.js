@@ -14,6 +14,7 @@ import { findEnvironmentInCollection } from 'utils/collections';
 import { sendNetworkRequest, cancelNetworkRequest } from 'utils/network/index';
 import {
   initFlowRun,
+  initNodeRun,
   updateFlowNodeStatus,
   markNodesSkipped,
   setFlowRunStatus,
@@ -33,6 +34,7 @@ import {
  * @param {Object} options.collectionItems Flow 目录中的 item 映射 { [itemUid]: item }
  * @param {function} options.dispatch Redux dispatch
  * @param {function} options.getState Redux getState
+ * @param {string} [options.stopAtNodeId] 运行到此节点为止（含该节点），执行完成后视为成功
  * @returns {Promise<Object>} 执行结果
  */
 export async function executeFlow({
@@ -42,7 +44,8 @@ export async function executeFlow({
   collection,
   collectionItems,
   dispatch,
-  getState
+  getState,
+  stopAtNodeId
 }) {
   const nodes = flow.nodes || [];
   const edges = flow.edges || [];
@@ -132,7 +135,7 @@ export async function executeFlow({
         status: NODE_STATUS.RUNNING
       }));
 
-      // 查找对应的请求 item
+      // 查找对应的请求 item（有未保存草稿时优先使用草稿，与请求 Tab 的 sendRequest 语义一致）
       const item = collectionItems[node.requestUid];
       if (!item) {
         dispatch(updateFlowNodeStatus({
@@ -148,6 +151,9 @@ export async function executeFlow({
         dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.FAILED }));
         return { success: false, error: `请求 ${node.requestUid} 不存在` };
       }
+      const itemWithDraft = item.draft?.request
+        ? { ...item, request: item.draft.request }
+        : item;
 
       // 4. 解析输入映射
       const inputs = node.inputs || [];
@@ -191,16 +197,17 @@ export async function executeFlow({
       }
 
       // 5. 构建 runtime variables 并执行请求
-      const collectionCopy = JSON.parse(JSON.stringify(collection));
-      const environment = findEnvironmentInCollection(collectionCopy, collectionCopy.activeEnvironmentUid);
-      collectionCopy.runtimeVariables = {
-        ...(collectionCopy.runtimeVariables || {}),
+      // 注意：调用方传入的 collection 已是副本，此处直接写入 runtimeVariables，
+      // 避免每个节点执行时重复深拷贝整个集合
+      const environment = findEnvironmentInCollection(collection, collection.activeEnvironmentUid);
+      collection.runtimeVariables = {
+        ...(collection.runtimeVariables || {}),
         ...variables
       };
 
       try {
         const startTime = Date.now();
-        const response = await sendNetworkRequest(item, collectionCopy, environment, collectionCopy.runtimeVariables);
+        const response = await sendNetworkRequest(itemWithDraft, collection, environment, collection.runtimeVariables);
         const duration = Date.now() - startTime;
 
         if (response?.error) {
@@ -213,6 +220,7 @@ export async function executeFlow({
             body: response.data || null,
             httpStatus: response.status,
             duration,
+            requestSent: response.requestSent || null,
             inputVariables: variables,
             executionPath,
             i,
@@ -247,8 +255,19 @@ export async function executeFlow({
           body: response.data,
           httpStatus: response.status,
           duration,
-          inputVariables: variables
+          inputVariables: variables,
+          requestSent: response.requestSent || null,
+          headers: response.headers || null,
+          dataBuffer: response.dataBuffer || null,
+          size: response.size ?? null,
+          statusText: response.statusText ?? null
         }));
+
+        // 「运行到此节点」：执行完目标节点后立即视为成功结束
+        if (stepId === stopAtNodeId) {
+          dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.SUCCESS }));
+          return { success: true, stoppedAt: stopAtNodeId };
+        }
       } catch (error) {
         // 检查是否取消
         if (error.message && error.message.includes('cancelled')) {
@@ -325,6 +344,154 @@ export async function executeFlow({
 }
 
 /**
+ * 单节点运行：仅执行指定节点，输入映射取自其他节点的已缓存运行结果。
+ *
+ * 与整链运行不同：不适用错误处理策略（continue/jump 是链路概念），
+ * 不改变 Flow 整体运行状态，其他节点的缓存结果保持不变。
+ *
+ * @returns {Promise<Object>} 执行结果
+ */
+export async function executeSingleNode({
+  flowUid,
+  collectionUid,
+  flow,
+  collection,
+  collectionItems,
+  stepId,
+  dispatch,
+  getState
+}) {
+  const nodes = flow?.nodes || [];
+  const edges = flow?.edges || [];
+
+  const node = nodes.find((n) => n.id === stepId);
+  if (!node || node.type !== 'request') {
+    return { success: false, error: '目标节点不存在或不可执行' };
+  }
+
+  const item = collectionItems[node.requestUid];
+  if (!item) {
+    dispatch(updateFlowNodeStatus({
+      flowUid,
+      stepId,
+      status: NODE_STATUS.FAILED,
+      error: `请求 ${node.requestUid} 不存在`
+    }));
+    return { success: false, error: `请求 ${node.requestUid} 不存在` };
+  }
+  const itemWithDraft = item.draft?.request
+    ? { ...item, request: item.draft.request }
+    : item;
+
+  // 初始化运行态（仅重置目标节点，保留其他节点缓存）
+  const cancelTokenUid = uuid();
+  dispatch(initNodeRun({ flowUid, nodes, stepId, cancelTokenUid }));
+
+  // 从既有运行态收集上游缓存作为 flowContext
+  const run = getState().flowRun.runs[flowUid];
+  if (!run) {
+    return { success: false, error: '无法初始化运行态' };
+  }
+  const flowContext = {};
+  for (const [cachedStepId, cachedState] of Object.entries(run.nodes || {})) {
+    if (cachedStepId === stepId) continue;
+    if (cachedState?.body !== null && cachedState?.body !== undefined) {
+      flowContext[cachedStepId] = {
+        body: cachedState.body,
+        status: cachedState.httpStatus,
+        duration: cachedState.duration
+      };
+    }
+  }
+
+  // 解析输入映射（上游节点从未运行过时表达式将解析失败，提示先运行）
+  const flowContextWithEdges = {
+    _nodeResults: flowContext,
+    _edges: edges
+  };
+  const { variables, errors: mappingErrors } = resolveInputMappings(
+    node.inputs || [],
+    flowContextWithEdges,
+    stepId
+  );
+
+  if (mappingErrors.length > 0) {
+    const errorMsg = mappingErrors.map((e) => `${e.variableName}: ${e.error}`).join('; ');
+    dispatch(updateFlowNodeStatus({
+      flowUid,
+      stepId,
+      status: NODE_STATUS.FAILED,
+      error: `输入映射失败: ${errorMsg}`,
+      inputVariables: variables || null
+    }));
+    return { success: false, error: `输入映射失败: ${errorMsg}` };
+  }
+
+  // 调用方传入的 collection 已是副本，直接写入 runtimeVariables
+  const environment = findEnvironmentInCollection(collection, collection.activeEnvironmentUid);
+  collection.runtimeVariables = {
+    ...(collection.runtimeVariables || {}),
+    ...variables
+  };
+
+  try {
+    const startTime = Date.now();
+    const response = await sendNetworkRequest(itemWithDraft, collection, environment, collection.runtimeVariables);
+    const duration = Date.now() - startTime;
+
+    if (response?.error) {
+      dispatch(updateFlowNodeStatus({
+        flowUid,
+        stepId,
+        status: NODE_STATUS.FAILED,
+        body: response.data || null,
+        httpStatus: response.status,
+        duration,
+        error: response.error,
+        inputVariables: variables,
+        requestSent: response.requestSent || null
+      }));
+      return { success: false, error: response.error };
+    }
+
+    dispatch(updateFlowNodeStatus({
+      flowUid,
+      stepId,
+      status: NODE_STATUS.SUCCESS,
+      body: response.data,
+      httpStatus: response.status,
+      duration,
+      inputVariables: variables,
+      requestSent: response.requestSent || null,
+      headers: response.headers || null,
+      dataBuffer: response.dataBuffer || null,
+      size: response.size ?? null,
+      statusText: response.statusText ?? null
+    }));
+    return { success: true };
+  } catch (error) {
+    if (error.message && error.message.includes('cancelled')) {
+      dispatch(updateFlowNodeStatus({
+        flowUid,
+        stepId,
+        status: NODE_STATUS.CANCELLED,
+        inputVariables: variables
+      }));
+      return { success: false, cancelled: true };
+    }
+
+    dispatch(updateFlowNodeStatus({
+      flowUid,
+      stepId,
+      status: NODE_STATUS.FAILED,
+      error: error.message || '网络请求失败',
+      inputVariables: variables
+    }));
+    return { success: false, error: error.message || '网络请求失败' };
+  }
+}
+
+/**
  * 处理节点错误——根据错误处理策略决定流程走向。
  *
  * @returns {Promise<{ handled: boolean, shouldStop: boolean }>}
@@ -337,6 +504,7 @@ async function handleNodeError({
   body,
   httpStatus,
   duration,
+  requestSent,
   inputVariables,
   executionPath,
   i,
@@ -362,7 +530,8 @@ async function handleNodeError({
         httpStatus: httpStatus || null,
         duration: duration || null,
         error,
-        inputVariables: inputVariables || null
+        inputVariables: inputVariables || null,
+        requestSent: requestSent || null
       }));
       // 在 flowContext 中记录错误结果
       flowContext[stepId] = {
@@ -430,7 +599,8 @@ async function handleNodeError({
         httpStatus: httpStatus || null,
         duration: duration || null,
         error,
-        inputVariables: inputVariables || null
+        inputVariables: inputVariables || null,
+        requestSent: requestSent || null
       }));
       const remaining = executionPath.slice(i + 1).map((s) => s.stepId);
       if (remaining.length > 0) {

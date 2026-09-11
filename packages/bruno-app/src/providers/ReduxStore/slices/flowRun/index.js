@@ -64,7 +64,12 @@ const flowRunSlice = createSlice({
           httpStatus: null,
           duration: null,
           error: null,
-          inputVariables: null
+          inputVariables: null,
+          requestSent: null,
+          headers: null,
+          dataBuffer: null,
+          size: null,
+          statusText: null
         };
       }
 
@@ -82,7 +87,21 @@ const flowRunSlice = createSlice({
      * 更新单个节点的状态。
      */
     updateFlowNodeStatus: (state, action) => {
-      const { flowUid, stepId, status, body, httpStatus, duration, error, inputVariables } = action.payload;
+      const {
+        flowUid,
+        stepId,
+        status,
+        body,
+        httpStatus,
+        duration,
+        error,
+        inputVariables,
+        requestSent,
+        headers,
+        dataBuffer,
+        size,
+        statusText
+      } = action.payload;
       const run = state.runs[flowUid];
       if (!run) return;
 
@@ -93,7 +112,70 @@ const flowRunSlice = createSlice({
           httpStatus: httpStatus !== undefined ? httpStatus : run.nodes[stepId].httpStatus,
           duration: duration !== undefined ? duration : run.nodes[stepId].duration,
           error: error !== undefined ? error : run.nodes[stepId].error,
-          inputVariables: inputVariables !== undefined ? inputVariables : run.nodes[stepId].inputVariables
+          inputVariables: inputVariables !== undefined ? inputVariables : run.nodes[stepId].inputVariables,
+          requestSent: requestSent !== undefined ? requestSent : run.nodes[stepId].requestSent,
+          headers: headers !== undefined ? headers : run.nodes[stepId].headers,
+          dataBuffer: dataBuffer !== undefined ? dataBuffer : run.nodes[stepId].dataBuffer,
+          size: size !== undefined ? size : run.nodes[stepId].size,
+          statusText: statusText !== undefined ? statusText : run.nodes[stepId].statusText
+        };
+      }
+    },
+
+    /**
+     * 单节点运行：确保运行态存在并仅重置目标节点，不清空其他节点的缓存结果。
+     * 运行态不存在时创建一个全 idle 的运行态；存在且不在整链运行中时复用。
+     */
+    initNodeRun: (state, action) => {
+      const { flowUid, nodes, stepId, cancelTokenUid } = action.payload;
+      const existing = state.runs[flowUid];
+      if (existing && existing.status === FLOW_STATUS.RUNNING) {
+        return; // 整链运行中，拒绝并发
+      }
+
+      if (!existing) {
+        const nodeStates = {};
+        for (const node of nodes) {
+          nodeStates[node.id] = {
+            status: NODE_STATUS.IDLE,
+            body: null,
+            httpStatus: null,
+            duration: null,
+            error: null,
+            inputVariables: null,
+            requestSent: null,
+            headers: null,
+            dataBuffer: null,
+            size: null,
+            statusText: null
+          };
+        }
+        state.runs[flowUid] = {
+          flowRunId: uuid(),
+          flowUid,
+          status: FLOW_STATUS.IDLE,
+          cancelled: false,
+          cancelTokenUid: cancelTokenUid || null,
+          nodes: nodeStates
+        };
+      }
+
+      const run = state.runs[flowUid];
+      run.cancelled = false;
+      run.cancelTokenUid = cancelTokenUid || null;
+      if (run.nodes[stepId]) {
+        run.nodes[stepId] = {
+          status: NODE_STATUS.RUNNING,
+          body: null,
+          httpStatus: null,
+          duration: null,
+          error: null,
+          inputVariables: null,
+          requestSent: null,
+          headers: null,
+          dataBuffer: null,
+          size: null,
+          statusText: null
         };
       }
     },
@@ -153,6 +235,7 @@ const flowRunSlice = createSlice({
 
 export const {
   initFlowRun,
+  initNodeRun,
   updateFlowNodeStatus,
   markNodesSkipped,
   setFlowRunStatus,

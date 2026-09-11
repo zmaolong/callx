@@ -1,31 +1,36 @@
 import React from 'react';
+import styled from 'styled-components';
 import { Handle, Position } from '@xyflow/react';
+import { STATUS_COLORS } from '../constants';
 
-const StartNode = ({ data }) => {
+const Circle = styled.div`
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: ${STATUS_COLORS.success};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: bold;
+  font-size: 12px;
+  border: 3px solid ${(props) => props.theme.status?.success?.text || STATUS_COLORS.success};
+  cursor: default;
+`;
+
+const NodeHandle = styled(Handle)`
+  background: ${(props) => props.theme.status?.success?.text || STATUS_COLORS.success} !important;
+  width: 10px !important;
+  height: 10px !important;
+  border: 2px solid #fff !important;
+`;
+
+const StartNode = () => {
   return (
-    <div
-      style={{
-        width: 48,
-        height: 48,
-        borderRadius: '50%',
-        background: '#22c55e',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#fff',
-        fontWeight: 'bold',
-        fontSize: 12,
-        border: '3px solid #16a34a',
-        cursor: 'default'
-      }}
-    >
+    <Circle>
       Start
-      <Handle
-        type="source"
-        position={Position.Right}
-        style={{ background: '#16a34a', width: 10, height: 10, border: '2px solid #fff' }}
-      />
-    </div>
+      <NodeHandle type="source" position={Position.Right} />
+    </Circle>
   );
 };
 

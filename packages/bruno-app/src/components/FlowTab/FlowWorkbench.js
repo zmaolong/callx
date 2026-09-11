@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import {
   IconPencil,
   IconCopy,
@@ -9,19 +9,37 @@ import {
   IconMaximize,
   IconMinimize,
   IconChevronRight,
-  IconChevronLeft
+  IconChevronLeft,
+  IconArrowRight,
+  IconRefresh,
+  IconCircleCheck,
+  IconCircleX,
+  IconCircleOff
 } from '@tabler/icons';
 import { validateInputMappings } from 'utils/flow/input-mapping';
 import FlowResponsePicker from './FlowResponsePicker';
+import FlowResponseView from './FlowResponseView';
 import {
-  SIDEBAR_MIN_WIDTH,
-  SIDEBAR_MAX_WIDTH,
-  SIDEBAR_DEFAULT_WIDTH,
-  SIDEBAR_WIDTH_STORAGE_KEY,
-  SIDEBAR_COLLAPSED_STORAGE_KEY
+  getStatusColor,
+  STATUS_COLORS,
+  STATUS_BADGE_BG,
+  WORKBENCH_MIN_WIDTH,
+  WORKBENCH_DEFAULT_WIDTH,
+  WORKBENCH_MAX_VIEWPORT_RATIO,
+  WORKBENCH_WIDTH_STORAGE_KEY,
+  WORKBENCH_COLLAPSED_STORAGE_KEY
 } from './constants';
 
-const SidebarRoot = styled.div`
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
+
+const SpinningIcon = styled(IconRefresh)`
+  animation: ${spin} 1s linear infinite;
+`;
+
+const WorkbenchRoot = styled.div`
   display: flex;
   flex-shrink: 0;
   height: 100%;
@@ -35,19 +53,19 @@ const ResizeHandle = styled.div`
   transition: background 0.15s ease;
 
   &:hover,
-  &.$active {
+  &:active {
     background: ${(props) => props.theme.colors?.accent || '#3b82f6'};
   }
 `;
 
-const SidebarContainer = styled.div`
+const WorkbenchContainer = styled.div`
   width: ${(props) => props.$width}px;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
   background: ${(props) => props.theme.background.base};
   border-left: 1px solid ${(props) => props.theme.border.border1};
-  overflow-y: auto;
-  overflow-x: hidden;
   flex-shrink: 0;
+  min-height: 0;
 `;
 
 const CollapsedBar = styled.div`
@@ -80,34 +98,56 @@ const CollapseButton = styled.button`
   }
 `;
 
-const SidebarHeader = styled.div`
+const TabHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: ${(props) => props.$large ? 12 : 8}px;
+  gap: 2px;
+  padding: 8px 8px 0 8px;
+  border-bottom: 1px solid ${(props) => props.theme.border.border1};
+  flex-shrink: 0;
 `;
 
-const SidebarTitle = styled.div`
-  font-weight: 600;
-  font-size: 14px;
-  color: ${(props) => props.theme.text};
-  margin-bottom: ${(props) => props.$large ? 12 : 8}px;
-`;
-
-const MutedText = styled.div`
-  font-size: 12px;
-  color: ${(props) => props.theme.colors.text.muted};
-`;
-
-const EmptyContent = styled.div`
-  color: ${(props) => props.theme.colors.text.muted};
+const TabButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 7px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: ${(props) => props.theme.colors?.text?.muted || '#94a3b8'};
   font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    color: ${(props) => props.theme.text};
+  }
+
+  ${(props) => props.$active && `
+    color: ${props.theme.text};
+    border-bottom-color: ${props.theme.colors?.accent || '#3b82f6'};
+  `}
 `;
+
+const TabStatusDot = styled.span`
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: ${(props) => props.$color};
+  flex-shrink: 0;
+`;
+
+const TabBody = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+`;
+
+/* ---------- 表单通用 ---------- */
 
 const InputLabel = styled.label`
   display: block;
@@ -154,11 +194,25 @@ const SidebarSelect = styled.select`
   }
 `;
 
-const ButtonGroup = styled.div`
+const SectionTitle = styled.div`
+  font-weight: 600;
+  font-size: 13px;
+  color: ${(props) => props.theme.text};
+  margin-bottom: 8px;
+`;
+
+const MutedText = styled.div`
+  font-size: 12px;
+  color: ${(props) => props.theme.colors.text.muted};
+`;
+
+const EmptyContent = styled.div`
+  color: ${(props) => props.theme.colors.text.muted};
+  font-size: 13px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 `;
 
 const ActionButton = styled.button`
@@ -181,6 +235,8 @@ const ActionButton = styled.button`
       : props.theme.background.surface1};
   }
 `;
+
+/* ---------- 输入映射 ---------- */
 
 const MappingHeader = styled.div`
   display: flex;
@@ -266,6 +322,172 @@ const EmptyMappings = styled.div`
   font-style: italic;
 `;
 
+/* ---------- 结果 Tab ---------- */
+
+const ResultStatusRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+`;
+
+const StatusBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: ${(props) => props.$bg};
+  color: ${(props) => props.$color};
+`;
+
+const ResultMeta = styled.span`
+  font-size: 12px;
+  color: ${(props) => props.theme.colors?.text?.subtext0 || '#64748b'};
+`;
+
+const HttpStatusText = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  color: ${(props) => props.$color};
+`;
+
+const DetailSection = styled.div`
+  margin-bottom: 14px;
+`;
+
+const DetailTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+`;
+
+const DetailTitle = styled.div`
+  font-weight: 600;
+  color: ${(props) => props.theme.colors?.text?.muted || '#94a3b8'};
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+`;
+
+const DetailTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  td {
+    padding: 3px 8px;
+    border: 1px solid ${(props) => props.theme.border.border1};
+    vertical-align: top;
+  }
+
+  td:first-child {
+    width: 120px;
+    font-weight: 600;
+    color: ${(props) => props.theme.colors?.text?.muted || '#94a3b8'};
+    background: ${(props) => props.theme.background.surface0};
+  }
+
+  td:last-child {
+    color: ${(props) => props.theme.text};
+    word-break: break-all;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+`;
+
+const ErrorText = styled.div`
+  padding: 6px 8px;
+  background: ${(props) => props.theme.status.danger?.background || 'rgba(239,68,68,0.1)'};
+  border: 1px solid ${(props) => props.theme.status.danger?.text || '#ef4444'};
+  border-radius: 4px;
+  color: ${(props) => props.theme.status.danger?.text || '#ef4444'};
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-all;
+`;
+
+const QuickMapButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid ${(props) => props.theme.border.border1};
+  border-radius: 4px;
+  background: ${(props) => props.theme.background.surface0};
+  color: ${(props) => props.theme.colors?.text?.subtext0 || '#64748b'};
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: ${(props) => props.theme.background.surface1};
+    color: ${(props) => props.theme.text};
+  }
+`;
+
+// 请求预览折叠块
+const RequestPreview = styled.details`
+  border: 1px solid ${(props) => props.theme.border.border1};
+  border-radius: ${(props) => props.theme.border.radius.sm};
+  background: ${(props) => props.theme.background.surface0};
+  font-size: 12px;
+
+  summary {
+    padding: 6px 8px;
+    cursor: pointer;
+    color: ${(props) => props.theme.colors?.text?.muted || '#94a3b8'};
+    user-select: none;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &[open] summary {
+    border-bottom: 1px solid ${(props) => props.theme.border.border1};
+  }
+`;
+
+const PreviewBody = styled.div`
+  padding: 8px;
+`;
+
+// 响应体全屏浮层：absolute 相对 Flow Tab 根容器，避免盖住软件标题栏按钮
+const ResponseFullscreen = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: ${(props) => props.theme.background.base};
+  padding: 16px;
+`;
+
+const ResponseFullscreenHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid ${(props) => props.theme.border.border1};
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: ${(props) => props.theme.text};
+`;
+
+const UnsavedMark = styled.span`
+  font-size: 10px;
+  color: ${(props) => props.theme.status?.danger?.text || '#ef4444'};
+`;
+
+/* ---------- 逻辑常量 ---------- */
+
 const LITERAL_TYPES = [
   { value: 'string', label: '字符串' },
   { value: 'number', label: '数字' },
@@ -311,34 +533,51 @@ const isEmptyMapping = (mapping) => {
 
 const getMappingsFromNode = (selectedNode) => (selectedNode?.data?.inputs || []).map(normalizeMapping);
 
-// 即时保存防抖时长（ms）
+// 输入映射即时保存防抖时长（ms）
 const AUTOSAVE_DEBOUNCE = 400;
 
-const FlowSidebar = ({
+/**
+ * 右侧节点工作台。
+ *
+ * Tab「配置」：别名、错误处理策略、输入映射（防抖自动保存）与请求操作。
+ * Tab「运行结果」：选中节点的执行详情（状态、请求预览、输入变量、响应体），
+ * 运行完成后自动切换到此 Tab。
+ */
+const FlowWorkbench = ({
   selectedNode,
+  flowRun,
+  edges,
+  nodes,
+  requestItem,
+  collection,
   onUpdateNode,
   onUpdateInputs,
   onEditRequest,
   onDeleteRequest,
   onDuplicateRequest,
-  flowRun,
-  edges,
-  nodes
+  onQuickMap
 }) => {
   const selectedNodeId = selectedNode?.id;
+  const [activeTab, setActiveTab] = useState('config');
   const mappingSignature = JSON.stringify(selectedNode?.data?.inputs || []);
   const [mappings, setMappings] = useState(() => getMappingsFromNode(selectedNode));
   const [mappingErrors, setMappingErrors] = useState({});
   const [flowResponsePickerOpenIndex, setFlowResponsePickerOpenIndex] = useState(null);
   const [expandedExprIndex, setExpandedExprIndex] = useState(null);
+  const [responseFullscreen, setResponseFullscreen] = useState(false);
 
-  // 侧边栏宽度 / 折叠状态（持久化到 localStorage）
+  // 面板宽度 / 折叠状态（持久化到 localStorage）
   const [width, setWidth] = useState(() => {
-    const stored = Number(window.localStorage?.getItem(SIDEBAR_WIDTH_STORAGE_KEY));
-    return stored >= SIDEBAR_MIN_WIDTH && stored <= SIDEBAR_MAX_WIDTH ? stored : SIDEBAR_DEFAULT_WIDTH;
+    const stored = Number(window.localStorage?.getItem(WORKBENCH_WIDTH_STORAGE_KEY));
+    if (!stored || stored < WORKBENCH_MIN_WIDTH) {
+      return WORKBENCH_DEFAULT_WIDTH;
+    }
+    // 持久化值可能来自不同视口尺寸，读取时按当前视口重新约束
+    const maxWidth = Math.max(WORKBENCH_MIN_WIDTH, Math.round(window.innerWidth * WORKBENCH_MAX_VIEWPORT_RATIO));
+    return Math.min(maxWidth, stored);
   });
   const [collapsed, setCollapsed] = useState(
-    () => window.localStorage?.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
+    () => window.localStorage?.getItem(WORKBENCH_COLLAPSED_STORAGE_KEY) === '1'
   );
   const [dragging, setDragging] = useState(false);
   const dragStateRef = useRef(null);
@@ -352,7 +591,8 @@ const FlowSidebar = ({
 
   useEffect(() => {
     if (!dragging) return undefined;
-    const clamp = (v) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, v));
+    const maxWidth = Math.max(WORKBENCH_MIN_WIDTH, Math.round(window.innerWidth * WORKBENCH_MAX_VIEWPORT_RATIO));
+    const clamp = (v) => Math.min(maxWidth, Math.max(WORKBENCH_MIN_WIDTH, v));
     // 拖拽期间直接写 DOM 宽度，不触发 React 重渲染——
     // 避免每次 mousemove 都让 ReactFlow 重新布局，引发 ResizeObserver 循环告警
     const handleMouseMove = (e) => {
@@ -368,7 +608,7 @@ const FlowSidebar = ({
       const nextWidth = dragStateRef.current?.nextWidth;
       if (nextWidth != null) {
         setWidth(nextWidth);
-        window.localStorage?.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(nextWidth));
+        window.localStorage?.setItem(WORKBENCH_WIDTH_STORAGE_KEY, String(nextWidth));
       }
     };
     document.addEventListener('mousemove', handleMouseMove);
@@ -381,7 +621,7 @@ const FlowSidebar = ({
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
-      window.localStorage?.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, prev ? '0' : '1');
+      window.localStorage?.setItem(WORKBENCH_COLLAPSED_STORAGE_KEY, prev ? '0' : '1');
       return !prev;
     });
   }, []);
@@ -395,9 +635,12 @@ const FlowSidebar = ({
     setMappingErrors({});
     setExpandedExprIndex(null);
     skipAutosaveRef.current = true;
+    // 切换节点时回到配置 Tab，避免停留在上一节点的结果页
+    setActiveTab('config');
+    setResponseFullscreen(false);
   }, [selectedNodeId, mappingSignature]);
 
-  // 输入映射即时保存：编辑防抖后校验并写入（替代旧的手动「保存」按钮）
+  // 输入映射即时保存：编辑防抖后校验并写入
   useEffect(() => {
     if (!selectedNode) return undefined;
     const nodeType = selectedNode.data?.type || selectedNode.type;
@@ -444,17 +687,19 @@ const FlowSidebar = ({
     return () => clearTimeout(timer);
   }, [mappings, selectedNode, onUpdateInputs]);
 
-  if (collapsed) {
-    return (
-      <SidebarRoot>
-        <CollapsedBar>
-          <CollapseButton onClick={toggleCollapsed} title="展开配置面板" aria-label="展开配置面板">
-            <IconChevronLeft size={16} />
-          </CollapseButton>
-        </CollapsedBar>
-      </SidebarRoot>
-    );
-  }
+  // 选中节点运行结束（running → 终态）时自动切到结果 Tab
+  const selectedRunState = selectedNodeId ? flowRun?.nodes?.[selectedNodeId] : null;
+  const prevRunStatusRef = useRef(null);
+  useEffect(() => {
+    const status = selectedRunState?.status;
+    if (
+      prevRunStatusRef.current === 'running'
+      && ['success', 'failed', 'cancelled'].includes(status)
+    ) {
+      setActiveTab('result');
+    }
+    prevRunStatusRef.current = status;
+  }, [selectedRunState?.status, selectedNodeId]);
 
   const updateMapping = (index, updates) => {
     setMappings((currentMappings) => currentMappings.map((mapping, mappingIndex) => (
@@ -485,7 +730,187 @@ const FlowSidebar = ({
     });
   };
 
-  const renderContent = () => {
+  // 结果 Tab 状态徽标信息
+  const getRunStatusInfo = (status) => {
+    switch (status) {
+      case 'running':
+        return { bg: STATUS_BADGE_BG.running, color: STATUS_COLORS.running, label: '运行中' };
+      case 'success':
+        return { bg: STATUS_BADGE_BG.success, color: STATUS_COLORS.success, label: '成功' };
+      case 'failed':
+        return { bg: STATUS_BADGE_BG.failed, color: STATUS_COLORS.failed, label: '失败' };
+      case 'cancelled':
+        return { bg: STATUS_BADGE_BG.cancelled, color: STATUS_COLORS.cancelled, label: '已取消' };
+      case 'skipped':
+        return { bg: STATUS_BADGE_BG.skipped, color: STATUS_COLORS.skipped, label: '已跳过' };
+      default:
+        return null;
+    }
+  };
+
+  const formatJson = (data) => {
+    if (data === null || data === undefined) return 'null';
+    try {
+      return JSON.stringify(data, null, 2);
+    } catch {
+      return String(data);
+    }
+  };
+
+  const hasDownstreamNode = (stepId) => {
+    if (!edges) return false;
+    return edges.some((e) => e.source === stepId && e.target !== 'end');
+  };
+
+  const renderResultTab = () => {
+    if (!selectedNode) {
+      return <EmptyContent>选择一个节点查看运行结果</EmptyContent>;
+    }
+
+    const nodeType = selectedNode.data?.type || selectedNode.type;
+    if (nodeType === 'start' || nodeType === 'end') {
+      return <EmptyContent>Start / End 节点不产生运行结果</EmptyContent>;
+    }
+
+    const runState = flowRun?.nodes?.[selectedNode.id];
+    if (!runState || runState.status === 'idle') {
+      return <EmptyContent>该节点尚未运行，点击顶栏「运行」或「单跑此节点」开始</EmptyContent>;
+    }
+
+    const statusInfo = getRunStatusInfo(runState.status);
+    const requestSent = runState.requestSent;
+
+    return (
+      <>
+        <ResultStatusRow>
+          {statusInfo && (
+            <StatusBadge $bg={statusInfo.bg} $color={statusInfo.color}>
+              {runState.status === 'running' && <SpinningIcon size={12} />}
+              {statusInfo.label}
+            </StatusBadge>
+          )}
+          {runState.duration !== null && runState.duration !== undefined && (
+            <ResultMeta>{runState.duration}ms</ResultMeta>
+          )}
+          {runState.httpStatus !== null && runState.httpStatus !== undefined && (
+            <HttpStatusText $color={runState.httpStatus < 400 ? STATUS_COLORS.success : STATUS_COLORS.failed}>
+              HTTP {runState.httpStatus}
+            </HttpStatusText>
+          )}
+        </ResultStatusRow>
+
+        {runState.error && (
+          <DetailSection>
+            <DetailTitle>错误</DetailTitle>
+            <ErrorText>{runState.error}</ErrorText>
+          </DetailSection>
+        )}
+
+        {requestSent && (
+          <DetailSection>
+            <DetailTitle>请求预览</DetailTitle>
+            <RequestPreview>
+              <summary>
+                {requestSent.method ? `${requestSent.method} ` : ''}
+                {requestSent.url || '(未记录 URL)'}
+              </summary>
+              <PreviewBody>
+                <DetailTable>
+                  <tbody>
+                    {requestSent.url && (
+                      <tr>
+                        <td>URL</td>
+                        <td>{requestSent.url}</td>
+                      </tr>
+                    )}
+                    {requestSent.headers && Object.entries(requestSent.headers).map(([key, value]) => (
+                      <tr key={key}>
+                        <td>{key}</td>
+                        <td>{String(value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DetailTable>
+              </PreviewBody>
+            </RequestPreview>
+          </DetailSection>
+        )}
+
+        {runState.inputVariables && Object.keys(runState.inputVariables).length > 0 && (
+          <DetailSection>
+            <DetailTitle>输入变量</DetailTitle>
+            <DetailTable>
+              <tbody>
+                {Object.entries(runState.inputVariables).map(([key, value]) => (
+                  <tr key={key}>
+                    <td>{key}</td>
+                    <td>{formatJson(value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </DetailTable>
+          </DetailSection>
+        )}
+
+        {runState.body !== null && runState.body !== undefined && (
+          <DetailSection>
+            <DetailTitleRow>
+              <DetailTitle>响应体</DetailTitle>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {onQuickMap && hasDownstreamNode(selectedNode.id) && (
+                  <QuickMapButton
+                    onClick={() => onQuickMap(selectedNode.id)}
+                    title="为此节点的下游节点创建响应映射"
+                  >
+                    <IconArrowRight size={12} />
+                    映射到下游
+                  </QuickMapButton>
+                )}
+                <QuickMapButton
+                  onClick={() => setResponseFullscreen(true)}
+                  title="全屏查看响应"
+                >
+                  <IconMaximize size={12} />
+                  全屏
+                </QuickMapButton>
+              </div>
+            </DetailTitleRow>
+            <div style={{ height: 420, display: 'flex', flexDirection: 'column' }}>
+              <FlowResponseView
+                requestItem={requestItem}
+                collection={collection}
+                runState={runState}
+              />
+            </div>
+          </DetailSection>
+        )}
+
+        {responseFullscreen && (
+          <ResponseFullscreen>
+            <ResponseFullscreenHeader>
+              <span>响应 · {selectedNode.data?.alias || selectedNode.id}</span>
+              <IconButton
+                onClick={() => setResponseFullscreen(false)}
+                title="退出全屏"
+                aria-label="退出全屏"
+              >
+                <IconMinimize size={16} />
+              </IconButton>
+            </ResponseFullscreenHeader>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <FlowResponseView
+                requestItem={requestItem}
+                collection={collection}
+                runState={runState}
+              />
+            </div>
+          </ResponseFullscreen>
+        )}
+      </>
+    );
+  };
+
+  const renderConfigTab = () => {
     if (!selectedNode) {
       return <EmptyContent>选择一个节点查看配置</EmptyContent>;
     }
@@ -496,9 +921,9 @@ const FlowSidebar = ({
     if (nodeType === 'start' || nodeType === 'end') {
       return (
         <>
-          <SidebarTitle>
+          <SectionTitle>
             {nodeType === 'start' ? 'Start 节点' : 'End 节点'}
-          </SidebarTitle>
+          </SectionTitle>
           <MutedText>
             此节点不可编辑
           </MutedText>
@@ -513,10 +938,6 @@ const FlowSidebar = ({
 
     return (
       <>
-        <SidebarTitle $large>
-          卡片配置
-        </SidebarTitle>
-
         <div style={{ marginBottom: 12 }}>
           <InputLabel>
             别名 (Alias)
@@ -525,32 +946,18 @@ const FlowSidebar = ({
             value={nodeData.alias || ''}
             onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, { alias: event.target.value })}
             placeholder="输入别名"
+            aria-label="别名 (Alias)"
           />
         </div>
 
-        <ButtonGroup>
-          <ActionButton onClick={() => onEditRequest && onEditRequest(nodeData)}>
-            <IconPencil size={14} />
-            编辑请求
-          </ActionButton>
-          <ActionButton onClick={() => onDuplicateRequest && onDuplicateRequest(nodeData)}>
-            <IconCopy size={14} />
-            复制请求
-          </ActionButton>
-          <ActionButton $danger onClick={() => onDeleteRequest && onDeleteRequest(nodeData)}>
-            <IconTrash size={14} />
-            删除请求
-          </ActionButton>
-        </ButtonGroup>
-
         {/* 错误处理配置 */}
-        <div style={{ marginTop: 12, marginBottom: 12 }}>
+        <div style={{ marginBottom: 16 }}>
           <MappingHeader>
-            <SidebarTitle style={{ fontSize: 13, marginBottom: 0 }}>
+            <SectionTitle style={{ marginBottom: 0 }}>
               错误处理
-            </SidebarTitle>
+            </SectionTitle>
           </MappingHeader>
-          <MappingField>
+          <MappingField style={{ marginTop: 0 }}>
             <InputLabel>失败策略</InputLabel>
             <SidebarSelect
               value={nodeData.errorHandler?.strategy || 'stop'}
@@ -597,11 +1004,34 @@ const FlowSidebar = ({
           )}
         </div>
 
-        <div style={{ marginTop: 12 }}>
+        {/* 请求操作：请求配置（url/body/headers 等）在标准请求 Tab 中编辑 */}
+        <div style={{ marginBottom: 16 }}>
           <MappingHeader>
-            <SidebarTitle style={{ fontSize: 13, marginBottom: 0 }}>
+            <SectionTitle style={{ marginBottom: 0 }}>
+              请求
+            </SectionTitle>
+          </MappingHeader>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <ActionButton onClick={() => onEditRequest && onEditRequest(nodeData)}>
+              <IconPencil size={14} />
+              编辑请求
+            </ActionButton>
+            <ActionButton onClick={() => onDuplicateRequest && onDuplicateRequest(nodeData)}>
+              <IconCopy size={14} />
+              复制请求
+            </ActionButton>
+            <ActionButton $danger onClick={() => onDeleteRequest && onDeleteRequest(nodeData)}>
+              <IconTrash size={14} />
+              删除请求
+            </ActionButton>
+          </div>
+        </div>
+
+        <div>
+          <MappingHeader>
+            <SectionTitle style={{ marginBottom: 0 }}>
               输入映射
-            </SidebarTitle>
+            </SectionTitle>
             <MappingButton
               onClick={() => setMappings((currentMappings) => [...currentMappings, createEmptyMapping()])}
               title="添加输入映射（自动保存）"
@@ -629,7 +1059,7 @@ const FlowSidebar = ({
                     <InputLabel style={{ marginBottom: 0 }}>映射 {index + 1}</InputLabel>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       {error && (
-                        <span style={{ fontSize: 10, color: '#ef4444' }} title="校验未通过，修正后自动保存">未保存</span>
+                        <UnsavedMark title="校验未通过，修正后自动保存">未保存</UnsavedMark>
                       )}
                       <IconButton
                         $danger
@@ -742,21 +1172,53 @@ const FlowSidebar = ({
     );
   };
 
+  if (collapsed) {
+    return (
+      <WorkbenchRoot>
+        <CollapsedBar>
+          <CollapseButton onClick={toggleCollapsed} title="展开工作台" aria-label="展开工作台">
+            <IconChevronLeft size={16} />
+          </CollapseButton>
+        </CollapsedBar>
+      </WorkbenchRoot>
+    );
+  }
+
+  // 结果 Tab 上的状态点
+  const selectedRunStatus = selectedNodeId ? flowRun?.nodes?.[selectedNodeId]?.status : null;
+  const tabDotColor = selectedRunStatus ? getStatusColor(selectedRunStatus) : null;
+
   return (
-    <SidebarRoot>
+    <WorkbenchRoot>
       <ResizeHandle
         onMouseDown={handleResizeStart}
-        className={dragging ? '$active' : ''}
-        title="拖拽调整侧边栏宽度"
+        title="拖拽调整工作台宽度"
       />
-      <SidebarContainer ref={containerRef} $width={width}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: -4 }}>
-          <CollapseButton onClick={toggleCollapsed} title="折叠配置面板" aria-label="折叠配置面板">
-            <IconChevronRight size={16} />
-          </CollapseButton>
-        </div>
-        {renderContent()}
-      </SidebarContainer>
+      <WorkbenchContainer ref={containerRef} $width={width}>
+        <TabHeader>
+          <TabButton
+            $active={activeTab === 'config'}
+            onClick={() => setActiveTab('config')}
+          >
+            配置
+          </TabButton>
+          <TabButton
+            $active={activeTab === 'result'}
+            onClick={() => setActiveTab('result')}
+          >
+            {tabDotColor && <TabStatusDot $color={tabDotColor} />}
+            运行结果
+          </TabButton>
+          <div style={{ marginLeft: 'auto' }}>
+            <CollapseButton onClick={toggleCollapsed} title="折叠工作台" aria-label="折叠工作台">
+              <IconChevronRight size={16} />
+            </CollapseButton>
+          </div>
+        </TabHeader>
+        <TabBody>
+          {activeTab === 'config' ? renderConfigTab() : renderResultTab()}
+        </TabBody>
+      </WorkbenchContainer>
 
       {flowResponsePickerOpenIndex !== null && selectedNode && (
         <FlowResponsePicker
@@ -770,8 +1232,8 @@ const FlowSidebar = ({
           }}
         />
       )}
-    </SidebarRoot>
+    </WorkbenchRoot>
   );
 };
 
-export default FlowSidebar;
+export default FlowWorkbench;

@@ -1,7 +1,8 @@
 import React from 'react';
 import styled, { keyframes, useTheme } from 'styled-components';
 import { Handle, Position } from '@xyflow/react';
-import { getStatusColor, getMethodColor } from '../constants';
+import { getStatusColor, getMethodColor, STATUS_COLORS, STRATEGY_BADGE } from '../constants';
+
 const spin = keyframes`
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -18,10 +19,99 @@ const Spinner = styled.span`
   flex-shrink: 0;
 `;
 
+const NodeCard = styled.div`
+  min-width: 180px;
+  max-width: 260px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: ${(props) => props.theme.background?.surface0 || props.theme.background?.base || 'transparent'};
+  border: 2px solid ${(props) => props.$statusColor};
+  color: ${(props) => props.theme.text || 'inherit'};
+  font-size: 13px;
+  cursor: pointer;
+  position: relative;
+`;
+
+const NodeHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const StatusDot = styled.span`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${(props) => props.$color};
+  flex-shrink: 0;
+`;
+
+const MethodBadge = styled.span`
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: ${(props) => props.$color};
+  border: 1px solid ${(props) => props.$color};
+  flex-shrink: 0;
+`;
+
+const NodeName = styled.span`
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const NodeUrl = styled.div`
+  font-size: 11px;
+  color: ${(props) => props.theme.colors?.text?.muted || '#94a3b8'};
+  margin-top: 2px;
+  padding-left: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const NodeResult = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding-left: 14px;
+  font-size: 10px;
+`;
+
+const ResultDuration = styled.span`
+  color: ${(props) => props.theme.colors?.text?.subtext0 || '#64748b'};
+`;
+
+const ResultHttpStatus = styled.span`
+  color: ${(props) => (props.$ok ? STATUS_COLORS.success : STATUS_COLORS.failed)};
+  font-weight: 600;
+`;
+
+// 失败时卡片底部的错误红条
+const ErrorBar = styled.div`
+  margin: 4px -12px -8px;
+  padding: 3px 10px;
+  border-radius: 0 0 6px 6px;
+  background: ${(props) => props.theme.status?.danger?.background || 'rgba(239,68,68,0.12)'};
+  color: ${(props) => props.theme.status?.danger?.text || '#ef4444'};
+  font-size: 10px;
+  line-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
 const StrategyBadge = styled.span`
   position: absolute;
   right: 6px;
-  bottom: 4px;
+  bottom: ${(props) => (props.$lifted ? 22 : 4)}px;
   font-size: 9px;
   line-height: 12px;
   padding: 0 4px;
@@ -31,6 +121,17 @@ const StrategyBadge = styled.span`
   white-space: nowrap;
 `;
 
+const NodeHandle = styled(Handle)`
+  background: ${(props) => props.$color} !important;
+  width: 10px !important;
+  height: 10px !important;
+  border: 2px solid #fff !important;
+`;
+
+/**
+ * 请求节点卡片：状态指示 + 方法徽标 + 别名 + URL + 运行结果摘要。
+ * 失败时底部显示错误红条，hover 显示响应摘要。
+ */
 const RequestNode = ({ data }) => {
   const theme = useTheme();
   const displayName = data.alias || data.label || data.url || 'Request';
@@ -39,120 +140,61 @@ const RequestNode = ({ data }) => {
   const method = String(data.method || '').toUpperCase();
   const methodColor = getMethodColor(method);
   const strategy = data.errorHandler?.strategy;
+  const hasErrorBar = status === 'failed' && data.errorMessage;
+
+  // hover 摘要：状态 + 耗时 + HTTP 码 + 错误首行
+  const summaryParts = [];
+  if (data.duration !== undefined) summaryParts.push(`耗时 ${data.duration}ms`);
+  if (data.httpStatus) summaryParts.push(`HTTP ${data.httpStatus}`);
+  if (data.errorMessage) summaryParts.push(`错误：${String(data.errorMessage).split('\n')[0]}`);
+  const summaryTitle = summaryParts.length > 0 ? `${displayName}\n${summaryParts.join('\n')}` : displayName;
 
   return (
-    <div
-      style={{
-        minWidth: 180,
-        maxWidth: 260,
-        padding: '8px 12px',
-        borderRadius: 8,
-        background: theme.background?.surface0 || theme.background?.base || 'transparent',
-        border: `2px solid ${statusColor}`,
-        color: theme.text || 'inherit',
-        fontSize: 13,
-        cursor: 'pointer',
-        position: 'relative'
-      }}
-    >
-      <Handle
-        type="target"
-        position={Position.Left}
-        style={{ background: statusColor, width: 10, height: 10, border: '2px solid #fff' }}
-      />
+    <NodeCard $statusColor={statusColor} title={summaryTitle}>
+      <NodeHandle type="target" position={Position.Left} $color={statusColor} />
 
-      {/* 第一行：状态指示 + 方法徽标 + 别名 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <NodeHeader>
         {status === 'running' ? (
           <Spinner $color={statusColor} />
         ) : (
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: statusColor,
-              flexShrink: 0
-            }}
-          />
+          <StatusDot $color={statusColor} />
         )}
-        {method && (
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              lineHeight: '14px',
-              padding: '0 4px',
-              borderRadius: 4,
-              color: methodColor,
-              border: `1px solid ${methodColor}`,
-              flexShrink: 0
-            }}
-          >
-            {method}
-          </span>
-        )}
-        <span
-          style={{
-            fontWeight: 600,
-            fontSize: 13,
-            lineHeight: '18px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}
-          title={displayName}
-        >
-          {displayName}
-        </span>
-      </div>
+        {method && <MethodBadge $color={methodColor}>{method}</MethodBadge>}
+        <NodeName title={displayName}>{displayName}</NodeName>
+      </NodeHeader>
 
-      {/* 第二行：URL（有别名为标题时展示，截断） */}
-      {data.url && data.alias && (
-        <div
-          style={{
-            fontSize: 11,
-            color: theme.colors?.text?.muted || '#94a3b8',
-            marginTop: 2,
-            paddingLeft: 14,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}
-          title={data.url}
-        >
-          {data.url}
-        </div>
-      )}
+      {data.url && data.alias && <NodeUrl title={data.url}>{data.url}</NodeUrl>}
 
-      {/* 第三行：运行结果（耗时 + HTTP 状态码） */}
       {(data.duration !== undefined || data.httpStatus) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, paddingLeft: 14, fontSize: 10 }}>
-          {data.duration !== undefined && (
-            <span style={{ color: theme.colors?.text?.subtext0 || '#64748b' }}>{data.duration}ms</span>
-          )}
+        <NodeResult>
+          {data.duration !== undefined && <ResultDuration>{data.duration}ms</ResultDuration>}
           {data.httpStatus && (
-            <span style={{ color: data.httpStatus < 400 ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
-              HTTP {data.httpStatus}
-            </span>
+            <ResultHttpStatus $ok={data.httpStatus < 400}>HTTP {data.httpStatus}</ResultHttpStatus>
           )}
-        </div>
+        </NodeResult>
       )}
 
-      {/* 错误处理策略徽标（默认 stop 不显示） */}
-      {strategy === 'continue' && (
-        <StrategyBadge $bg="rgba(245,158,11,0.15)" $color="#f59e0b">失败继续</StrategyBadge>
-      )}
-      {strategy === 'jump' && (
-        <StrategyBadge $bg="rgba(168,85,247,0.15)" $color="#a855f7">失败跳转</StrategyBadge>
-      )}
+      <StrategyBadge
+        $lifted={hasErrorBar}
+        $bg={STRATEGY_BADGE.continue.bg}
+        $color={STRATEGY_BADGE.continue.color}
+        style={{ display: strategy === 'continue' ? undefined : 'none' }}
+      >
+        失败继续
+      </StrategyBadge>
+      <StrategyBadge
+        $lifted={hasErrorBar}
+        $bg={STRATEGY_BADGE.jump.bg}
+        $color={STRATEGY_BADGE.jump.color}
+        style={{ display: strategy === 'jump' ? undefined : 'none' }}
+      >
+        失败跳转
+      </StrategyBadge>
 
-      <Handle
-        type="source"
-        position={Position.Right}
-        style={{ background: statusColor, width: 10, height: 10, border: '2px solid #fff' }}
-      />
-    </div>
+      {hasErrorBar && <ErrorBar>{String(data.errorMessage).split('\n')[0]}</ErrorBar>}
+
+      <NodeHandle type="source" position={Position.Right} $color={statusColor} />
+    </NodeCard>
   );
 };
 

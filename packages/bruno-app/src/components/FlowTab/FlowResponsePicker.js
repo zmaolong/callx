@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { IconChevronRight, IconChevronDown, IconCode } from '@tabler/icons';
 import { getPredecessorStepId } from 'utils/flow/graph';
 import Modal from 'components/Modal';
+import { STATUS_COLORS, STATUS_BADGE_BG, JSON_TOKEN_COLORS } from './constants';
 
 const TreeContainer = styled.div`
   font-size: 12px;
@@ -26,7 +27,7 @@ const TreeRow = styled.div`
   white-space: nowrap;
 
   &:hover {
-    background: ${(props) => (props.$clickable ? 'rgba(59,130,246,0.1)' : 'transparent')};
+    background: ${(props) => (props.$clickable ? props.theme.background.surface1 : 'transparent')};
   }
 `;
 
@@ -50,22 +51,22 @@ const Colon = styled.span`
 `;
 
 const ValueString = styled.span`
-  color: #22c55e;
+  color: ${JSON_TOKEN_COLORS.string};
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 300px;
 `;
 
 const ValueNumber = styled.span`
-  color: #3b82f6;
+  color: ${JSON_TOKEN_COLORS.number};
 `;
 
 const ValueBool = styled.span`
-  color: #a855f7;
+  color: ${JSON_TOKEN_COLORS.boolean};
 `;
 
 const ValueNull = styled.span`
-  color: #94a3b8;
+  color: ${JSON_TOKEN_COLORS.null};
   font-style: italic;
 `;
 
@@ -123,16 +124,16 @@ const StepBadge = styled.span`
   border-radius: 8px;
   background: ${(props) =>
     props.$status === 'success'
-      ? 'rgba(34,197,94,0.15)'
+      ? STATUS_BADGE_BG.success
       : props.$status === 'failed'
-        ? 'rgba(239,68,68,0.15)'
-        : 'rgba(148,163,184,0.15)'};
+        ? STATUS_BADGE_BG.failed
+        : STATUS_BADGE_BG.skipped};
   color: ${(props) =>
     props.$status === 'success'
-      ? '#22c55e'
+      ? STATUS_COLORS.success
       : props.$status === 'failed'
-        ? '#ef4444'
-        : '#94a3b8'};
+        ? STATUS_COLORS.failed
+        : STATUS_COLORS.skipped};
   font-weight: 500;
 `;
 

@@ -194,22 +194,7 @@ export const saveFlow = (itemUid, collectionUid, silent = false) => (dispatch, g
       return reject(new Error('Not able to locate item'));
     }
 
-    console.log('[saveFlow] 找到Flow项', {
-      uid: item.uid,
-      type: item.type,
-      hasFlow: !!item.flow,
-      hasNodes: item.flow?.nodes?.length,
-      hasEdges: item.flow?.edges?.length,
-      edges: JSON.parse(JSON.stringify(item.flow?.edges || [])),
-      items: (item.items || []).map(i => ({ uid: i.uid, name: i.name, type: i.type }))
-    });
-
     const itemToSave = transformRequestToSaveToFilesystem(item);
-
-    console.log('[saveFlow] 序列化结果', {
-      flowEdges: itemToSave.flow?.edges?.length,
-      flowEdgesData: JSON.parse(JSON.stringify(itemToSave.flow?.edges || []))
-    });
     const { ipcRenderer } = window;
 
     itemSchema

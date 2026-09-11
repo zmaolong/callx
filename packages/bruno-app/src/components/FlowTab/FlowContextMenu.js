@@ -16,22 +16,31 @@ const MenuContainer = styled.div`
   background: ${(props) => props.theme.background.crust};
   border: 1px solid ${(props) => props.theme.border.border1};
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: ${(props) => props.theme.shadow?.md || '0 4px 16px rgba(0, 0, 0, 0.3)'};
   font-size: 13px;
 `;
 
-const MenuItem = styled.div`
+const MenuItem = styled.button`
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 7px 14px;
-  color: ${(props) => (props.$danger ? '#ef4444' : props.theme.text)};
+  border: none;
+  background: transparent;
+  color: ${(props) => (props.$danger
+    ? props.theme.status?.danger?.text || '#ef4444'
+    : props.theme.text)};
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  text-align: left;
+  font-size: inherit;
 
-  &:hover {
+  &:hover,
+  &:focus-visible {
     background: ${(props) => props.theme.background.surface0};
+    outline: none;
   }
 `;
 
