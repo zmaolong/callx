@@ -9,9 +9,10 @@ import { pluralizeWord } from 'utils/common';
 import { getInvalidVariableNames } from 'utils/common/variables';
 import { isEnvironmentValidationError } from 'utils/environments';
 import { completeQuitFlow } from 'providers/ReduxStore/slices/app';
-import { saveRequest, saveMultipleRequests, saveMultipleCollections, saveMultipleFolders, saveEnvironment, closeTabs } from 'providers/ReduxStore/slices/collections/actions';
+import { saveRequest, saveMultipleRequests, saveMultipleCollections, saveMultipleFolders, saveEnvironment, closeTabs, saveFlow } from 'providers/ReduxStore/slices/collections/actions';
 import { saveGlobalEnvironment, clearGlobalEnvironmentDraft } from 'providers/ReduxStore/slices/global-environments';
-import { deleteRequestDraft, deleteCollectionDraft, deleteFolderDraft, clearEnvironmentsDraft } from 'providers/ReduxStore/slices/collections';
+import { deleteRequestDraft, deleteCollectionDraft, deleteFolderDraft, clearEnvironmentsDraft, updateFlowNodes, updateFlowEdges } from 'providers/ReduxStore/slices/collections';
+import { getFlowSnapshot } from 'utils/flow/dirty-registry';
 import { IconAlertTriangle } from '@tabler/icons';
 import Modal from 'components/Modal';
 import Button from 'ui/Button';
@@ -23,6 +24,7 @@ const SaveRequestsModal = ({ onClose, forceCloseTabs = false, tabUidsToClose = [
   const tabs = useSelector((state) => state.tabs.tabs);
   const globalEnvironments = useSelector((state) => state.globalEnvironments.globalEnvironments);
   const globalEnvironmentDraft = useSelector((state) => state.globalEnvironments.globalEnvironmentDraft);
+  const flowDirtyByUid = useSelector((state) => state.flowEditor?.dirtyByUid || {});
   const dispatch = useDispatch();
 
   const allDrafts = useMemo(() => {
@@ -31,6 +33,7 @@ const SaveRequestsModal = ({ onClose, forceCloseTabs = false, tabUidsToClose = [
     const folderDrafts = [];
     const environmentDrafts = [];
     const appDrafts = [];
+    const flowDrafts = [];
     const relevantTabs = forceCloseTabs ? tabs.filter((t) => tabUidsToClose.includes(t.uid)) : tabs;
     const tabsByCollection = groupBy(relevantTabs, (t) => t.collectionUid);
 
@@ -45,6 +48,19 @@ const SaveRequestsModal = ({ onClose, forceCloseTabs = false, tabUidsToClose = [
             collectionUid: collectionUid
           });
         }
+
+        // Check for flow canvas unsaved changes
+        const flowTabs = filter(relevantTabs, (t) => t.collectionUid === collectionUid && t.type === 'flow');
+        each(flowTabs, (flowTab) => {
+          if (flowDirtyByUid[flowTab.uid]) {
+            flowDrafts.push({
+              type: 'flow',
+              name: flowTab.name,
+              uid: flowTab.uid,
+              collectionUid: collectionUid
+            });
+          }
+        });
 
         // Check for collection environment draft
         if (collection.environmentsDraft) {
@@ -108,8 +124,8 @@ const SaveRequestsModal = ({ onClose, forceCloseTabs = false, tabUidsToClose = [
       }
     }
 
-    return [...collectionDrafts, ...folderDrafts, ...environmentDrafts, ...appDrafts, ...requestDrafts];
-  }, [collections, tabs, globalEnvironments, globalEnvironmentDraft, forceCloseTabs, tabUidsToClose]);
+    return [...collectionDrafts, ...folderDrafts, ...environmentDrafts, ...appDrafts, ...flowDrafts, ...requestDrafts];
+  }, [collections, tabs, globalEnvironments, globalEnvironmentDraft, forceCloseTabs, tabUidsToClose, flowDirtyByUid]);
 
   const totalDraftsCount = allDrafts.length;
 
@@ -141,6 +157,23 @@ const SaveRequestsModal = ({ onClose, forceCloseTabs = false, tabUidsToClose = [
           case 'global-environment':
             dispatch(clearGlobalEnvironmentDraft());
             break;
+          case 'flow': {
+            // 放弃 Flow 画布修改：还原到上次保存的图快照
+            const snapshot = getFlowSnapshot(draft.uid);
+            if (snapshot) {
+              dispatch(updateFlowNodes({
+                collectionUid: draft.collectionUid,
+                itemUid: draft.uid,
+                nodes: snapshot.nodes
+              }));
+              dispatch(updateFlowEdges({
+                collectionUid: draft.collectionUid,
+                itemUid: draft.uid,
+                edges: snapshot.edges
+              }));
+            }
+            break;
+          }
           default:
             // Request and app drafts both live on collection items.
             dispatch(deleteRequestDraft({ collectionUid: draft.collectionUid, itemUid: draft.uid }));
@@ -173,6 +206,16 @@ const SaveRequestsModal = ({ onClose, forceCloseTabs = false, tabUidsToClose = [
       // Save all folder drafts
       if (folderDrafts.length > 0) {
         await dispatch(saveMultipleFolders(folderDrafts));
+      }
+
+      // Save dirty flow canvases
+      const flowDrafts = allDrafts.filter((d) => d.type === 'flow');
+      if (flowDrafts.length > 0) {
+        await Promise.all(
+          flowDrafts.map((draft) =>
+            dispatch(saveFlow(draft.uid, draft.collectionUid, true)).catch(() => null)
+          )
+        );
       }
 
       // Save all request drafts
@@ -278,6 +321,9 @@ const SaveRequestsModal = ({ onClose, forceCloseTabs = false, tabUidsToClose = [
               break;
             case 'app':
               prefix = 'App: ';
+              break;
+            case 'flow':
+              prefix = 'Flow: ';
               break;
             default:
               prefix = 'Request: ';

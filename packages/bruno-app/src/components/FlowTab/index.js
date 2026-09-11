@@ -23,6 +23,7 @@ import { addTab } from 'providers/ReduxStore/slices/tabs';
 import { sanitizeName } from 'utils/common/regex';
 import { executeFlow, executeSingleNode, cancelFlow } from 'utils/flow/executor';
 import { clearFlowRunState } from 'providers/ReduxStore/slices/flowRun';
+import { clearFlowExternalChange } from 'providers/ReduxStore/slices/flowEditor';
 import { useFlowUndo } from 'hooks/useFlowUndo';
 import Modal from 'components/Modal';
 import toast from 'react-hot-toast';
@@ -50,6 +51,9 @@ const FlowTab = ({ flow }) => {
 
   const flowRun = useSelector((state) => state.flowRun?.runs?.[flow?.uid]);
   const collections = useSelector((state) => state.collections.collections);
+  // 画布未保存修改与磁盘变更冲突提示（flowDirtyMiddleware 维护）
+  const flowDirty = useSelector((state) => state.flowEditor?.dirtyByUid?.[flow?.uid]);
+  const flowExternalChange = useSelector((state) => state.flowEditor?.externalChangeByUid?.[flow?.uid]);
 
   // 使用 useMemo 缓存集合查找结果，避免每次 Redux 状态变化都重建所有扁平化数组
   const collection = useMemo(() => {
@@ -324,7 +328,9 @@ const FlowTab = ({ flow }) => {
     return validationErrors;
   }, [flow?.flow]);
 
-  // 构建执行上下文：collectionItems 映射 + collection 副本（执行过程会写入 runtimeVariables）
+  // 构建执行上下文：collectionItems 映射 + collection 浅拷贝
+  // 执行器只写 runtimeVariables（每节点独立重建）；HTTP 请求跨 IPC 传输本身
+  // 就是深拷贝，渲染层无需复制整个集合（大集合深拷贝会造成明显卡顿）
   const buildExecutionContext = useCallback(() => {
     const collectionItems = {};
     const flattenItems = (items) => {
@@ -339,7 +345,10 @@ const FlowTab = ({ flow }) => {
     // 也搜索集合中的顶层
     if (collection.items) flattenItems(collection.items);
 
-    const collectionCopy = JSON.parse(JSON.stringify(collection));
+    const collectionCopy = {
+      ...collection,
+      runtimeVariables: { ...(collection.runtimeVariables || {}) }
+    };
     return { collectionItems, collectionCopy };
   }, [flow, collection]);
 
@@ -439,6 +448,14 @@ const FlowTab = ({ flow }) => {
       handleWorkbenchCollapsedChange(false);
     }
   }, [flowRun?.status, handleWorkbenchCollapsedChange]);
+
+  // 外部变更提示：磁盘 flow.yml 有变更但画布存在未保存修改，内存版本已保留
+  useEffect(() => {
+    if (flowExternalChange && flow?.uid) {
+      toast('检测到磁盘变更，未保存的画布修改已保留', { icon: '⚠️', duration: 5000 });
+      dispatch(clearFlowExternalChange({ flowUid: flow.uid }));
+    }
+  }, [flowExternalChange, flow?.uid, dispatch]);
 
   // 校验错误（附加节点显示名，供顶栏错误弹层展示与定位）
   const errors = useMemo(() => {
@@ -634,6 +651,7 @@ const FlowTab = ({ flow }) => {
       <FlowTopBar
         flowName={flow?.name}
         isRunning={isRunning}
+        isDirty={Boolean(flowDirty)}
         onRun={handleRun}
         onCancel={handleCancel}
         hasSelectedRequestNode={Boolean(isRequestNode)}

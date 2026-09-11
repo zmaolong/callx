@@ -210,6 +210,11 @@ export const saveFlow = (itemUid, collectionUid, silent = false) => (dispatch, g
             collectionUid
           })
         );
+        // 通知脏标记中间件重建基准（flowSaved 由 flowDirtyMiddleware 处理）
+        dispatch({
+          type: 'flowEditor/flowSaved',
+          payload: { flowUid: itemUid, collectionUid }
+        });
       })
       .then(resolve)
       .catch((err) => {

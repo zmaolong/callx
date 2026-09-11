@@ -15,15 +15,17 @@ import mockServerReducer from './slices/mock-server/index';
 import chatReducer from './slices/chat';
 import collectionMigrationReducer from './slices/collection-migration';
 import flowRunReducer from './slices/flowRun';
+import flowEditorReducer from './slices/flowEditor';
 import { draftDetectMiddleware } from './middlewares/draft/middleware';
 import { autosaveMiddleware } from './middlewares/autosave/middleware';
 import { snapshotMiddleware } from './middlewares/snapshot/middleware';
+import { flowDirtyMiddleware } from './middlewares/flow-dirty/middleware';
 
 const isDevEnv = () => {
   return import.meta.env.MODE === 'development';
 };
 
-let middleware = [tasksMiddleware.middleware, draftDetectMiddleware, autosaveMiddleware, snapshotMiddleware];
+let middleware = [tasksMiddleware.middleware, draftDetectMiddleware, autosaveMiddleware, snapshotMiddleware, flowDirtyMiddleware];
 if (isDevEnv()) {
   middleware = [...middleware, debugMiddleware.middleware];
 }
@@ -43,7 +45,8 @@ export const store = configureStore({
     mockServer: mockServerReducer,
     chat: chatReducer,
     collectionMigration: collectionMigrationReducer,
-    flowRun: flowRunReducer
+    flowRun: flowRunReducer,
+    flowEditor: flowEditorReducer
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(middleware)
 });

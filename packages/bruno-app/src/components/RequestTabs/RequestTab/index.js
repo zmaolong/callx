@@ -1,9 +1,12 @@
 import React, { useCallback, useState, useRef, Fragment, useMemo, useEffect } from 'react';
 import get from 'lodash/get';
 import { makeTabPermanent, syncTabUid } from 'providers/ReduxStore/slices/tabs';
-import { saveRequest, saveCollectionRoot, saveFolderRoot, saveEnvironment, saveCollectionSettings, closeTabs, saveFile } from 'providers/ReduxStore/slices/collections/actions';
+import { saveRequest, saveCollectionRoot, saveFolderRoot, saveEnvironment, saveCollectionSettings, closeTabs, saveFile, saveFlow } from 'providers/ReduxStore/slices/collections/actions';
 import useKeybinding from 'hooks/useKeybinding';
-import { deleteRequestDraft, deleteCollectionDraft, deleteFolderDraft, clearEnvironmentsDraft, addSaveTransientRequestModal } from 'providers/ReduxStore/slices/collections';
+import { deleteRequestDraft, deleteCollectionDraft, deleteFolderDraft, clearEnvironmentsDraft, addSaveTransientRequestModal, updateFlowNodes, updateFlowEdges } from 'providers/ReduxStore/slices/collections';
+import { clearFlowRunState } from 'providers/ReduxStore/slices/flowRun';
+import { getFlowSnapshot } from 'utils/flow/dirty-registry';
+import ConfirmFlowClose from 'components/FlowTab/ConfirmFlowClose';
 import { clearGlobalEnvironmentDraft } from 'providers/ReduxStore/slices/global-environments';
 import { saveGlobalEnvironment } from 'providers/ReduxStore/slices/global-environments';
 import { useTheme } from 'providers/Theme';
@@ -42,6 +45,7 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
   const [showConfirmFolderClose, setShowConfirmFolderClose] = useState(false);
   const [showConfirmEnvironmentClose, setShowConfirmEnvironmentClose] = useState(false);
   const [showConfirmGlobalEnvironmentClose, setShowConfirmGlobalEnvironmentClose] = useState(false);
+  const [showConfirmFlowClose, setShowConfirmFlowClose] = useState(false);
   const [newRequestTarget, setNewRequestTarget] = useState(null);
 
   const menuDropdownRef = useRef();
@@ -209,6 +213,57 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
   const hasEnvironmentDraft = tab.type === 'environment-settings' && collection?.environmentsDraft;
   const globalEnvironmentDraft = useSelector((state) => state.globalEnvironments.globalEnvironmentDraft);
   const hasGlobalEnvironmentDraft = (tab.type === 'global-environment-settings' || tab.type === 'workspaceEnvironments') && globalEnvironmentDraft;
+  // Flow 画布未保存修改（flowDirtyMiddleware 维护）
+  const flowGraphDirty = useSelector((state) =>
+    tab.type === 'flow' ? state.flowEditor?.dirtyByUid?.[tab.uid] : false
+  );
+  const flowDirty = tab.type === 'flow' && Boolean(flowGraphDirty);
+
+  // 关闭脏 Flow Tab：保存并关闭 / 放弃修改还原到上次保存基准
+  const handleFlowTabClose = (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    if (flowDirty) {
+      setShowConfirmFlowClose(true);
+    } else {
+      dispatch(closeTabs({ tabUids: [tab.uid] }));
+    }
+  };
+
+  const handleFlowCloseWithoutSave = () => {
+    const snapshot = getFlowSnapshot(tab.uid);
+    if (snapshot && collection) {
+      dispatch(updateFlowNodes({
+        collectionUid: collection.uid,
+        itemUid: tab.uid,
+        nodes: snapshot.nodes
+      }));
+      dispatch(updateFlowEdges({
+        collectionUid: collection.uid,
+        itemUid: tab.uid,
+        edges: snapshot.edges
+      }));
+    }
+    dispatch(clearFlowRunState({ flowUid: tab.uid }));
+    dispatch(closeTabs({ tabUids: [tab.uid] }));
+    setShowConfirmFlowClose(false);
+  };
+
+  const handleFlowSaveAndClose = () => {
+    if (!collection) {
+      dispatch(closeTabs({ tabUids: [tab.uid] }));
+      setShowConfirmFlowClose(false);
+      return;
+    }
+    dispatch(saveFlow(tab.uid, collection.uid, true))
+      .then(() => {
+        dispatch(closeTabs({ tabUids: [tab.uid] }));
+      })
+      .catch(() => {
+        // 保存失败保留 Tab 与弹窗由 saveFlow 的 toast 反馈
+      });
+    setShowConfirmFlowClose(false);
+  };
 
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const isActive = tab.uid === activeTabUid;
@@ -504,7 +559,7 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
         ) : tab.type === 'folder-settings' ? (
           <SpecialTab handleCloseClick={handleCloseFolderSettings} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} tabName={folder?.name} hasDraft={hasFolderDraft} />
         ) : tab.type === 'flow' ? (
-          <SpecialTab handleCloseClick={handleCloseClick} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} tabName={item?.name} />
+          <SpecialTab handleCloseClick={handleFlowTabClose} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} tabName={item?.name} hasDraft={flowDirty} />
         ) : tab.type === 'collection-settings' ? (
           <SpecialTab handleCloseClick={handleCloseCollectionSettings} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} tabName={collection?.name} hasDraft={hasDraft} />
         ) : tab.type === 'environment-settings' ? (
@@ -569,6 +624,14 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
 
   return (
     <StyledWrapper className="flex items-center justify-between tab-container px-2">
+      {showConfirmFlowClose && (
+        <ConfirmFlowClose
+          flowName={item?.name || tab.name}
+          onCancel={() => setShowConfirmFlowClose(false)}
+          onCloseWithoutSave={handleFlowCloseWithoutSave}
+          onSaveAndClose={handleFlowSaveAndClose}
+        />
+      )}
       {showConfirmClose && (
         <ConfirmRequestClose
           item={item}

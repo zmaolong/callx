@@ -19,6 +19,7 @@ import {
   isItemARequest
 } from 'utils/collections';
 import { createNodeForRequest } from 'utils/flow/reconcile';
+import { isFlowDirty, markFlowExternalChange } from 'utils/flow/dirty-registry';
 import { parsePathParams, splitOnFirst } from 'utils/url';
 import { applyScriptEnvVars, getScriptModifiedKeys } from 'utils/environments';
 import { getSubdirectoriesFromRoot } from 'utils/common/platform';
@@ -96,6 +97,12 @@ const mergeTreeItems = (existingItems, newItems) => {
     }
 
     if (newItem.type === 'flow') {
+      // 脏保护：画布有未保存修改时，磁盘树重建不得覆盖内存图
+      // （fileWatcher 全量重建用磁盘状态合并，会抹掉未保存的编辑）
+      if (isFlowDirty(newItem.uid)) {
+        markFlowExternalChange(newItem.uid);
+        return existing;
+      }
       const merged = { ...existing, ...pick(newItem, FILE_DERIVED_FLOW_FIELDS) };
       merged.items = newItem.items || [];
       return merged;
@@ -3114,17 +3121,23 @@ export const collectionsSlice = createSlice({
           }
           // Flow root: data has name/seq/type at top level, not inside meta
           if (file?.data?.type === 'flow') {
-            folderItem.type = 'flow';
-            if (file?.data?.name) {
-              folderItem.name = file?.data?.name;
+            // 脏保护：外部 flow.yml 变更事件不得覆盖未保存的画布修改
+            if (isFlowDirty(folderItem.uid)) {
+              markFlowExternalChange(folderItem.uid);
+              folderItem.name = file?.data?.name || folderItem.name;
+            } else {
+              folderItem.type = 'flow';
+              if (file?.data?.name) {
+                folderItem.name = file?.data?.name;
+              }
+              if (file?.data?.seq) {
+                folderItem.seq = file?.data?.seq;
+              }
+              folderItem.flow = {
+                nodes: file?.data?.flow?.nodes || [],
+                edges: file?.data?.flow?.edges || []
+              };
             }
-            if (file?.data?.seq) {
-              folderItem.seq = file?.data?.seq;
-            }
-            folderItem.flow = {
-              nodes: file?.data?.flow?.nodes || [],
-              edges: file?.data?.flow?.edges || []
-            };
           }
         }
         return;
@@ -3317,17 +3330,23 @@ export const collectionsSlice = createSlice({
           folderItem.root = mergeRootWithPreservedUids(folderItem.root, file.data);
           // Flow root: data has name/seq/type at top level, not inside meta
           if (file?.data?.type === 'flow') {
-            folderItem.type = 'flow';
-            if (file?.data?.name) {
-              folderItem.name = file?.data?.name;
+            // 脏保护：外部 flow.yml 变更事件不得覆盖未保存的画布修改
+            if (isFlowDirty(folderItem.uid)) {
+              markFlowExternalChange(folderItem.uid);
+              folderItem.name = file?.data?.name || folderItem.name;
+            } else {
+              folderItem.type = 'flow';
+              if (file?.data?.name) {
+                folderItem.name = file?.data?.name;
+              }
+              if (file?.data?.seq) {
+                folderItem.seq = file?.data?.seq;
+              }
+              folderItem.flow = {
+                nodes: file?.data?.flow?.nodes || [],
+                edges: file?.data?.flow?.edges || []
+              };
             }
-            if (file?.data?.seq) {
-              folderItem.seq = file?.data?.seq;
-            }
-            folderItem.flow = {
-              nodes: file?.data?.flow?.nodes || [],
-              edges: file?.data?.flow?.edges || []
-            };
           }
         }
         return;
