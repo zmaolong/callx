@@ -37,7 +37,9 @@ const FLOW_STATUS = {
 
 const initialState = {
   // key: flowUid
-  runs: {}
+  runs: {},
+  // key: flowUid → 历史记录元信息列表（完整记录按需经 IPC 读取）
+  history: {}
 };
 
 const flowRunSlice = createSlice({
@@ -234,6 +236,22 @@ const flowRunSlice = createSlice({
      */
     clearAllFlowRunStates: (state) => {
       state.runs = {};
+    },
+
+    /**
+     * 写入某 Flow 的历史记录元信息列表。
+     */
+    setFlowHistory: (state, action) => {
+      const { flowUid, records } = action.payload;
+      state.history[flowUid] = records || [];
+    },
+
+    /**
+     * 清空某 Flow 的历史列表（本地状态；磁盘清理由 IPC 完成）。
+     */
+    clearFlowHistory: (state, action) => {
+      const { flowUid } = action.payload;
+      delete state.history[flowUid];
     }
   }
 });
@@ -246,7 +264,9 @@ export const {
   setFlowRunStatus,
   cancelFlowRun,
   clearFlowRunState,
-  clearAllFlowRunStates
+  clearAllFlowRunStates,
+  setFlowHistory,
+  clearFlowHistory
 } = flowRunSlice.actions;
 
 export { NODE_STATUS, FLOW_STATUS };

@@ -3021,6 +3021,112 @@ const registerMainEventHandlers = (mainWindow) => {
   ipcMain.handle('main:force-quit', () => {
     process.exit();
   });
+
+  // ---------------- Flow 运行历史 ----------------
+  // 存储：userData/flow-runs/<collectionUid>/<flowUid>/，单条记录一个 JSON 文件
+  // + index.json 元信息（不含响应体）。每 Flow 滚动保留最近 RUN_HISTORY_LIMIT 次。
+  const RUN_HISTORY_LIMIT = 20;
+
+  const safeHistorySegment = (value) => {
+    if (typeof value !== 'string' || !value.length) return null;
+    // uid/runId 只允许字母数字下划线连字符，杜绝路径拼接注入
+    if (!/^[A-Za-z0-9_-]+$/.test(value)) return null;
+    return value;
+  };
+
+  const getFlowHistoryDir = (collectionUid, flowUid) =>
+    path.join(app.getPath('userData'), 'flow-runs', collectionUid, flowUid);
+
+  const readFlowHistoryIndex = (dir) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')) || [];
+    } catch {
+      return [];
+    }
+  };
+
+  ipcMain.handle('flow-history:save', async (event, record) => {
+    try {
+      const collectionUid = safeHistorySegment(record?.collectionUid);
+      const flowUid = safeHistorySegment(record?.flowUid);
+      const runId = safeHistorySegment(record?.runId);
+      if (!collectionUid || !flowUid || !runId) return false;
+
+      const dir = getFlowHistoryDir(collectionUid, flowUid);
+      fs.mkdirSync(dir, { recursive: true });
+
+      const index = readFlowHistoryIndex(dir);
+      const meta = {
+        runId,
+        startedAt: record.startedAt || 0,
+        finishedAt: record.finishedAt || 0,
+        durationMs: record.durationMs || 0,
+        status: record.status || 'failed',
+        trigger: record.trigger || 'full'
+      };
+      const existingIdx = index.findIndex((m) => m.runId === runId);
+      if (existingIdx >= 0) {
+        index[existingIdx] = meta;
+      } else {
+        index.push(meta);
+      }
+      index.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+
+      // 滚动删除超限的旧记录文件
+      const removed = index.splice(RUN_HISTORY_LIMIT);
+      for (const item of removed) {
+        try {
+          fs.rmSync(path.join(dir, `${item.runId}.json`), { force: true });
+        } catch (e) { /* 忽略单个文件删除失败 */ }
+      }
+
+      fs.writeFileSync(path.join(dir, `${runId}.json`), JSON.stringify(record), 'utf8');
+      fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index, null, 2), 'utf8');
+      return true;
+    } catch (error) {
+      console.warn('[flow-history] save failed:', error.message);
+      return false;
+    }
+  });
+
+  ipcMain.handle('flow-history:list', async (event, { collectionUid, flowUid }) => {
+    try {
+      const safeCollectionUid = safeHistorySegment(collectionUid);
+      const safeFlowUid = safeHistorySegment(flowUid);
+      if (!safeCollectionUid || !safeFlowUid) return [];
+      return readFlowHistoryIndex(getFlowHistoryDir(safeCollectionUid, safeFlowUid));
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle('flow-history:load', async (event, { collectionUid, flowUid, runId }) => {
+    try {
+      const safeCollectionUid = safeHistorySegment(collectionUid);
+      const safeFlowUid = safeHistorySegment(flowUid);
+      const safeRunId = safeHistorySegment(runId);
+      if (!safeCollectionUid || !safeFlowUid || !safeRunId) return null;
+      const raw = fs.readFileSync(
+        path.join(getFlowHistoryDir(safeCollectionUid, safeFlowUid), `${safeRunId}.json`),
+        'utf8'
+      );
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('flow-history:clear', async (event, { collectionUid, flowUid }) => {
+    try {
+      const safeCollectionUid = safeHistorySegment(collectionUid);
+      const safeFlowUid = safeHistorySegment(flowUid);
+      if (!safeCollectionUid || !safeFlowUid) return false;
+      fs.rmSync(getFlowHistoryDir(safeCollectionUid, safeFlowUid), { recursive: true, force: true });
+      return true;
+    } catch {
+      return false;
+    }
+  });
 };
 
 const registerCollectionsIpc = (mainWindow, watcher) => {

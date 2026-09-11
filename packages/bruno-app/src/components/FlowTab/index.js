@@ -22,8 +22,13 @@ import { saveFlow, deleteItem, cloneItem } from 'providers/ReduxStore/slices/col
 import { addTab } from 'providers/ReduxStore/slices/tabs';
 import { sanitizeName } from 'utils/common/regex';
 import { executeFlow, executeSingleNode, cancelFlow } from 'utils/flow/executor';
-import { clearFlowRunState } from 'providers/ReduxStore/slices/flowRun';
+import { clearFlowRunState, setFlowHistory, clearFlowHistory } from 'providers/ReduxStore/slices/flowRun';
 import { clearFlowExternalChange } from 'providers/ReduxStore/slices/flowEditor';
+import {
+  listFlowRunRecords,
+  loadFlowRunRecord,
+  clearFlowRunRecords
+} from 'utils/flow/run-history';
 import { useFlowUndo } from 'hooks/useFlowUndo';
 import Modal from 'components/Modal';
 import toast from 'react-hot-toast';
@@ -50,6 +55,7 @@ const FlowTab = ({ flow }) => {
   }, []);
 
   const flowRun = useSelector((state) => state.flowRun?.runs?.[flow?.uid]);
+  const flowHistory = useSelector((state) => state.flowRun?.history?.[flow?.uid]);
   const collections = useSelector((state) => state.collections.collections);
   // 画布未保存修改与磁盘变更冲突提示（flowDirtyMiddleware 维护）
   const flowDirty = useSelector((state) => state.flowEditor?.dirtyByUid?.[flow?.uid]);
@@ -442,6 +448,46 @@ const FlowTab = ({ flow }) => {
     };
   }, [flow?.uid, dispatch]);
 
+  // 挂载时加载运行历史列表
+  useEffect(() => {
+    if (!flow?.uid || !collectionUid) return;
+    let cancelled = false;
+    listFlowRunRecords(collectionUid, flow.uid).then((records) => {
+      if (!cancelled) {
+        dispatch(setFlowHistory({ flowUid: flow.uid, records }));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [flow?.uid, collectionUid, dispatch]);
+
+  // 运行结束后刷新历史列表（运行态变化触发）
+  const prevRunStatusRef = useRef(null);
+  useEffect(() => {
+    const status = flowRun?.status;
+    if (prevRunStatusRef.current === 'running' && status && status !== 'running' && collectionUid && flow?.uid) {
+      listFlowRunRecords(collectionUid, flow.uid).then((records) => {
+        dispatch(setFlowHistory({ flowUid: flow.uid, records }));
+      });
+    }
+    prevRunStatusRef.current = status;
+  }, [flowRun?.status, collectionUid, flow?.uid, dispatch]);
+
+  // 读取一次完整历史记录（供工作台回看）
+  const handleLoadHistoryRecord = useCallback(async (runId) => {
+    if (!collectionUid || !flow?.uid) return null;
+    return loadFlowRunRecord(collectionUid, flow.uid, runId);
+  }, [collectionUid, flow?.uid]);
+
+  // 清空运行历史
+  const handleClearHistory = useCallback(async () => {
+    if (!collectionUid || !flow?.uid) return;
+    await clearFlowRunRecords(collectionUid, flow.uid);
+    dispatch(clearFlowHistory({ flowUid: flow.uid }));
+    toast.success('运行历史已清空');
+  }, [collectionUid, flow?.uid, dispatch]);
+
   // 开始运行时自动唤起右侧工作台（运行结果都在面板中展示）
   useEffect(() => {
     if (flowRun?.status === 'running') {
@@ -695,6 +741,10 @@ const FlowTab = ({ flow }) => {
           nodes={flow?.flow?.nodes}
           requestItem={selectedRequestItem}
           collection={collection}
+          collectionUid={collectionUid}
+          flowHistory={flowHistory}
+          onLoadHistoryRecord={handleLoadHistoryRecord}
+          onClearHistory={handleClearHistory}
           collapsed={workbenchCollapsed}
           onCollapsedChange={handleWorkbenchCollapsedChange}
           onSelectStep={focusNode}

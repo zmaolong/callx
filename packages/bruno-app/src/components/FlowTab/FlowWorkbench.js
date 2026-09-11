@@ -446,6 +446,43 @@ const QuickMapButton = styled.button`
   }
 `;
 
+const HistoryRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+`;
+
+const HistorySelect = styled.select`
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid ${(props) => props.theme.border.border1};
+  border-radius: 4px;
+  background: ${(props) => props.theme.background.surface0};
+  color: ${(props) => props.theme.text};
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+
+  &:focus {
+    border-color: ${(props) => props.theme.border.border2};
+  }
+`;
+
+/**
+ * 历史记录下拉项文案：时间 + 状态 + 总耗时
+ */
+const formatHistoryLabel = (meta) => {
+  const d = new Date(meta.startedAt || 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  const time = `${d.getMonth() + 1}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const statusLabel = meta.status === 'success' ? '成功' : meta.status === 'cancelled' ? '已取消' : '失败';
+  const duration = meta.durationMs ? ` ${meta.durationMs}ms` : '';
+  const trigger = meta.trigger === 'stop-at' ? ' 到此' : '';
+  return `${time} ${statusLabel}${trigger}${duration}`;
+};
+
 // 运行总览步骤列表
 const OverviewSteps = styled.div`
   border: 1px solid ${(props) => props.theme.border.border1};
@@ -643,6 +680,10 @@ const FlowWorkbench = ({
   nodes,
   requestItem,
   collection,
+  collectionUid,
+  flowHistory,
+  onLoadHistoryRecord,
+  onClearHistory,
   collapsed,
   onCollapsedChange,
   onSelectStep,
@@ -661,6 +702,43 @@ const FlowWorkbench = ({
   const [flowResponsePickerOpenIndex, setFlowResponsePickerOpenIndex] = useState(null);
   const [expandedExprIndex, setExpandedExprIndex] = useState(null);
   const [responseFullscreen, setResponseFullscreen] = useState(false);
+  // 运行历史回看：null 表示查看本次运行
+  const [viewingRecord, setViewingRecord] = useState(null);
+
+  // 新一轮运行开始时自动退出历史回看
+  useEffect(() => {
+    if (flowRun?.status === 'running') {
+      setViewingRecord(null);
+    }
+  }, [flowRun?.status]);
+
+  // 历史回看时用记录中的节点状态渲染总览与详情
+  const displayRun = viewingRecord
+    ? {
+        flowRunId: viewingRecord.runId,
+        status: viewingRecord.status,
+        nodes: viewingRecord.nodes
+      }
+    : flowRun;
+
+  const handleHistorySelect = async (event) => {
+    const runId = event.target.value;
+    if (!runId) {
+      setViewingRecord(null);
+      return;
+    }
+    const record = onLoadHistoryRecord ? await onLoadHistoryRecord(runId) : null;
+    if (record) {
+      setViewingRecord(record);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (onClearHistory) {
+      await onClearHistory();
+    }
+    setViewingRecord(null);
+  };
 
   // 面板宽度（持久化到 localStorage）；折叠状态由父组件持有（顶栏按钮可切换）
   const [width, setWidth] = useState(() => {
@@ -868,11 +946,11 @@ const FlowWorkbench = ({
 
   // 运行总览：整体状态 + 各步骤摘要（点击定位节点，详情见下方区块）
   const stepEntries = useMemo(() => {
-    if (!flowRun?.nodes) return [];
-    return Object.entries(flowRun.nodes).filter(
+    if (!displayRun?.nodes) return [];
+    return Object.entries(displayRun.nodes).filter(
       ([stepId]) => stepId !== 'start' && stepId !== 'end'
     );
-  }, [flowRun?.nodes]);
+  }, [displayRun?.nodes]);
 
   const getNodeName = useCallback((stepId) => {
     const node = nodes?.find((n) => n.id === stepId);
@@ -880,36 +958,36 @@ const FlowWorkbench = ({
   }, [nodes]);
 
   const totalDuration = useMemo(() => {
-    if (!flowRun?.nodes) return null;
+    if (!displayRun?.nodes) return null;
     let total = 0;
     let hasNonZero = false;
-    for (const state of Object.values(flowRun.nodes)) {
+    for (const state of Object.values(displayRun.nodes)) {
       if (state.duration != null && state.duration > 0) {
         total += state.duration;
         hasNonZero = true;
       }
     }
     return hasNonZero ? total : null;
-  }, [flowRun?.nodes]);
+  }, [displayRun?.nodes]);
 
   const getFlowStatusInfo = () => {
-    if (flowRun?.status === 'running') {
+    if (displayRun?.status === 'running') {
       return { bg: STATUS_BADGE_BG.running, color: STATUS_COLORS.running, label: '运行中' };
     }
-    if (flowRun?.status === 'success') {
+    if (displayRun?.status === 'success') {
       return { bg: STATUS_BADGE_BG.success, color: STATUS_COLORS.success, label: '成功' };
     }
-    if (flowRun?.status === 'failed') {
+    if (displayRun?.status === 'failed') {
       return { bg: STATUS_BADGE_BG.failed, color: STATUS_COLORS.failed, label: '失败' };
     }
-    if (flowRun?.status === 'cancelled') {
+    if (displayRun?.status === 'cancelled') {
       return { bg: STATUS_BADGE_BG.cancelled, color: STATUS_COLORS.cancelled, label: '已取消' };
     }
     return null;
   };
 
   const renderRunOverview = () => {
-    if (!flowRun) {
+    if (!displayRun) {
       return (
         <DetailSection>
           <DetailTitle>运行总览</DetailTitle>
@@ -920,18 +998,46 @@ const FlowWorkbench = ({
 
     const flowStatusInfo = getFlowStatusInfo();
     const executedCount = stepEntries.filter(([, state]) => state.status !== 'idle').length;
+    const hasLiveRun = Boolean(flowRun);
 
     return (
       <DetailSection>
         <DetailTitleRow>
           <DetailTitle>运行总览</DetailTitle>
+          {viewingRecord && (
+            <StatusBadge $bg={STATUS_BADGE_BG.running} $color={STATUS_COLORS.running}>
+              回看历史
+            </StatusBadge>
+          )}
           {flowStatusInfo && (
             <StatusBadge $bg={flowStatusInfo.bg} $color={flowStatusInfo.color}>
-              {flowRun.status === 'running' && <SpinningIcon size={12} />}
+              {!viewingRecord && displayRun.status === 'running' && <SpinningIcon size={12} />}
               {flowStatusInfo.label}
             </StatusBadge>
           )}
         </DetailTitleRow>
+        {(hasLiveRun || (flowHistory && flowHistory.length > 0)) && (
+          <HistoryRow>
+            <HistorySelect
+              value={viewingRecord?.runId || ''}
+              onChange={handleHistorySelect}
+              title="查看运行历史"
+              aria-label="运行历史选择"
+            >
+              <option value="">本次运行</option>
+              {(flowHistory || []).map((meta) => (
+                <option key={meta.runId} value={meta.runId}>
+                  {formatHistoryLabel(meta)}
+                </option>
+              ))}
+            </HistorySelect>
+            {flowHistory && flowHistory.length > 0 && (
+              <QuickMapButton onClick={handleClearHistory} title="清空此 Flow 的全部运行历史">
+                清空历史
+              </QuickMapButton>
+            )}
+          </HistoryRow>
+        )}
         <OverviewSteps>
           {stepEntries.map(([stepId, state]) => {
             const statusInfo = getRunStatusInfo(state.status);
@@ -989,7 +1095,7 @@ const FlowWorkbench = ({
       );
     }
 
-    const runState = flowRun?.nodes?.[selectedNode.id];
+    const runState = displayRun?.nodes?.[selectedNode.id];
     if (!runState || runState.status === 'idle') {
       return (
         <DetailSection>

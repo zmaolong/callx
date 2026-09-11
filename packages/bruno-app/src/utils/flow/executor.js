@@ -14,6 +14,7 @@ import { resolveInputMappings } from 'utils/flow/input-mapping';
 import { selectBranch } from 'utils/flow/expressions';
 import { findEnvironmentInCollection } from 'utils/collections';
 import { sendNetworkRequest, cancelNetworkRequest } from 'utils/network/index';
+import { buildRunRecord, saveFlowRunRecord } from 'utils/flow/run-history';
 import {
   initFlowRun,
   initNodeRun,
@@ -62,7 +63,34 @@ function extractAssertionResults(response) {
  * @param {string} [options.stopAtNodeId] 运行到此节点为止（含该节点），执行完成后视为成功
  * @returns {Promise<Object>} 执行结果
  */
-export async function executeFlow({
+export async function executeFlow(options) {
+  const startedAt = Date.now();
+  const result = await executeFlowInternal(options);
+
+  // 运行历史持久化：仅记录真正初始化过运行态的执行（校验失败不记录）；
+  // 保存失败静默，不影响运行结果
+  try {
+    const runState = options.getState?.()?.flowRun?.runs?.[options.flowUid];
+    if (runState) {
+      const record = buildRunRecord({
+        flowUid: options.flowUid,
+        collectionUid: options.collectionUid,
+        runState,
+        startedAt,
+        trigger: options.stopAtNodeId ? 'stop-at' : 'full',
+        stopAtNodeId: options.stopAtNodeId || null,
+        status: result.cancelled ? 'cancelled' : result.success ? 'success' : 'failed'
+      });
+      await saveFlowRunRecord(record);
+    }
+  } catch (err) {
+    console.warn('[flow] 保存运行历史失败', err);
+  }
+
+  return result;
+}
+
+async function executeFlowInternal({
   flowUid,
   collectionUid,
   flow,
