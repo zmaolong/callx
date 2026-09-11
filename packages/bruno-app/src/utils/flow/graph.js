@@ -71,16 +71,12 @@ export function generateEdgeId(source, target) {
 /**
  * 解析唯一主链——从 Start 出发，沿唯一出边遍历到 End。
  *
- * 规则：
- * - Start 必须存在且最多一条出边
- * - End 必须存在且最多一条入边
- * - 主链中的 Request 节点恰好一入一出
- * - 不允许分叉、合流、环、自连接
- * - 未连接节点不参与主链
+ * 向后兼容：在无分支图中等同于旧版 resolveMainChain。
+ * 新版按条件分支优先级遍历：优先选带条件的边（先匹配先走），最后走无条件边。
  *
  * @param {Array} nodes 图中所有节点
  * @param {Array} edges 图中所有边
- * @returns {string[]} 有序 stepId 数组（不含 Start/End 的纯 Request 节点 ID）
+ * @returns {string[]} 有序 stepId 数组（不含 Start/End）
  * @throws {Error} 当图不合法时抛出可定位错误
  */
 export function resolveMainChain(nodes, edges) {
@@ -119,24 +115,13 @@ export function resolveMainChain(nodes, edges) {
     }
   }
 
-  // 校验 Start 出边
-  const startOut = outgoingEdges.get('start') || [];
-  if (startOut.length > 1) {
-    throw new Error('Start 节点有多条出边，不允许分叉');
-  }
-
-  // 校验 End 入边
-  const endIn = incomingEdges.get('end') || [];
-  if (endIn.length > 1) {
-    throw new Error('End 节点有多条入边，不允许合流');
-  }
-
   // 没有连接到 Start 的边，返回空主链
+  const startOut = outgoingEdges.get('start') || [];
   if (startOut.length === 0) {
     return [];
   }
 
-  // 从 Start 出发遍历
+  // BFS 遍历：从 Start 到 End 的路径（仅用于校验和预览）
   const chain = [];
   const visited = new Set();
   let current = startOut[0].target;
@@ -153,52 +138,100 @@ export function resolveMainChain(nodes, edges) {
       throw new Error(`边引用不存在的节点：${current}`);
     }
 
-    // 检查出边数（分叉检测）
     const out = outgoingEdges.get(current) || [];
-    if (out.length > 1) {
-      throw new Error(`节点 ${current} 有多条出边，不允许分叉`);
-    }
 
-    // 检查入边数（合流检测）
-    const inEdges = incomingEdges.get(current) || [];
-    if (inEdges.length > 1) {
-      throw new Error(`节点 ${current} 有多条入边，不允许合流`);
-    }
-
-    // 无出边且未到达 End
+    // 无出边 —— 链尾
     if (out.length === 0) {
-      // 该节点是死胡同但未到达 End——找到另一条独立链
-      // 这种情况表示存在多条独立链，但不影响已有主链
-      // 如果当前不是 start 开始的第一个节点，则是断链
-      if (chain.length === 0) {
-        return []; // Start 出边指向的节点是死胡同
-      }
       break;
     }
 
     chain.push(current);
-    current = out[0].target;
-  }
-
-  // 校验 End 入边（如果主链不为空）
-  if (chain.length > 0) {
-    const lastNode = chain[chain.length - 1];
-    const lastOut = outgoingEdges.get(lastNode) || [];
-    if (lastOut.length > 0 && lastOut[0].target !== 'end') {
-      throw new Error(`主链最后一个节点 ${lastNode} 的出边未指向 End`);
-    }
-  }
-
-  // 校验 Request 节点恰好一入一出
-  for (const nodeId of chain) {
-    const out = outgoingEdges.get(nodeId) || [];
-    const inEdges = incomingEdges.get(nodeId) || [];
-    if (out.length !== 1 || inEdges.length !== 1) {
-      throw new Error(`主链节点 ${nodeId} 必须恰好一入一出（当前入度 ${inEdges.length}，出度 ${out.length}）`);
-    }
+    // 优先走无条件边；多条无条件边时走第一条
+    const defaultEdge = out.find((e) => !e.condition) || out[0];
+    current = defaultEdge.target;
   }
 
   return chain;
+}
+
+/**
+ * 构建有序执行路径——运行时使用。
+ *
+ * 与 resolveMainChain 不同，该函数在分支点收集所有分支信息，
+ * 返回的 path 包含每个节点的出边列表，供运行时动态评估条件选择分支。
+ *
+ * @param {Array} nodes
+ * @param {Array} edges
+ * @returns {{ stepId: string, outgoingEdges: Array }[]} 有序执行步骤列表
+ * @throws {Error}
+ */
+export function resolveExecutionPath(nodes, edges) {
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+
+  // 验证 Start 和 End
+  if (!nodeMap.has('start')) throw new Error('图缺少 Start 节点');
+  if (!nodeMap.has('end')) throw new Error('图缺少 End 节点');
+
+  // 构建出边邻接表
+  const outgoingEdges = new Map();
+  for (const edge of edges) {
+    if (!outgoingEdges.has(edge.source)) {
+      outgoingEdges.set(edge.source, []);
+    }
+    outgoingEdges.get(edge.source).push(edge);
+  }
+
+  // 校验自连接
+  for (const edge of edges) {
+    if (edge.source === edge.target) {
+      throw new Error(`自连接非法：节点 ${edge.source} 连接到自身`);
+    }
+  }
+
+  // 从 Start 出发，收集所有可达节点（不含 Start/End）
+  const path = [];
+  const visited = new Set();
+  const queue = ['start'];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    if (current !== 'start' && current !== 'end') {
+      path.push({
+        stepId: current,
+        outgoingEdges: outgoingEdges.get(current) || []
+      });
+    }
+
+    const out = outgoingEdges.get(current) || [];
+    for (const edge of out) {
+      if (!visited.has(edge.target)) {
+        queue.push(edge.target);
+      }
+    }
+  }
+
+  // 环检测
+  if (path.length > 0) {
+    // 再次遍历检测环——出边指向已访问但尚未处理完的节点
+    const pathIds = new Set(path.map((p) => p.stepId));
+    for (const step of path) {
+      for (const edge of step.outgoingEdges) {
+        if (edge.target !== 'end' && edge.target !== 'start' && pathIds.has(edge.target)) {
+          // 安全：允许合流（多条入边指向同一节点）
+          // 只有形成循环引用才报错
+          const targetStep = path.find((p) => p.stepId === edge.target);
+          if (targetStep && path.indexOf(targetStep) < path.indexOf(step)) {
+            throw new Error(`检测到环：节点 ${edge.target}`);
+          }
+        }
+      }
+    }
+  }
+
+  return path;
 }
 
 /**
@@ -257,18 +290,6 @@ export function validateGraph(nodes, edges) {
     incomingEdges.get(edge.target).push(edge);
   }
 
-  // 检查 Start 出边
-  const startOut = outgoingEdges.get('start') || [];
-  if (startOut.length > 1) {
-    errors.push({ message: `Start 节点有多条出边（${startOut.length} 条），不允许分叉`, nodeId: 'start' });
-  }
-
-  // 检查 End 入边
-  const endIn = incomingEdges.get('end') || [];
-  if (endIn.length > 1) {
-    errors.push({ message: `End 节点有多条入边（${endIn.length} 条），不允许合流`, nodeId: 'end' });
-  }
-
   // 检查边类型合法性
   for (const edge of edges) {
     const sourceNode = nodeMap.get(edge.source);
@@ -294,11 +315,10 @@ export function validateGraph(nodes, edges) {
     }
   }
 
-  // 尝试解析主链
+  // 尝试解析执行路径
   try {
-    resolveMainChain(nodes, edges);
+    resolveExecutionPath(nodes, edges);
   } catch (e) {
-    // 排除分叉/合流错误（已在上面检查），仅添加非重复错误
     const alreadyReported = errors.some(
       (err) => err.message === e.message
     );

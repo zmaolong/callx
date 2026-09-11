@@ -385,6 +385,58 @@ const FlowSidebar = ({
         </ActionButton>
       </ButtonGroup>
 
+      {/* 错误处理配置 */}
+      <div style={{ marginTop: 12, marginBottom: 12 }}>
+        <MappingHeader>
+          <SidebarTitle style={{ fontSize: 13, marginBottom: 0 }}>
+            错误处理
+          </SidebarTitle>
+        </MappingHeader>
+        <MappingField>
+          <InputLabel>失败策略</InputLabel>
+          <SidebarSelect
+            value={nodeData.errorHandler?.strategy || 'stop'}
+            onChange={(event) => {
+              const strategy = event.target.value;
+              const updates = { errorHandler: { strategy } };
+              if (strategy === 'jump') {
+                // 跳转目标由用户后续选择
+              }
+              if (strategy === 'stop') {
+                updates.errorHandler = null; // 默认行为无需存储
+              }
+              onUpdateNode && onUpdateNode(selectedNode.id, updates);
+            }}
+            aria-label="失败处理策略"
+          >
+            <option value="stop">终止流程（默认）</option>
+            <option value="continue">忽略错误，继续执行</option>
+            <option value="jump">跳转到指定节点</option>
+          </SidebarSelect>
+        </MappingField>
+
+        {nodeData.errorHandler?.strategy === 'jump' && (
+          <MappingField>
+            <InputLabel>跳转目标节点</InputLabel>
+            <SidebarSelect
+              value={nodeData.errorHandler?.jumpToNodeId || ''}
+              onChange={(event) => {
+                onUpdateNode && onUpdateNode(selectedNode.id, {
+                  errorHandler: {
+                    strategy: 'jump',
+                    jumpToNodeId: event.target.value
+                  }
+                });
+              }}
+              aria-label="跳转目标节点"
+            >
+              <option value="">请选择节点</option>
+              {/* 从当前 flow 的所有 Request 节点中过滤 */}
+            </SidebarSelect>
+          </MappingField>
+        )}
+      </div>
+
       <div style={{ marginTop: 12 }}>
         <MappingHeader>
           <SidebarTitle style={{ fontSize: 13, marginBottom: 0 }}>

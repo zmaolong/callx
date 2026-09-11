@@ -17,6 +17,7 @@ import StartNode from './nodes/StartNode';
 import EndNode from './nodes/EndNode';
 import RequestNode from './nodes/RequestNode';
 import FlowToolbar from './FlowToolbar';
+import FlowContextMenu from './FlowContextMenu';
 import StyledWrapper from './StyledWrapper';
 import {
   updateFlowNodes,
@@ -31,12 +32,16 @@ const nodeTypes = {
   request: RequestNode
 };
 
-const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
+const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps, onContextMenu, onUndo, onRedo }) => {
   const dispatch = useDispatch();
   const theme = useTheme();
   const edgeColor = theme.colors?.text?.muted || theme.border?.border2 || '#64748b';
+  const reactFlowWrapper = useRef(null);
 
   const flowRun = useSelector((state) => state.flowRun?.runs?.[flow?.uid]);
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, node, edge }
 
   const defaultEdgeOptions = {
     type: 'smoothstep',
@@ -150,14 +155,6 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
       );
       if (exists) return;
 
-      // 检查 source 节点是否已有出边（Start 只能有一条出边，Request 只能有一条出边）
-      const hasOutEdge = edges.some((e) => e.source === connection.source);
-      if (hasOutEdge) return;
-
-      // 检查 target 节点是否已有入边（Request 只能有一条入边，End 只能有一条入边）
-      const hasInEdge = edges.some((e) => e.target === connection.target);
-      if (hasInEdge) return;
-
       const newEdge = {
         id: `edge_${connection.source}_${connection.target}`,
         source: connection.source,
@@ -235,9 +232,22 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
     [dispatch, collectionUid, flow?.uid]
   );
 
-  // 删除选中节点（通过键盘 Delete）
+  // 删除选中节点（通过键盘 Delete）/ 撤销重做
   const onKeyDown = useCallback(
     (event) => {
+      // Ctrl+Z 撤销
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        onUndo?.();
+        return;
+      }
+      // Ctrl+Shift+Z 或 Ctrl+Y 重做
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+        event.preventDefault();
+        onRedo?.();
+        return;
+      }
+
       if (event.key === 'Delete' || event.key === 'Backspace') {
         if (!selectedNode) return;
         // 不允许删除 Start/End
@@ -274,15 +284,54 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
         if (onSelectNode) onSelectNode(null);
       }
     },
-    [selectedNode, edges, dispatch, collectionUid, flow?.uid, onSelectNode]
+    [selectedNode, edges, dispatch, collectionUid, flow?.uid, onSelectNode, onUndo, onRedo]
   );
 
+  // 右键菜单
+  const onNodeContextMenu = useCallback((event, node) => {
+    event.preventDefault();
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      node,
+      edge: null
+    });
+  }, []);
+
+  const onEdgeContextMenu = useCallback((event, edge) => {
+    event.preventDefault();
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      node: null,
+      edge
+    });
+  }, []);
+
+  const onPaneContextMenu = useCallback((event) => {
+    event.preventDefault();
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      node: null,
+      edge: null
+    });
+  }, []);
+
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
   return (
-    <StyledWrapper className="flow-canvas-wrapper">
+    <StyledWrapper className="flow-canvas-wrapper" ref={reactFlowWrapper}>
       <FlowToolbar
         onRun={toolbarProps?.onRun}
         onCancel={toolbarProps?.onCancel}
         onAutoLayout={toolbarProps?.onAutoLayout}
+        onUndo={toolbarProps?.onUndo}
+        onRedo={toolbarProps?.onRedo}
+        canUndo={toolbarProps?.canUndo}
+        canRedo={toolbarProps?.canRedo}
         isRunning={toolbarProps?.isRunning}
         errors={toolbarProps?.errors}
       />
@@ -297,6 +346,9 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
         onPaneClick={onPaneClick}
         onEdgeDoubleClick={onEdgeDoubleClick}
         onKeyDown={onKeyDown}
+        onNodeContextMenu={onNodeContextMenu}
+        onEdgeContextMenu={onEdgeContextMenu}
+        onPaneContextMenu={onPaneContextMenu}
         nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
@@ -316,6 +368,17 @@ const FlowCanvas = ({ flow, collectionUid, onSelectNode, toolbarProps }) => {
           maskColor={theme.mode === 'dark' ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.08)'}
         />
       </ReactFlow>
+
+      {contextMenu && (
+        <FlowContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          node={contextMenu.node}
+          edge={contextMenu.edge}
+          onClose={handleCloseContextMenu}
+          onAction={onContextMenu}
+        />
+      )}
     </StyledWrapper>
   );
 };

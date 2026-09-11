@@ -7,11 +7,6 @@
 import get from 'lodash/get';
 
 /**
- * Flow 表达式前缀
- */
-const FLOW_EXPRESSION_PREFIX = '$flow';
-
-/**
  * 解析 Flow 表达式，提取 stepId 和路径。
  *
  * 支持的格式：
@@ -198,4 +193,85 @@ export function evaluateLastExpression(currentStepId, getPredecessor, flowContex
 
   const value = get(stepContext, path, undefined);
   return { value, stepId: predecessorId };
+}
+
+/**
+ * 评估边的条件是否满足。
+ *
+ * @param {Object} condition 条件对象 { field, operator, value, expression? }
+ * @param {Object} flowContext Flow 运行上下文
+ * @returns {boolean} 是否满足条件
+ */
+export function evaluateCondition(condition, flowContext) {
+  if (!condition) return true; // 无条件（默认分支）
+
+  // 如果有 expression 字段，直接 JS eval 求值
+  if (condition.expression) {
+    try {
+      return new Function('context', `return (${condition.expression})`)(flowContext);
+    } catch {
+      return false;
+    }
+  }
+
+  const actualValue = get(flowContext, condition.field, undefined);
+
+  switch (condition.operator) {
+    case 'eq':
+      return actualValue == condition.value;
+    case 'ne':
+      return actualValue != condition.value;
+    case 'gt':
+      return actualValue > condition.value;
+    case 'gte':
+      return actualValue >= condition.value;
+    case 'lt':
+      return actualValue < condition.value;
+    case 'lte':
+      return actualValue <= condition.value;
+    case 'contains':
+      if (typeof actualValue === 'string' && typeof condition.value === 'string') {
+        return actualValue.includes(condition.value);
+      }
+      if (Array.isArray(actualValue)) {
+        return actualValue.includes(condition.value);
+      }
+      return false;
+    case 'regex':
+      if (typeof actualValue === 'string' && typeof condition.value === 'string') {
+        try {
+          return new RegExp(condition.value).test(actualValue);
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    default:
+      return false;
+  }
+}
+
+/**
+ * 从一组出边中选取第一条满足条件的边。
+ *
+ * @param {Array} outgoingEdges 出边列表（每条边可选有 condition）
+ * @param {Object} flowContext
+ * @returns {Object|null} 选中的边对象，或 null（无可走边）
+ */
+export function selectBranch(outgoingEdges, flowContext) {
+  if (!outgoingEdges || outgoingEdges.length === 0) return null;
+
+  // 先走有条件且匹配的边
+  for (const edge of outgoingEdges) {
+    if (edge.condition && evaluateCondition(edge.condition, flowContext)) {
+      return edge;
+    }
+  }
+
+  // 再走无条件（默认）边
+  const defaultEdge = outgoingEdges.find((e) => !e.condition);
+  if (defaultEdge) return defaultEdge;
+
+  // 无默认边，返回 null（流程终止）
+  return null;
 }

@@ -1,6 +1,19 @@
 import type { Item as BrunoItem } from '@usebruno/schema-types/collection/item';
 import { uuid } from '../../../utils';
 
+export interface FlowEdgeCondition {
+  field: string;
+  operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'regex';
+  value: unknown;
+  expression?: string;
+}
+
+export interface FlowErrorHandler {
+  strategy: 'stop' | 'continue' | 'jump';
+  jumpToNodeId?: string;
+  retryCount?: number;
+}
+
 export interface FlowNode {
   id: string;
   type: 'start' | 'end' | 'request';
@@ -17,6 +30,7 @@ export interface FlowNode {
       valueType?: string;
     };
   }>;
+  errorHandler?: FlowErrorHandler;
 }
 
 export interface FlowEdge {
@@ -24,6 +38,8 @@ export interface FlowEdge {
   source: string;
   target: string;
   type?: string;
+  label?: string;
+  condition?: FlowEdgeCondition;
 }
 
 export interface FlowFile {

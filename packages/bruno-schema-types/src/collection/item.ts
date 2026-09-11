@@ -57,6 +57,14 @@ export interface FlowNode {
   alias?: string;
   position: { x: number; y: number };
   inputs?: FlowInputMapping[];
+  errorHandler?: FlowErrorHandler | null;
+}
+
+export interface FlowEdgeCondition {
+  field: string;
+  operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'regex';
+  value: unknown;
+  expression?: string;
 }
 
 export interface FlowEdge {
@@ -64,6 +72,16 @@ export interface FlowEdge {
   source: string;
   target: string;
   type?: string;
+  label?: string;
+  condition?: FlowEdgeCondition | null;
+}
+
+export type ErrorHandlerStrategy = 'stop' | 'continue' | 'jump';
+
+export interface FlowErrorHandler {
+  strategy: ErrorHandlerStrategy;
+  jumpToNodeId?: string;
+  retryCount?: number;
 }
 
 export interface Flow {

@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { IconPlayerPlay, IconPlayerStop, IconLayoutNavbar, IconAlertTriangle } from '@tabler/icons';
+import { IconPlayerPlay, IconPlayerStop, IconLayoutNavbar, IconAlertTriangle, IconArrowBackUp, IconArrowForwardUp } from '@tabler/icons';
 
 const FloatingToolbar = styled.div`
   position: absolute;
@@ -34,16 +34,17 @@ const ToolButton = styled.button`
     : props.$variant === 'danger'
       ? props.theme.button2.color.danger.text
       : props.theme.button2.color.secondary.text};
-  cursor: pointer;
+  cursor: ${(props) => props.disabled ? 'not-allowed' : 'pointer'};
   font-size: 12px;
   font-weight: ${(props) => props.$variant === 'primary' ? 600 : 400};
   line-height: 1;
   white-space: nowrap;
   transition: all 0.15s ease;
+  opacity: ${(props) => props.disabled ? 0.4 : 1};
 
   &:hover {
-    opacity: 0.85;
-    border-color: ${(props) => props.theme.border.border2};
+    opacity: ${(props) => props.disabled ? 0.4 : 0.85};
+    border-color: ${(props) => props.disabled ? 'inherit' : `props.theme.border.border2`};
   }
 `;
 
@@ -64,6 +65,10 @@ const FlowToolbar = ({
   onRun,
   onCancel,
   onAutoLayout,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   isRunning,
   errors
 }) => {
@@ -84,6 +89,16 @@ const FlowToolbar = ({
       <ToolButton onClick={onAutoLayout} title="自动布局">
         <IconLayoutNavbar size={14} />
         布局
+      </ToolButton>
+
+      <ToolButton onClick={onUndo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
+        <IconArrowBackUp size={14} />
+        撤销
+      </ToolButton>
+
+      <ToolButton onClick={onRedo} disabled={!canRedo} title="重做 (Ctrl+Shift+Z)">
+        <IconArrowForwardUp size={14} />
+        重做
       </ToolButton>
 
       {errors && errors.length > 0 && (

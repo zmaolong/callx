@@ -7,11 +7,11 @@
  * 运行态不写回 Flow 文件，仅保留在 Redux flowRun slice 中。
  */
 import { uuid } from 'utils/common';
-import { resolveMainChain, getPredecessorStepId } from 'utils/flow/graph';
+import { resolveExecutionPath } from 'utils/flow/graph';
 import { resolveInputMappings } from 'utils/flow/input-mapping';
+import { selectBranch } from 'utils/flow/expressions';
 import { findEnvironmentInCollection } from 'utils/collections';
-import { sendNetworkRequest } from 'utils/network/index';
-import { cancelNetworkRequest } from 'utils/network/index';
+import { sendNetworkRequest, cancelNetworkRequest } from 'utils/network/index';
 import {
   initFlowRun,
   updateFlowNodeStatus,
@@ -47,10 +47,10 @@ export async function executeFlow({
   const nodes = flow.nodes || [];
   const edges = flow.edges || [];
 
-  // 1. 校验图，解析主链
-  let mainChain;
+  // 1. 校验图，解析执行路径
+  let executionPath;
   try {
-    mainChain = resolveMainChain(nodes, edges);
+    executionPath = resolveExecutionPath(nodes, edges);
   } catch (error) {
     return { success: false, error: `图校验失败: ${error.message}` };
   }
@@ -67,9 +67,31 @@ export async function executeFlow({
 
   let flowContext = {};
 
+  // 构建出边映射（source -> [edge]）
+  const outgoingEdgeMap = new Map();
+  for (const edge of edges) {
+    if (!outgoingEdgeMap.has(edge.source)) {
+      outgoingEdgeMap.set(edge.source, []);
+    }
+    outgoingEdgeMap.get(edge.source).push(edge);
+  }
+
+  // 已执行节点集合（防止环）
+  const executed = new Set();
+
   try {
-    // 3. 遍历主链（跳过 Start/End，它们没有请求）
-    for (const stepId of mainChain) {
+    // 3. 遍历执行路径（支持条件分支）
+    let i = 0;
+    while (i < executionPath.length) {
+      const step = executionPath[i];
+      const stepId = step.stepId;
+
+      // 防止环
+      if (executed.has(stepId)) {
+        return { success: false, error: `检测到环：节点 ${stepId} 被重复执行` };
+      }
+      executed.add(stepId);
+
       // 检查取消
       const currentRun = getState().flowRun.runs[flowUid];
       if (currentRun?.cancelled) {
@@ -78,8 +100,7 @@ export async function executeFlow({
           stepId,
           status: NODE_STATUS.CANCELLED
         }));
-        // 标记后续节点为 skipped
-        const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
+        const remaining = executionPath.slice(i + 1).map((s) => s.stepId);
         if (remaining.length > 0) {
           dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
         }
@@ -96,7 +117,7 @@ export async function executeFlow({
           status: NODE_STATUS.FAILED,
           error: `节点 ${stepId} 不存在`
         }));
-        const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
+        const remaining = executionPath.slice(i + 1).map((s) => s.stepId);
         if (remaining.length > 0) {
           dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
         }
@@ -104,7 +125,7 @@ export async function executeFlow({
         return { success: false, error: `节点 ${stepId} 不存在` };
       }
 
-      // 标记为 running（此时尚未解析输入映射，不传 variables）
+      // 标记为 running
       dispatch(updateFlowNodeStatus({
         flowUid,
         stepId,
@@ -120,7 +141,7 @@ export async function executeFlow({
           status: NODE_STATUS.FAILED,
           error: `请求 ${node.requestUid} 不存在`
         }));
-        const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
+        const remaining = executionPath.slice(i + 1).map((s) => s.stepId);
         if (remaining.length > 0) {
           dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
         }
@@ -143,19 +164,30 @@ export async function executeFlow({
 
       if (mappingErrors.length > 0) {
         const errorMsg = mappingErrors.map((e) => `${e.variableName}: ${e.error}`).join('; ');
-        dispatch(updateFlowNodeStatus({
+        const { handled, shouldStop } = await handleNodeError({
           flowUid,
+          node,
           stepId,
-          status: NODE_STATUS.FAILED,
           error: `输入映射失败: ${errorMsg}`,
-          inputVariables: variables
-        }));
-        const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
-        if (remaining.length > 0) {
-          dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
+          inputVariables: variables,
+          executionPath,
+          i,
+          edges,
+          nodes,
+          collectionItems,
+          flowContext,
+          flowContextWithEdges,
+          dispatch,
+          getState
+        });
+        if (shouldStop) {
+          return { success: false, error: errorMsg };
         }
-        dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.FAILED }));
-        return { success: false, error: errorMsg };
+        // continue 或 jump 后继续
+        if (handled) {
+          i += 1;
+          continue;
+        }
       }
 
       // 5. 构建 runtime variables 并执行请求
@@ -172,23 +204,33 @@ export async function executeFlow({
         const duration = Date.now() - startTime;
 
         if (response?.error) {
-          // HTTP 失败
-          dispatch(updateFlowNodeStatus({
+          // HTTP 失败——检查错误处理策略
+          const { handled, shouldStop } = await handleNodeError({
             flowUid,
+            node,
             stepId,
-            status: NODE_STATUS.FAILED,
+            error: response.error,
             body: response.data || null,
             httpStatus: response.status,
             duration,
-            error: response.error,
-            inputVariables: variables
-          }));
-          const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
-          if (remaining.length > 0) {
-            dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
+            inputVariables: variables,
+            executionPath,
+            i,
+            edges,
+            nodes,
+            collectionItems,
+            flowContext,
+            flowContextWithEdges,
+            dispatch,
+            getState
+          });
+          if (shouldStop) {
+            return { success: false, error: response.error };
           }
-          dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.FAILED }));
-          return { success: false, error: response.error };
+          if (handled) {
+            i += 1;
+            continue;
+          }
         }
 
         // 成功
@@ -216,7 +258,7 @@ export async function executeFlow({
             status: NODE_STATUS.CANCELLED,
             inputVariables: variables
           }));
-          const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
+          const remaining = executionPath.slice(i + 1).map((s) => s.stepId);
           if (remaining.length > 0) {
             dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
           }
@@ -224,30 +266,198 @@ export async function executeFlow({
           return { success: false, cancelled: true };
         }
 
-        // 网络错误
-        dispatch(updateFlowNodeStatus({
+        // 网络错误——检查错误处理策略
+        const { handled, shouldStop } = await handleNodeError({
           flowUid,
+          node,
           stepId,
-          status: NODE_STATUS.FAILED,
           error: error.message || '网络请求失败',
-          inputVariables: variables
-        }));
-        const remaining = mainChain.slice(mainChain.indexOf(stepId) + 1);
-        if (remaining.length > 0) {
-          dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
+          inputVariables: variables,
+          executionPath,
+          i,
+          edges,
+          nodes,
+          collectionItems,
+          flowContext,
+          flowContextWithEdges,
+          dispatch,
+          getState
+        });
+        if (shouldStop) {
+          return { success: false, error: error.message };
         }
-        dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.FAILED }));
-        return { success: false, error: error.message };
+        if (handled) {
+          i += 1;
+          continue;
+        }
       }
+
+      // 6. 条件分支选择——根据 flowContext 评估出边条件
+      const outgoingEdges = outgoingEdgeMap.get(stepId) || [];
+      if (outgoingEdges.length > 0) {
+        const selectedEdge = selectBranch(outgoingEdges, flowContext);
+        if (selectedEdge) {
+          if (selectedEdge.target === 'end') {
+            // 到达 End，执行完成
+            break;
+          }
+          // 跳转到目标节点
+          const targetIndex = executionPath.findIndex((s) => s.stepId === selectedEdge.target);
+          if (targetIndex !== -1) {
+            i = targetIndex;
+            continue;
+          }
+        }
+        // 无可用分支，流程终止
+        break;
+      }
+
+      i += 1;
     }
 
-    // 6. 全部执行完成
+    // 7. 全部执行完成
     dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.SUCCESS }));
     return { success: true };
   } catch (error) {
     dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.FAILED }));
     return { success: false, error: error.message };
   }
+}
+
+/**
+ * 处理节点错误——根据错误处理策略决定流程走向。
+ *
+ * @returns {Promise<{ handled: boolean, shouldStop: boolean }>}
+ */
+async function handleNodeError({
+  flowUid,
+  node,
+  stepId,
+  error,
+  body,
+  httpStatus,
+  duration,
+  inputVariables,
+  executionPath,
+  i,
+  edges,
+  nodes,
+  collectionItems,
+  flowContext,
+  flowContextWithEdges,
+  dispatch,
+  getState
+}) {
+  const errorHandler = node?.errorHandler;
+  const strategy = errorHandler?.strategy || 'stop';
+
+  switch (strategy) {
+    case 'continue': {
+      // 记录错误，继续下一步
+      dispatch(updateFlowNodeStatus({
+        flowUid,
+        stepId,
+        status: NODE_STATUS.FAILED,
+        body: body || null,
+        httpStatus: httpStatus || null,
+        duration: duration || null,
+        error,
+        inputVariables: inputVariables || null
+      }));
+      // 在 flowContext 中记录错误结果
+      flowContext[stepId] = {
+        body: body || null,
+        status: httpStatus || 0,
+        duration: duration || 0,
+        error
+      };
+      return { handled: true, shouldStop: false };
+    }
+
+    case 'jump': {
+      const targetId = errorHandler?.jumpToNodeId;
+      if (targetId) {
+        // 标记当前节点为失败
+        dispatch(updateFlowNodeStatus({
+          flowUid,
+          stepId,
+          status: NODE_STATUS.FAILED,
+          body: body || null,
+          httpStatus: httpStatus || null,
+          duration: duration || null,
+          error,
+          inputVariables: inputVariables || null
+        }));
+
+        // 查找目标节点是否存在
+        const targetNode = nodes.find((n) => n.id === targetId);
+        if (!targetNode) {
+          // 目标节点不存在，终止
+          const remaining = executionPath.slice(i + 1).map((s) => s.stepId);
+          if (remaining.length > 0) {
+            dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
+          }
+          dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.FAILED }));
+          return { handled: false, shouldStop: true };
+        }
+
+        // 将当前节点之后、目标节点之前的所有节点标记为 skipped
+        // 注意：jump 可能向前或向后跳转，不能简单标记
+        // 这里只标记从当前到目标之间路径上的节点
+        const startIdx = i + 1;
+        const targetIdx = executionPath.findIndex((s) => s.stepId === targetId);
+        if (targetIdx > startIdx) {
+          const skipped = executionPath.slice(startIdx, targetIdx).map((s) => s.stepId);
+          if (skipped.length > 0) {
+            dispatch(markNodesSkipped({ flowUid, stepIds: skipped }));
+          }
+        }
+
+        return { handled: true, shouldStop: false };
+      }
+      // 无跳转目标，回退到 stop
+      break;
+    }
+
+    case 'stop':
+    default: {
+      // 默认行为：标记失败，后续 skipped
+      dispatch(updateFlowNodeStatus({
+        flowUid,
+        stepId,
+        status: NODE_STATUS.FAILED,
+        body: body || null,
+        httpStatus: httpStatus || null,
+        duration: duration || null,
+        error,
+        inputVariables: inputVariables || null
+      }));
+      const remaining = executionPath.slice(i + 1).map((s) => s.stepId);
+      if (remaining.length > 0) {
+        dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
+      }
+      dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.FAILED }));
+      return { handled: false, shouldStop: true };
+    }
+  }
+
+  // fallback: stop
+  dispatch(updateFlowNodeStatus({
+    flowUid,
+    stepId,
+    status: NODE_STATUS.FAILED,
+    body: body || null,
+    httpStatus: httpStatus || null,
+    duration: duration || null,
+    error,
+    inputVariables: inputVariables || null
+  }));
+  const remaining = executionPath.slice(i + 1).map((s) => s.stepId);
+  if (remaining.length > 0) {
+    dispatch(markNodesSkipped({ flowUid, stepIds: remaining }));
+  }
+  dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.FAILED }));
+  return { handled: false, shouldStop: true };
 }
 
 /**

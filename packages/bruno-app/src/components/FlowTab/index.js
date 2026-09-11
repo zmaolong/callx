@@ -10,15 +10,18 @@ import { validateGraph } from 'utils/flow/graph';
 import {
   addFlowNode,
   removeFlowNode,
+  removeFlowEdge,
   updateFlowNode,
   updateFlowNodeInputs,
-  updateFlowNodes
+  updateFlowNodes,
+  updateFlowEdges
 } from 'providers/ReduxStore/slices/collections';
 import { deleteItem, cloneItem, saveFlow } from 'providers/ReduxStore/slices/collections/actions';
 import { addTab } from 'providers/ReduxStore/slices/tabs';
 import { sanitizeName } from 'utils/common/regex';
 import { executeFlow, cancelFlow } from 'utils/flow/executor';
 import { clearFlowRunState } from 'providers/ReduxStore/slices/flowRun';
+import { useFlowUndo } from 'hooks/useFlowUndo';
 import Modal from 'components/Modal';
 import toast from 'react-hot-toast';
 
@@ -39,6 +42,139 @@ const FlowTab = ({ flow }) => {
   }, [collections, flow?.uid]);
 
   const collectionUid = collection?.uid;
+
+  // 撤销/重做历史栈
+  const { canUndo, canRedo, takeSnapshot, undo, redo } = useFlowUndo(flow?.uid);
+
+  // 撤销/重做
+  const handleUndo = useCallback(() => {
+    const snapshot = undo(flow?.flow?.nodes || [], flow?.flow?.edges || []);
+    if (snapshot) {
+      dispatch(updateFlowNodes({
+        collectionUid,
+        itemUid: flow.uid,
+        nodes: snapshot.nodes
+      }));
+      dispatch(updateFlowEdges({
+        collectionUid,
+        itemUid: flow.uid,
+        edges: snapshot.edges
+      }));
+    }
+  }, [undo, flow, collectionUid, dispatch]);
+
+  const handleRedo = useCallback(() => {
+    const snapshot = redo(flow?.flow?.nodes || [], flow?.flow?.edges || []);
+    if (snapshot) {
+      dispatch(updateFlowNodes({
+        collectionUid,
+        itemUid: flow.uid,
+        nodes: snapshot.nodes
+      }));
+      dispatch(updateFlowEdges({
+        collectionUid,
+        itemUid: flow.uid,
+        edges: snapshot.edges
+      }));
+    }
+  }, [redo, flow, collectionUid, dispatch]);
+
+  // 编辑请求
+  const handleEditRequest = useCallback((nodeData) => {
+    const requestUid = nodeData?.requestUid;
+    if (!requestUid || !collection) return;
+    const item = findItemInCollection(collection, requestUid);
+    if (!item) return;
+    dispatch(addTab({
+      uid: item.uid,
+      collectionUid: collection.uid,
+      type: item.type,
+      pathname: item.pathname
+    }));
+  }, [collection, dispatch]);
+
+  // 删除请求
+  const handleDeleteRequest = useCallback((nodeData) => {
+    const requestUid = nodeData?.requestUid;
+    if (!requestUid || !collectionUid) return;
+    setDeleteTarget(nodeData);
+  }, [collectionUid]);
+
+  // 确认删除
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    const requestUid = deleteTarget?.requestUid;
+    if (!requestUid || !collectionUid) return;
+    try {
+      await dispatch(deleteItem(requestUid, collectionUid));
+    } catch (error) {
+      console.error('Error deleting flow request:', error);
+    }
+    setDeleteTarget(null);
+  }, [deleteTarget, collectionUid, dispatch]);
+
+  // 复制请求
+  const handleDuplicateRequest = useCallback((nodeData) => {
+    const requestUid = nodeData?.requestUid;
+    if (!requestUid || !collectionUid) return;
+    const item = findItemInCollection(collection, requestUid);
+    if (!item) return;
+    const newName = `${item.name} copy`;
+    const newFilename = sanitizeName(newName);
+    dispatch(cloneItem(newName, newFilename, requestUid, collectionUid));
+  }, [collection, collectionUid, dispatch]);
+
+  // 右键菜单回调
+  const handleContextMenuAction = useCallback((type, payload) => {
+    switch (type) {
+      case 'edit': {
+        handleEditRequest(payload.data);
+        break;
+      }
+      case 'duplicate': {
+        handleDuplicateRequest(payload.data);
+        break;
+      }
+      case 'deleteNode': {
+        const nodeId = payload.id;
+        dispatch(removeFlowNode({ collectionUid, itemUid: flow.uid, nodeId }));
+        break;
+      }
+      case 'deleteEdge': {
+        const edgeId = payload.id;
+        dispatch(removeFlowEdge({ collectionUid, itemUid: flow.uid, edgeId }));
+        break;
+      }
+      case 'addAfterNode': {
+        const newNode = {
+          id: `step_${Date.now()}`,
+          type: 'request',
+          position: { x: 400, y: 200 },
+          inputs: []
+        };
+        takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
+        dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
+        break;
+      }
+      case 'addNodeAtPane': {
+        const { paneX: x, paneY: y } = payload;
+        const newNode = {
+          id: `step_${Date.now()}`,
+          type: 'request',
+          position: { x: x || 300, y: y || 200 },
+          inputs: []
+        };
+        takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
+        dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
+        break;
+      }
+      case 'configureCondition': {
+        break;
+      }
+      default:
+        break;
+    }
+  }, [collectionUid, flow, dispatch, takeSnapshot, handleEditRequest, handleDuplicateRequest]);
 
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
@@ -81,7 +217,7 @@ const FlowTab = ({ flow }) => {
     }
 
     // 移除孤儿节点
-    const { nodes: keptNodes, edges: keptEdges } = removeOrphanedNodes(flowNodes, flowEdges, requestItems);
+    const { nodes: keptNodes } = removeOrphanedNodes(flowNodes, flowEdges, requestItems);
     const removedNodes = flowNodes.filter((n) => !keptNodes.find((kn) => kn.id === n.id));
     for (const node of removedNodes) {
       dispatch(removeFlowNode({ collectionUid: collection.uid, itemUid: flow.uid, nodeId: node.id }));
@@ -281,51 +417,6 @@ const FlowTab = ({ flow }) => {
     return dispatch(saveFlow(flow.uid, collectionUid));
   }, [collectionUid, flow?.uid, dispatch]);
 
-  // 编辑请求
-  const handleEditRequest = useCallback((nodeData) => {
-    const requestUid = nodeData?.requestUid;
-    if (!requestUid || !collection) return;
-    const item = findItemInCollection(collection, requestUid);
-    if (!item) return;
-    dispatch(addTab({
-      uid: item.uid,
-      collectionUid: collection.uid,
-      type: item.type,
-      pathname: item.pathname
-    }));
-  }, [collection, dispatch]);
-
-  // 删除请求
-  const handleDeleteRequest = useCallback((nodeData) => {
-    const requestUid = nodeData?.requestUid;
-    if (!requestUid || !collectionUid) return;
-    setDeleteTarget(nodeData);
-  }, [collectionUid]);
-
-  // 确认删除
-  const handleConfirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    const requestUid = deleteTarget?.requestUid;
-    if (!requestUid || !collectionUid) return;
-    try {
-      await dispatch(deleteItem(requestUid, collectionUid));
-    } catch (error) {
-      console.error('Error deleting flow request:', error);
-    }
-    setDeleteTarget(null);
-  }, [deleteTarget, collectionUid, dispatch]);
-
-  // 复制请求
-  const handleDuplicateRequest = useCallback((nodeData) => {
-    const requestUid = nodeData?.requestUid;
-    if (!requestUid || !collectionUid) return;
-    const item = findItemInCollection(collection, requestUid);
-    if (!item) return;
-    const newName = `${item.name} copy`;
-    const newFilename = sanitizeName(newName);
-    dispatch(cloneItem(newName, newFilename, requestUid, collectionUid));
-  }, [collection, collectionUid, dispatch]);
-
   return (
     <StyledWrapper className="flex flex-col flex-grow">
       <div style={{ display: 'flex', flexGrow: 1, overflow: 'hidden' }}>
@@ -335,10 +426,17 @@ const FlowTab = ({ flow }) => {
               flow={flow}
               collectionUid={collectionUid}
               onSelectNode={(node) => setSelectedNodeId(node ? node.id : null)}
+              onContextMenu={handleContextMenuAction}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
               toolbarProps={{
                 onRun: handleRun,
                 onCancel: handleCancel,
                 onAutoLayout: handleAutoLayout,
+                onUndo: handleUndo,
+                onRedo: handleRedo,
+                canUndo,
+                canRedo,
                 isRunning,
                 errors
               }}
