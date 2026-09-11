@@ -47,7 +47,8 @@ const FILE_DERIVED_REQUEST_FIELDS = [
   'loading',
   'size',
   'error',
-  'isTransient'
+  'isTransient',
+  'flow'
 ];
 
 const FILE_DERIVED_FOLDER_FIELDS = [
@@ -57,6 +58,17 @@ const FILE_DERIVED_FOLDER_FIELDS = [
   'seq',
   'type',
   'root'
+];
+
+const FILE_DERIVED_FLOW_FIELDS = [
+  'name',
+  'filename',
+  'pathname',
+  'seq',
+  'type',
+  'flow',
+  'root',
+  'tags'
 ];
 
 // Derive from the config on disk only — never keep a previous collection.format.
@@ -80,6 +92,12 @@ const mergeTreeItems = (existingItems, newItems) => {
     if (newItem.type === 'folder') {
       const merged = { ...existing, ...pick(newItem, FILE_DERIVED_FOLDER_FIELDS) };
       merged.items = mergeTreeItems(existing.items, newItem.items || []);
+      return merged;
+    }
+
+    if (newItem.type === 'flow') {
+      const merged = { ...existing, ...pick(newItem, FILE_DERIVED_FLOW_FIELDS) };
+      merged.items = newItem.items || [];
       return merged;
     }
 
@@ -3193,11 +3211,26 @@ export const collectionsSlice = createSlice({
         if (!isCollectionRoot && !isFolderRoot) {
           const parentItem = findParentItemInCollectionByPathname(collection, file.meta.pathname);
           if (parentItem && parentItem.type === 'flow' && parentItem.flow) {
+            // 优先按 requestUid 匹配，回退到 requestPath 匹配（重启后 uid 可能变化）
+            const filePath = file.meta.name; // basename，与 flow node 的 requestPath 一致
             const existingNode = (parentItem.flow.nodes || []).find(
               (n) => n.requestUid === file.data.uid
+                || (n.requestPath && filePath && n.requestPath === filePath)
             );
-            if (!existingNode) {
-              const newNode = createNodeForRequest(file.data);
+            if (existingNode) {
+              // 若通过 requestPath 匹配到但 uid 不同，更新 uid 保持一致
+              if (existingNode.requestUid !== file.data.uid) {
+                existingNode.requestUid = file.data.uid;
+              }
+              // 更新 requestPath（从磁盘加载的节点可能缺失 requestPath）
+              if (!existingNode.requestPath && filePath) {
+                existingNode.requestPath = filePath;
+              }
+            } else {
+              // 重要：file.data 没有 filename，必须从 file.meta.name 取文件名
+              // 否则 createNodeForRequest 的 requestPath 会为空
+              const nodeData = { ...file.data, filename: file.meta.name || file.data.filename };
+              const newNode = createNodeForRequest(nodeData);
               if (!parentItem.flow.nodes) {
                 parentItem.flow.nodes = [];
               }

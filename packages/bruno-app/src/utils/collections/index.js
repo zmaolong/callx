@@ -724,7 +724,7 @@ export const transformRequestToSaveToFilesystem = (item) => {
       id: node.id,
       type: node.type,
       ...(node.requestUid ? { requestUid: node.requestUid } : {}),
-      ...(node.requestPath ? { requestPath: node.requestPath } : {}),
+      ...(node.requestPath !== undefined ? { requestPath: node.requestPath } : {}),
       ...(node.alias ? { alias: node.alias } : {}),
       position: node.position,
       ...(node.type === 'request' ? { inputs: node.inputs || [] } : {}),

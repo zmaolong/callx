@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { IconPlayerPlay, IconPlayerStop, IconLayoutNavbar, IconAlertTriangle, IconArrowBackUp, IconArrowForwardUp } from '@tabler/icons';
+import { IconPlayerPlay, IconPlayerStop, IconLayoutNavbar, IconAlertTriangle, IconArrowBackUp, IconArrowForwardUp, IconDeviceFloppy } from '@tabler/icons';
 
 const FloatingToolbar = styled.div`
   position: absolute;
@@ -108,6 +108,7 @@ const FlowToolbar = ({
   onRun,
   onCancel,
   onAutoLayout,
+  onSave,
   onUndo,
   onRedo,
   canUndo,
@@ -156,6 +157,11 @@ const FlowToolbar = ({
       <ToolButton onClick={onAutoLayout} title="自动布局">
         <IconLayoutNavbar size={14} />
         布局
+      </ToolButton>
+
+      <ToolButton onClick={onSave} title="保存 Flow（Ctrl+S）">
+        <IconDeviceFloppy size={14} />
+        保存
       </ToolButton>
 
       <ToolButton onClick={onUndo} disabled={!canUndo} title="撤销 (Ctrl+Z)">

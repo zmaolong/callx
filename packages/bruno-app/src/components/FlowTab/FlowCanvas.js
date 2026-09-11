@@ -49,7 +49,8 @@ const FlowCanvas = ({
   onRedo,
   onBeforeDelete,
   onInstanceReady,
-  requestInfoMap
+  requestInfoMap,
+  onSave
 }) => {
   const dispatch = useDispatch();
   const theme = useTheme();
@@ -266,6 +267,12 @@ const FlowCanvas = ({
   // 删除选中节点（通过键盘 Delete）/ 撤销重做
   const onKeyDown = useCallback(
     (event) => {
+      // Ctrl+S 保存
+      if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        if (onSave) onSave();
+        return;
+      }
       // Ctrl+Z 撤销
       if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
         event.preventDefault();
@@ -368,6 +375,7 @@ const FlowCanvas = ({
         onAutoLayout={toolbarProps?.onAutoLayout}
         onUndo={toolbarProps?.onUndo}
         onRedo={toolbarProps?.onRedo}
+        onSave={toolbarProps?.onSave}
         canUndo={toolbarProps?.canUndo}
         canRedo={toolbarProps?.canRedo}
         isRunning={toolbarProps?.isRunning}

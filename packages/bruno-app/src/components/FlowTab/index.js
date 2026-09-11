@@ -18,7 +18,7 @@ import {
   updateFlowNodes,
   updateFlowEdges
 } from 'providers/ReduxStore/slices/collections';
-import { deleteItem, cloneItem, saveFlow } from 'providers/ReduxStore/slices/collections/actions';
+import { saveFlow } from 'providers/ReduxStore/slices/collections/actions';
 import { addTab } from 'providers/ReduxStore/slices/tabs';
 import { sanitizeName } from 'utils/common/regex';
 import { executeFlow, cancelFlow } from 'utils/flow/executor';
@@ -52,16 +52,18 @@ const FlowTab = ({ flow }) => {
   // 撤销/重做历史栈
   const { canUndo, canRedo, takeSnapshot, undo, redo } = useFlowUndo(flow?.uid);
 
-  // 防抖静默持久化：300ms 内连续触发只保存最后一次（即时保存模型下不弹 toast）
-  const debouncedSaveRef = useRef(null);
-  const scheduleFlowSave = useCallback(() => {
-    if (!flow?.uid || !collectionUid) return;
-    if (debouncedSaveRef.current) {
-      clearTimeout(debouncedSaveRef.current);
+  // 手动保存：立即执行，显示成功/失败反馈
+  const handleManualSave = useCallback(() => {
+    if (!flow?.uid || !collectionUid) {
+      toast.error('无法保存：Flow 数据不完整');
+      return;
     }
-    debouncedSaveRef.current = setTimeout(() => {
-      dispatch(saveFlow(flow.uid, collectionUid, true));
-    }, 300);
+    const result = dispatch(saveFlow(flow.uid, collectionUid, false));
+    toast.loading('正在保存 Flow...', { id: 'flow-save' });
+    if (result && result.then) {
+      result.then(() => { toast.success('Flow 保存成功!', { id: 'flow-save' }); })
+        .catch((err) => { toast.error('保存失败: ' + (err?.message || err), { id: 'flow-save' }); });
+    }
   }, [collectionUid, flow?.uid, dispatch]);
 
   // 删除类操作前记录撤销快照（双击删边、键盘删节点、右键删除共用）
@@ -158,66 +160,62 @@ const FlowTab = ({ flow }) => {
         handleDuplicateRequest(payload.data);
         break;
       }
-      case 'deleteNode': {
-        const nodeId = payload.id;
-        takeSnapshotBeforeDelete();
-        dispatch(removeFlowNode({ collectionUid, itemUid: flow.uid, nodeId }));
-        scheduleFlowSave();
-        break;
-      }
-      case 'deleteEdge': {
-        const edgeId = payload.id;
-        takeSnapshotBeforeDelete();
-        dispatch(removeFlowEdge({ collectionUid, itemUid: flow.uid, edgeId }));
-        scheduleFlowSave();
-        break;
-      }
-      case 'addAfterNode': {
-        // 新节点放在源节点右侧，并自动连线 源→新节点
-        const sourceNodeId = payload.id;
-        const sourcePosition = payload.position || { x: 300, y: 200 };
-        const newNode = {
-          id: `step_${Date.now()}`,
-          type: 'request',
-          position: { x: sourcePosition.x + 280, y: sourcePosition.y },
-          inputs: []
-        };
-        takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
-        dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
-        dispatch(addFlowEdge({
-          collectionUid,
-          itemUid: flow.uid,
-          edge: {
-            id: `edge_${sourceNodeId}_${newNode.id}`,
-            source: sourceNodeId,
-            target: newNode.id
-          }
-        }));
-        scheduleFlowSave();
-        break;
-      }
-      case 'addNodeAtPane': {
-        const { paneX: x, paneY: y } = payload;
-        const newNode = {
-          id: `step_${Date.now()}`,
-          type: 'request',
-          position: { x: x || 300, y: y || 200 },
-          inputs: []
-        };
-        takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
-        dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
-        scheduleFlowSave();
-        break;
-      }
-      case 'configureCondition': {
-        // payload 为 ReactFlow 边对象，打开条件配置弹窗
-        setConditionEdge(payload);
-        break;
-      }
-      default:
-        break;
-    }
-  }, [collectionUid, flow, dispatch, takeSnapshot, takeSnapshotBeforeDelete, scheduleFlowSave, handleEditRequest, handleDuplicateRequest]);
+case 'deleteNode': {
+	        const nodeId = payload.id;
+	        takeSnapshotBeforeDelete();
+	        dispatch(removeFlowNode({ collectionUid, itemUid: flow.uid, nodeId }));
+	        break;
+	      }
+	      case 'deleteEdge': {
+	        const edgeId = payload.id;
+	        takeSnapshotBeforeDelete();
+	        dispatch(removeFlowEdge({ collectionUid, itemUid: flow.uid, edgeId }));
+	        break;
+	      }
+	      case 'addAfterNode': {
+	        // 新节点放在源节点右侧，并自动连线 源→新节点
+	        const sourceNodeId = payload.id;
+	        const sourcePosition = payload.position || { x: 300, y: 200 };
+	        const newNode = {
+	          id: `step_${Date.now()}`,
+	          type: 'request',
+	          position: { x: sourcePosition.x + 280, y: sourcePosition.y },
+	          inputs: []
+	        };
+	        takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
+	        dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
+	        dispatch(addFlowEdge({
+	          collectionUid,
+	          itemUid: flow.uid,
+	          edge: {
+	            id: `edge_${sourceNodeId}_${newNode.id}`,
+	            source: sourceNodeId,
+	            target: newNode.id
+	          }
+	        }));
+	        break;
+	      }
+	      case 'addNodeAtPane': {
+	        const { paneX: x, paneY: y } = payload;
+	        const newNode = {
+	          id: `step_${Date.now()}`,
+	          type: 'request',
+	          position: { x: x || 300, y: y || 200 },
+	          inputs: []
+	        };
+	        takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
+	        dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
+	        break;
+	      }
+	      case 'configureCondition': {
+	        // payload 为 ReactFlow 边对象，打开条件配置弹窗
+	        setConditionEdge(payload);
+	        break;
+	      }
+	      default:
+	        break;
+	    }
+	  }, [collectionUid, flow, dispatch, takeSnapshot, takeSnapshotBeforeDelete, handleEditRequest, handleDuplicateRequest]);
 
   // 保存边条件（null 表示清除条件，恢复默认分支）
   const handleSaveCondition = useCallback((condition) => {
@@ -231,10 +229,9 @@ const FlowTab = ({ flow }) => {
       const { condition: _removed, ...rest } = e;
       return rest;
     });
-    dispatch(updateFlowEdges({ collectionUid, itemUid: flow.uid, edges: updatedEdges }));
-    setConditionEdge(null);
-    scheduleFlowSave();
-  }, [conditionEdge, flow, collectionUid, dispatch, takeSnapshot, scheduleFlowSave]);
+dispatch(updateFlowEdges({ collectionUid, itemUid: flow.uid, edges: updatedEdges }));
+	    setConditionEdge(null);
+	  }, [conditionEdge, flow, collectionUid, dispatch, takeSnapshot]);
 
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
@@ -270,17 +267,34 @@ const FlowTab = ({ flow }) => {
     }
     prevRequestUidSignature.current = currentSignature;
 
-    // 补建缺失节点
-    const newNodes = reconcileFlowNodes(flowNodes, requestItems);
-    for (const node of newNodes) {
-      dispatch(addFlowNode({ collectionUid: collection.uid, itemUid: flow.uid, node }));
+    // 启动期间 flow.items 可能尚未加载完成：已有节点但 items 为空则跳过移除逻辑
+    const hasExistingRequestNodes = flowNodes.some((n) => n.type === 'request' && n.requestUid);
+    const itemsEmpty = requestItems.length === 0;
+
+    if (!itemsEmpty) {
+      // 补建缺失节点
+      const newNodes = reconcileFlowNodes(flowNodes, requestItems);
+      for (const node of newNodes) {
+        dispatch(addFlowNode({ collectionUid: collection.uid, itemUid: flow.uid, node }));
+      }
     }
 
-    // 移除孤儿节点
-    const { nodes: keptNodes } = removeOrphanedNodes(flowNodes, flowEdges, requestItems);
-    const removedNodes = flowNodes.filter((n) => !keptNodes.find((kn) => kn.id === n.id));
-    for (const node of removedNodes) {
-      dispatch(removeFlowNode({ collectionUid: collection.uid, itemUid: flow.uid, nodeId: node.id }));
+    // 移除孤儿节点（仅当 items 有数据时才清理，避免启动期误删）
+    if (!itemsEmpty) {
+      const { nodes: keptNodes, nodesToUpdateUid } = removeOrphanedNodes(flowNodes, flowEdges, requestItems);
+      const removedNodes = flowNodes.filter((n) => !keptNodes.find((kn) => kn.id === n.id));
+      for (const node of removedNodes) {
+        dispatch(removeFlowNode({ collectionUid: collection.uid, itemUid: flow.uid, nodeId: node.id }));
+      }
+      // 更新重启后 uid 变化的节点（requestUid 按 requestPath 重新匹配）
+      for (const { nodeId, newUid } of nodesToUpdateUid) {
+        dispatch(updateFlowNode({
+          collectionUid: collection.uid,
+          itemUid: flow.uid,
+          nodeId,
+          updates: { requestUid: newUid }
+        }));
+      }
     }
   }, [flow?.uid, collection?.uid]);
 
@@ -484,10 +498,9 @@ const FlowTab = ({ flow }) => {
       itemUid: flow.uid,
       nodes: updatedNodes
     }));
-    scheduleFlowSave();
-  }, [flow?.flow, collectionUid, flow?.uid, dispatch, takeSnapshot, scheduleFlowSave]);
+  }, [flow?.flow, collectionUid, flow?.uid, dispatch, takeSnapshot]);
 
-  // 更新节点（别名/错误处理等修改 → 即时更新 Redux，防抖静默持久化到磁盘）
+  // 更新节点（别名/错误处理等修改）
   const handleUpdateNode = useCallback((nodeId, updates) => {
     dispatch(updateFlowNode({
       collectionUid,
@@ -495,17 +508,7 @@ const FlowTab = ({ flow }) => {
       nodeId,
       updates
     }));
-    scheduleFlowSave();
-  }, [collectionUid, flow?.uid, dispatch, scheduleFlowSave]);
-
-  // 组件卸载时清除防抖定时器
-  useEffect(() => {
-    return () => {
-      if (debouncedSaveRef.current) {
-        clearTimeout(debouncedSaveRef.current);
-      }
-    };
-  }, []);
+  }, [collectionUid, flow?.uid, dispatch]);
 
   const handleUpdateNodeInputs = useCallback((nodeId, inputs) => {
     dispatch(updateFlowNodeInputs({
@@ -514,8 +517,7 @@ const FlowTab = ({ flow }) => {
       nodeId,
       inputs
     }));
-    scheduleFlowSave();
-  }, [collectionUid, flow?.uid, dispatch, scheduleFlowSave]);
+  }, [collectionUid, flow?.uid, dispatch]);
 
   // 一键映射下游：为下游节点真实创建一条引用当前步骤响应体的输入映射
   const handleQuickMap = useCallback((sourceStepId) => {
@@ -572,10 +574,12 @@ const FlowTab = ({ flow }) => {
               onBeforeDelete={takeSnapshotBeforeDelete}
               onInstanceReady={(instance) => { canvasInstanceRef.current = instance; }}
               requestInfoMap={requestInfoMap}
+              onSave={handleManualSave}
               toolbarProps={{
                 onRun: handleRun,
                 onCancel: handleCancel,
                 onAutoLayout: handleAutoLayout,
+                onSave: handleManualSave,
                 onUndo: handleUndo,
                 onRedo: handleRedo,
                 canUndo,
