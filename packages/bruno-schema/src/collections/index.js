@@ -679,6 +679,14 @@ const flowInputMappingSchema = Yup.object({
   .noUnknown(true)
   .strict();
 
+const flowNodeErrorHandlerSchema = Yup.object({
+  strategy: Yup.string().oneOf(['stop', 'continue', 'jump']).required('error handler strategy is required'),
+  jumpToNodeId: Yup.string().nullable()
+})
+  .noUnknown(true)
+  .strict()
+  .nullable();
+
 const flowNodeSchema = Yup.object({
   id: Yup.string().min(1, 'flow node id is required').required('flow node id is required'),
   type: Yup.string().oneOf(['start', 'end', 'request']).required('flow node type is required'),
@@ -692,16 +700,28 @@ const flowNodeSchema = Yup.object({
     .noUnknown(true)
     .strict()
     .required('flow node position is required'),
-  inputs: Yup.array().of(flowInputMappingSchema).nullable()
+  inputs: Yup.array().of(flowInputMappingSchema).nullable(),
+  errorHandler: flowNodeErrorHandlerSchema
 })
   .noUnknown(true)
   .strict();
+
+const flowEdgeConditionSchema = Yup.object({
+  field: Yup.string().nullable(),
+  operator: Yup.string().oneOf(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains', 'regex']).nullable(),
+  value: Yup.mixed().nullable(),
+  expression: Yup.string().nullable()
+})
+  .noUnknown(true)
+  .strict()
+  .nullable();
 
 const flowEdgeSchema = Yup.object({
   id: Yup.string().min(1, 'flow edge id is required').required('flow edge id is required'),
   source: Yup.string().min(1, 'flow edge source is required').required('flow edge source is required'),
   target: Yup.string().min(1, 'flow edge target is required').required('flow edge target is required'),
-  type: Yup.string().nullable()
+  type: Yup.string().nullable(),
+  condition: flowEdgeConditionSchema
 })
   .noUnknown(true)
   .strict();

@@ -94,7 +94,7 @@ describe('resolveMainChain', () => {
     expect(resolveMainChain(nodes, edges)).toEqual(['step_a']);
   });
 
-  it('Start 多出边分叉应抛出错误', () => {
+  it('Start 多出边时沿默认（首条）边预览主链', () => {
     const nodes = makeNodes([
       { id: 'step_a', type: 'request' },
       { id: 'step_b', type: 'request' }
@@ -103,38 +103,38 @@ describe('resolveMainChain', () => {
       ['start', 'step_a'],
       ['start', 'step_b']
     ]);
-    expect(() => resolveMainChain(nodes, edges)).toThrow('Start 节点有多条出边');
+    // 条件分支模式下不再抛错；step_a 无出边，链尾终止
+    expect(resolveMainChain(nodes, edges)).toEqual([]);
   });
 
-  it('End 多入边合流应抛出错误', () => {
+  it('End 多入边合流时主链沿默认路径', () => {
     const nodes = makeNodes([
       { id: 'step_a', type: 'request' },
       { id: 'step_b', type: 'request' }
     ]);
     // 两条独立链都指向 End：Start→A→End, B→End（B 未连接 Start）
-    // 这样 Start 只有 1 条出边，但 End 有 2 条入边
     const edges = makeEdges([
       ['start', 'step_a'],
       ['step_a', 'end'],
       ['step_b', 'end']
     ]);
-    expect(() => resolveMainChain(nodes, edges)).toThrow('End 节点有多条入边');
+    expect(resolveMainChain(nodes, edges)).toEqual(['step_a']);
   });
 
-  it('Request 节点分叉应抛出错误', () => {
+  it('Request 节点分叉时沿默认（首条无条件）边预览主链', () => {
     const nodes = makeNodes([
       { id: 'step_a', type: 'request' },
       { id: 'step_b', type: 'request' },
       { id: 'step_c', type: 'request' }
     ]);
-    // A→B, A→C：A 分叉，但 End 只有 1 条入边（B→End）
+    // A→B, A→C：A 分叉，条件分支模式下沿首条无条件边走
     const edges = makeEdges([
       ['start', 'step_a'],
       ['step_a', 'step_b'],
       ['step_a', 'step_c'],
       ['step_b', 'end']
     ]);
-    expect(() => resolveMainChain(nodes, edges)).toThrow('不允许分叉');
+    expect(resolveMainChain(nodes, edges)).toEqual(['step_a', 'step_b']);
   });
 
   it('环应抛出错误', () => {

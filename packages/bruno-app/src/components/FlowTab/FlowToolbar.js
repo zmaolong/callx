@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { IconPlayerPlay, IconPlayerStop, IconLayoutNavbar, IconAlertTriangle, IconArrowBackUp, IconArrowForwardUp } from '@tabler/icons';
 
@@ -44,21 +44,64 @@ const ToolButton = styled.button`
 
   &:hover {
     opacity: ${(props) => props.disabled ? 0.4 : 0.85};
-    border-color: ${(props) => props.disabled ? 'inherit' : `props.theme.border.border2`};
+    border-color: ${(props) => props.disabled ? 'inherit' : props.theme.border.border2};
   }
 `;
 
-const ErrorBadge = styled.div`
+const ErrorBadgeWrapper = styled.div`
+  position: relative;
+`;
+
+const ErrorBadge = styled.button`
   display: flex;
   align-items: center;
   gap: 3px;
   padding: 4px 10px;
+  border: none;
   border-radius: ${(props) => props.theme.border.radius.sm};
   background: ${(props) => props.theme.status.danger.background};
   color: ${(props) => props.theme.status.danger.text};
   font-size: 12px;
   line-height: 1;
   white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.85;
+  }
+`;
+
+const ErrorPopover = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 320px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px 0;
+  background: ${(props) => props.theme.background.crust};
+  border: 1px solid ${(props) => props.theme.border.border1};
+  border-radius: ${(props) => props.theme.border.radius.md};
+  box-shadow: ${(props) => props.theme.shadow.md || '0 4px 16px rgba(0, 0, 0, 0.3)'};
+`;
+
+const ErrorPopoverItem = styled.div`
+  padding: 7px 12px;
+  font-size: 12px;
+  color: ${(props) => props.theme.text};
+  cursor: pointer;
+  line-height: 1.4;
+
+  &:hover {
+    background: ${(props) => props.theme.background.surface0};
+  }
+`;
+
+const ErrorItemNode = styled.span`
+  color: ${(props) => props.theme.colors?.text?.muted || '#94a3b8'};
+  font-size: 11px;
+  margin-left: 6px;
 `;
 
 const FlowToolbar = ({
@@ -70,8 +113,32 @@ const FlowToolbar = ({
   canUndo,
   canRedo,
   isRunning,
-  errors
+  errors,
+  onFocusError
 }) => {
+  const [errorPopoverOpen, setErrorPopoverOpen] = useState(false);
+  const popoverRef = useRef(null);
+
+  useEffect(() => {
+    if (!errorPopoverOpen) return undefined;
+    const handleClickOutside = (e) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
+        setErrorPopoverOpen(false);
+      }
+    };
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setErrorPopoverOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [errorPopoverOpen]);
+
+  const hasErrors = errors && errors.length > 0;
+
   return (
     <FloatingToolbar>
       {!isRunning ? (
@@ -101,11 +168,34 @@ const FlowToolbar = ({
         重做
       </ToolButton>
 
-      {errors && errors.length > 0 && (
-        <ErrorBadge>
-          <IconAlertTriangle size={14} />
-          {errors.length}
-        </ErrorBadge>
+      {hasErrors && (
+        <ErrorBadgeWrapper ref={popoverRef}>
+          <ErrorBadge
+            onClick={() => setErrorPopoverOpen((open) => !open)}
+            title="点击查看校验错误详情"
+            aria-label={`校验错误 ${errors.length} 个，点击查看详情`}
+          >
+            <IconAlertTriangle size={14} />
+            {errors.length}
+          </ErrorBadge>
+          {errorPopoverOpen && (
+            <ErrorPopover>
+              {errors.map((error, index) => (
+                <ErrorPopoverItem
+                  key={index}
+                  onClick={() => {
+                    setErrorPopoverOpen(false);
+                    if (onFocusError) onFocusError(error);
+                  }}
+                  title="点击定位到相关节点"
+                >
+                  {error.message}
+                  {error.nodeName && <ErrorItemNode>({error.nodeName})</ErrorItemNode>}
+                </ErrorPopoverItem>
+              ))}
+            </ErrorPopover>
+          )}
+        </ErrorBadgeWrapper>
       )}
     </FloatingToolbar>
   );

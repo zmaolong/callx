@@ -302,8 +302,12 @@ const JsonValueTree = ({ label, value, path, stepId, depth, onSelect }) => {
  *
  * 根据当前选中的节点，列出所有前驱节点的响应数据，
  * 用户可点击字段插入对应的 `{{$flow.<stepId>.body.<path>}}` 表达式。
+ *
+ * @param {Function} formatExpression 可选，自定义表达式格式 (stepId, path) => string，
+ *                                    默认生成输入映射格式；条件配置传入字段路径格式。
+ * @param {string} title 可选，弹窗标题。
  */
-const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertExpression, nodes }) => {
+const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertExpression, nodes, formatExpression, title, includeSelf }) => {
   // 收集所有有响应数据的前驱节点
   const predecessorSteps = useMemo(() => {
     if (!flowRun?.nodes || !edges || !selectedNodeId) return [];
@@ -311,6 +315,21 @@ const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertE
     const result = [];
     const visited = new Set();
     let currentId = selectedNodeId;
+
+    // 条件场景：包含起始节点自身（边条件引用源节点的响应）
+    if (includeSelf) {
+      const selfState = flowRun.nodes[selectedNodeId];
+      if (selfState && (selfState.status === 'success' || selfState.status === 'failed')) {
+        const selfNode = nodes?.find((n) => n.id === selectedNodeId);
+        result.push({
+          stepId: selectedNodeId,
+          label: selfNode?.alias || selectedNodeId,
+          status: selfState.status,
+          body: selfState.body
+        });
+      }
+      visited.add(selectedNodeId);
+    }
 
     // 沿入边向上回溯
     while (currentId) {
@@ -335,10 +354,12 @@ const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertE
     }
 
     return result;
-  }, [flowRun, edges, selectedNodeId, nodes]);
+  }, [flowRun, edges, selectedNodeId, nodes, includeSelf]);
 
   const handleSelect = (stepId, path) => {
-    const expression = `{{$flow.${stepId}.body.${path}}}`;
+    const expression = formatExpression
+      ? formatExpression(stepId, path)
+      : `{{$flow.${stepId}.body.${path}}}`;
     onInsertExpression?.(expression);
     onClose?.();
   };
@@ -347,7 +368,7 @@ const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertE
     <Modal
       size="md"
       centered
-      title="从响应选取字段"
+      title={title || '从响应选取字段'}
       handleCancel={onClose}
       hideFooter
       noPadding

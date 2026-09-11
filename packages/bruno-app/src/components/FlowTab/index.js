@@ -3,12 +3,14 @@ import { useDispatch, useSelector, useStore } from 'react-redux';
 import FlowCanvas from './FlowCanvas';
 import FlowSidebar from './FlowSidebar';
 import FlowRunPanel from './FlowRunPanel';
+import FlowConditionModal from './FlowConditionModal';
 import StyledWrapper from './StyledWrapper';
 import { reconcileFlowNodes, removeOrphanedNodes } from 'utils/flow/reconcile';
 import { findItemInCollection, findCollectionByItemUid } from 'utils/collections';
 import { validateGraph } from 'utils/flow/graph';
 import {
   addFlowNode,
+  addFlowEdge,
   removeFlowNode,
   removeFlowEdge,
   updateFlowNode,
@@ -31,6 +33,10 @@ const FlowTab = ({ flow }) => {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  // 正在配置条件的边（右键菜单「配置条件」打开弹窗）
+  const [conditionEdge, setConditionEdge] = useState(null);
+  // ReactFlow 实例（用于错误定位 setCenter）
+  const canvasInstanceRef = useRef(null);
 
   const flowRun = useSelector((state) => state.flowRun?.runs?.[flow?.uid]);
   const collections = useSelector((state) => state.collections.collections);
@@ -45,6 +51,23 @@ const FlowTab = ({ flow }) => {
 
   // 撤销/重做历史栈
   const { canUndo, canRedo, takeSnapshot, undo, redo } = useFlowUndo(flow?.uid);
+
+  // 防抖静默持久化：300ms 内连续触发只保存最后一次（即时保存模型下不弹 toast）
+  const debouncedSaveRef = useRef(null);
+  const scheduleFlowSave = useCallback(() => {
+    if (!flow?.uid || !collectionUid) return;
+    if (debouncedSaveRef.current) {
+      clearTimeout(debouncedSaveRef.current);
+    }
+    debouncedSaveRef.current = setTimeout(() => {
+      dispatch(saveFlow(flow.uid, collectionUid, true));
+    }, 300);
+  }, [collectionUid, flow?.uid, dispatch]);
+
+  // 删除类操作前记录撤销快照（双击删边、键盘删节点、右键删除共用）
+  const takeSnapshotBeforeDelete = useCallback(() => {
+    takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
+  }, [takeSnapshot, flow?.flow?.nodes, flow?.flow?.edges]);
 
   // 撤销/重做
   const handleUndo = useCallback(() => {
@@ -137,23 +160,40 @@ const FlowTab = ({ flow }) => {
       }
       case 'deleteNode': {
         const nodeId = payload.id;
+        takeSnapshotBeforeDelete();
         dispatch(removeFlowNode({ collectionUid, itemUid: flow.uid, nodeId }));
+        scheduleFlowSave();
         break;
       }
       case 'deleteEdge': {
         const edgeId = payload.id;
+        takeSnapshotBeforeDelete();
         dispatch(removeFlowEdge({ collectionUid, itemUid: flow.uid, edgeId }));
+        scheduleFlowSave();
         break;
       }
       case 'addAfterNode': {
+        // 新节点放在源节点右侧，并自动连线 源→新节点
+        const sourceNodeId = payload.id;
+        const sourcePosition = payload.position || { x: 300, y: 200 };
         const newNode = {
           id: `step_${Date.now()}`,
           type: 'request',
-          position: { x: 400, y: 200 },
+          position: { x: sourcePosition.x + 280, y: sourcePosition.y },
           inputs: []
         };
         takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
         dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
+        dispatch(addFlowEdge({
+          collectionUid,
+          itemUid: flow.uid,
+          edge: {
+            id: `edge_${sourceNodeId}_${newNode.id}`,
+            source: sourceNodeId,
+            target: newNode.id
+          }
+        }));
+        scheduleFlowSave();
         break;
       }
       case 'addNodeAtPane': {
@@ -166,15 +206,35 @@ const FlowTab = ({ flow }) => {
         };
         takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
         dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
+        scheduleFlowSave();
         break;
       }
       case 'configureCondition': {
+        // payload 为 ReactFlow 边对象，打开条件配置弹窗
+        setConditionEdge(payload);
         break;
       }
       default:
         break;
     }
-  }, [collectionUid, flow, dispatch, takeSnapshot, handleEditRequest, handleDuplicateRequest]);
+  }, [collectionUid, flow, dispatch, takeSnapshot, takeSnapshotBeforeDelete, scheduleFlowSave, handleEditRequest, handleDuplicateRequest]);
+
+  // 保存边条件（null 表示清除条件，恢复默认分支）
+  const handleSaveCondition = useCallback((condition) => {
+    if (!conditionEdge) return;
+    takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
+    const updatedEdges = (flow?.flow?.edges || []).map((e) => {
+      if (e.id !== conditionEdge.id) return e;
+      if (condition) {
+        return { ...e, condition };
+      }
+      const { condition: _removed, ...rest } = e;
+      return rest;
+    });
+    dispatch(updateFlowEdges({ collectionUid, itemUid: flow.uid, edges: updatedEdges }));
+    setConditionEdge(null);
+    scheduleFlowSave();
+  }, [conditionEdge, flow, collectionUid, dispatch, takeSnapshot, scheduleFlowSave]);
 
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
@@ -302,15 +362,62 @@ const FlowTab = ({ flow }) => {
     };
   }, [flow?.uid, dispatch]);
 
-  // 校验错误（从 flowRun 状态和 Graph 校验获取）
+  // 校验错误（附加节点显示名，供工具栏错误弹层展示与定位）
   const errors = useMemo(() => {
     if (!flow?.flow) return [];
-    return validateGraph(flow.flow.nodes || [], flow.flow.edges || []);
+    const validationErrors = validateGraph(flow.flow.nodes || [], flow.flow.edges || []);
+    const nodeNames = {};
+    for (const n of flow.flow.nodes || []) {
+      nodeNames[n.id] = n.alias || n.id;
+    }
+    return validationErrors.map((e) => ({
+      ...e,
+      nodeName: e.nodeId
+        ? (nodeNames[e.nodeId] || e.nodeId)
+        : (e.edgeId ? `边 ${e.edgeId}` : null)
+    }));
   }, [flow?.flow]);
+
+  // 点击错误明细 → 选中并居中定位到相关节点
+  const handleFocusError = useCallback((error) => {
+    let nodeId = error?.nodeId;
+    if (!nodeId && error?.edgeId) {
+      const edge = (flow?.flow?.edges || []).find((e) => e.id === error.edgeId);
+      nodeId = edge?.source;
+    }
+    if (!nodeId) return;
+    setSelectedNodeId(nodeId);
+    const node = (flow?.flow?.nodes || []).find((n) => n.id === nodeId);
+    const instance = canvasInstanceRef.current;
+    if (node?.position && instance?.setCenter) {
+      instance.setCenter(node.position.x + 100, node.position.y + 30, { zoom: 1.2, duration: 400 });
+    }
+  }, [flow?.flow?.edges, flow?.flow?.nodes]);
+
+  // 请求信息映射（method/url/name），供画布节点卡片展示
+  const requestInfoMap = useMemo(() => {
+    const map = {};
+    const walk = (items) => {
+      for (const item of items || []) {
+        if (item.uid && item.request) {
+          map[item.uid] = {
+            method: item.request.method,
+            url: item.request.url,
+            name: item.name
+          };
+        }
+        if (item.items) walk(item.items);
+      }
+    };
+    walk(flow?.items);
+    walk(collection?.items);
+    return map;
+  }, [flow?.items, collection?.items]);
 
   // 自动布局（简单分层，固定 Start/End 位置）
   const handleAutoLayout = useCallback(() => {
     if (!flow?.flow?.nodes) return;
+    takeSnapshot(flow.flow.nodes, flow.flow.edges);
     const nodes = flow.flow.nodes;
     const edges = flow.flow.edges || [];
 
@@ -377,10 +484,10 @@ const FlowTab = ({ flow }) => {
       itemUid: flow.uid,
       nodes: updatedNodes
     }));
-  }, [flow?.flow, collectionUid, flow?.uid]);
+    scheduleFlowSave();
+  }, [flow?.flow, collectionUid, flow?.uid, dispatch, takeSnapshot, scheduleFlowSave]);
 
-  // 更新节点（别名等修改 → 即时更新 Redux，防抖持久化到磁盘）
-  const debouncedSaveRef = useRef(null);
+  // 更新节点（别名/错误处理等修改 → 即时更新 Redux，防抖静默持久化到磁盘）
   const handleUpdateNode = useCallback((nodeId, updates) => {
     dispatch(updateFlowNode({
       collectionUid,
@@ -388,15 +495,8 @@ const FlowTab = ({ flow }) => {
       nodeId,
       updates
     }));
-
-    // 防抖持久化：300ms 内连续触发只保存最后一次
-    if (debouncedSaveRef.current) {
-      clearTimeout(debouncedSaveRef.current);
-    }
-    debouncedSaveRef.current = setTimeout(() => {
-      dispatch(saveFlow(flow.uid, collectionUid));
-    }, 300);
-  }, [collectionUid, flow?.uid, dispatch]);
+    scheduleFlowSave();
+  }, [collectionUid, flow?.uid, dispatch, scheduleFlowSave]);
 
   // 组件卸载时清除防抖定时器
   useEffect(() => {
@@ -414,20 +514,48 @@ const FlowTab = ({ flow }) => {
       nodeId,
       inputs
     }));
-    return dispatch(saveFlow(flow.uid, collectionUid));
-  }, [collectionUid, flow?.uid, dispatch]);
+    scheduleFlowSave();
+  }, [collectionUid, flow?.uid, dispatch, scheduleFlowSave]);
 
-  // 一键映射下游
+  // 一键映射下游：为下游节点真实创建一条引用当前步骤响应体的输入映射
   const handleQuickMap = useCallback((sourceStepId) => {
-    // 找到 sourceStepId 的第一个下游请求节点
     const edges = flow?.flow?.edges || [];
+    const nodes = flow?.flow?.nodes || [];
     const targetEdge = edges.find((e) => e.source === sourceStepId && e.target !== 'end');
     if (!targetEdge) return;
 
     const downstreamNodeId = targetEdge.target;
-    // 选中下游节点
+    const downstreamNode = nodes.find((n) => n.id === downstreamNodeId);
     setSelectedNodeId(downstreamNodeId);
-  }, [flow?.flow?.edges]);
+    if (!downstreamNode) return;
+
+    const expression = `{{$flow.${sourceStepId}.body}}`;
+    const existingInputs = downstreamNode.inputs || [];
+    if (existingInputs.some((inp) => inp?.source?.kind === 'flow' && inp.source.expression === expression)) {
+      toast('下游节点已存在该响应映射', { icon: 'ℹ️' });
+      return;
+    }
+
+    // 变量名：源节点别名（sanitize），冲突时追加序号
+    const sourceNode = nodes.find((n) => n.id === sourceStepId);
+    const baseName = String(sourceNode?.alias || sourceStepId)
+      .replace(/[^A-Za-z0-9_\u4e00-\u9fa5]/g, '_')
+      .replace(/^(\d)/, '_$1') || `resp_${sourceStepId}`;
+    const usedNames = new Set(existingInputs.map((inp) => inp?.name));
+    let varName = baseName;
+    let suffix = 2;
+    while (usedNames.has(varName)) {
+      varName = `${baseName}_${suffix}`;
+      suffix += 1;
+    }
+
+    takeSnapshot(nodes, edges);
+    handleUpdateNodeInputs(downstreamNodeId, [
+      ...existingInputs,
+      { name: varName, source: { kind: 'flow', expression } }
+    ]);
+    toast.success(`已添加映射「${varName}」，可在侧边栏调整`);
+  }, [flow?.flow?.edges, flow?.flow?.nodes, takeSnapshot, handleUpdateNodeInputs]);
 
   return (
     <StyledWrapper className="flex flex-col flex-grow">
@@ -441,6 +569,9 @@ const FlowTab = ({ flow }) => {
               onContextMenu={handleContextMenuAction}
               onUndo={handleUndo}
               onRedo={handleRedo}
+              onBeforeDelete={takeSnapshotBeforeDelete}
+              onInstanceReady={(instance) => { canvasInstanceRef.current = instance; }}
+              requestInfoMap={requestInfoMap}
               toolbarProps={{
                 onRun: handleRun,
                 onCancel: handleCancel,
@@ -450,7 +581,8 @@ const FlowTab = ({ flow }) => {
                 canUndo,
                 canRedo,
                 isRunning,
-                errors
+                errors,
+                onFocusError: handleFocusError
               }}
             />
           </div>
@@ -486,6 +618,17 @@ const FlowTab = ({ flow }) => {
         >
           确定要删除 <span className="font-medium">{deleteTarget?.alias || deleteTarget?.label || '此请求'}</span> 吗？
         </Modal>
+      )}
+
+      {conditionEdge && (
+        <FlowConditionModal
+          edge={conditionEdge}
+          nodes={flow?.flow?.nodes}
+          edges={flow?.flow?.edges}
+          flowRun={flowRun}
+          onSave={handleSaveCondition}
+          onClose={() => setConditionEdge(null)}
+        />
       )}
     </StyledWrapper>
   );

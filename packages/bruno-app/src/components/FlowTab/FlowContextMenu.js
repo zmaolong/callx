@@ -41,7 +41,7 @@ const MenuDivider = styled.div`
   background: ${(props) => props.theme.border.border1};
 `;
 
-const FlowContextMenu = ({ x, y, node, edge, onClose, onAction }) => {
+const FlowContextMenu = ({ x, y, paneX, paneY, node, edge, onClose, onAction }) => {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -84,9 +84,6 @@ const FlowContextMenu = ({ x, y, node, edge, onClose, onAction }) => {
           <MenuItem onClick={() => emit('addAfterNode')}>
             <IconPlus size={14} /> 添加后置节点
           </MenuItem>
-          <MenuItem onClick={() => emit('configureCondition')}>
-            <IconSettings size={14} /> 配置条件
-          </MenuItem>
           <MenuDivider />
           <MenuItem $danger onClick={() => emit('deleteNode')}>
             <IconTrash size={14} /> 删除节点
@@ -117,7 +114,7 @@ const FlowContextMenu = ({ x, y, node, edge, onClose, onAction }) => {
 
       {/* 空白区域菜单 */}
       {!node && !edge && (
-        <MenuItem onClick={() => emit('addNodeAtPane', { paneX: x, paneY: y })}>
+        <MenuItem onClick={() => emit('addNodeAtPane', { paneX: paneX ?? x, paneY: paneY ?? y })}>
           <IconPlus size={14} /> 添加请求节点
         </MenuItem>
       )}

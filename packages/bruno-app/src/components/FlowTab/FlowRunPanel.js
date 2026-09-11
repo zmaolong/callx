@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import styled, { keyframes } from 'styled-components';
 import {
   IconChevronUp,
@@ -11,6 +11,7 @@ import {
   IconPlayerStop,
   IconArrowRight
 } from '@tabler/icons';
+import { getStatusColor, STATUS_COLORS, RUN_PANEL_COLLAPSED_STORAGE_KEY } from './constants';
 
 const spin = keyframes`
   from { transform: rotate(0deg); }
@@ -230,14 +231,27 @@ const QuickMapButton = styled.button`
  * 展示 Flow 运行的步骤列表、状态、输入变量、响应详情。
  */
 const FlowRunPanel = ({ flowRun, nodes, edges, isRunning, onQuickMap }) => {
-  const [expanded, setExpanded] = useState(true);
+  // 常驻面板：折叠状态持久化；未运行时显示收起条
+  const [expanded, setExpanded] = useState(
+    () => window.localStorage?.getItem(RUN_PANEL_COLLAPSED_STORAGE_KEY) !== '1'
+  );
   const [expandedSteps, setExpandedSteps] = useState(new Set());
 
-  // 运行中或刚完成时自动展开
-  const hasRunData = flowRun && Object.keys(flowRun.nodes || {}).length > 0;
+  // 运行中时自动展开
   const isFlowRunning = flowRun?.status === 'running';
 
-  const togglePanel = () => setExpanded((prev) => !prev);
+  useEffect(() => {
+    if (isFlowRunning || isRunning) {
+      setExpanded(true);
+    }
+  }, [isFlowRunning, isRunning]);
+
+  const togglePanel = () => {
+    setExpanded((prev) => {
+      window.localStorage?.setItem(RUN_PANEL_COLLAPSED_STORAGE_KEY, prev ? '1' : '0');
+      return !prev;
+    });
+  };
 
   const toggleStep = (stepId) => {
     setExpandedSteps((prev) => {
@@ -277,17 +291,17 @@ const FlowRunPanel = ({ flowRun, nodes, edges, isRunning, onQuickMap }) => {
   const getStatusInfo = (status) => {
     switch (status) {
       case 'running':
-        return { icon: SpinningIcon, color: '#3b82f6', label: '运行中' };
+        return { icon: SpinningIcon, color: STATUS_COLORS.running, label: '运行中' };
       case 'success':
-        return { icon: IconCircleCheck, color: '#22c55e', label: '成功' };
+        return { icon: IconCircleCheck, color: STATUS_COLORS.success, label: '成功' };
       case 'failed':
-        return { icon: IconCircleX, color: '#ef4444', label: '失败' };
+        return { icon: IconCircleX, color: STATUS_COLORS.failed, label: '失败' };
       case 'cancelled':
-        return { icon: IconCircleOff, color: '#f59e0b', label: '已取消' };
+        return { icon: IconCircleOff, color: STATUS_COLORS.cancelled, label: '已取消' };
       case 'skipped':
-        return { icon: IconCircleOff, color: '#94a3b8', label: '已跳过' };
+        return { icon: IconCircleOff, color: STATUS_COLORS.skipped, label: '已跳过' };
       default:
-        return { icon: null, color: '#64748b', label: '等待中' };
+        return { icon: null, color: getStatusColor('idle'), label: '等待中' };
     }
   };
 
@@ -304,16 +318,16 @@ const FlowRunPanel = ({ flowRun, nodes, edges, isRunning, onQuickMap }) => {
   // 获取 Flow 整体状态信息
   const getFlowStatusInfo = () => {
     if (isFlowRunning) {
-      return { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6', label: '运行中' };
+      return { bg: 'rgba(59,130,246,0.15)', color: STATUS_COLORS.running, label: '运行中' };
     }
     if (flowRun?.status === 'success') {
-      return { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: '成功' };
+      return { bg: 'rgba(34,197,94,0.15)', color: STATUS_COLORS.success, label: '成功' };
     }
     if (flowRun?.status === 'failed') {
-      return { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: '失败' };
+      return { bg: 'rgba(239,68,68,0.15)', color: STATUS_COLORS.failed, label: '失败' };
     }
     if (flowRun?.status === 'cancelled') {
-      return { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: '已取消' };
+      return { bg: 'rgba(245,158,11,0.15)', color: STATUS_COLORS.cancelled, label: '已取消' };
     }
     return null;
   };
@@ -332,10 +346,6 @@ const FlowRunPanel = ({ flowRun, nodes, edges, isRunning, onQuickMap }) => {
     );
   }, [flowRun?.nodes]);
 
-  if (!hasRunData && !isRunning) {
-    return null;
-  }
-
   const flowStatusInfo = getFlowStatusInfo();
 
   return (
@@ -350,9 +360,12 @@ const FlowRunPanel = ({ flowRun, nodes, edges, isRunning, onQuickMap }) => {
               {flowStatusInfo.label}
             </StatusBadge>
           )}
-          <StepCount>
-            {stepEntries.filter(([, s]) => s.status !== 'idle').length}/{stepEntries.length} 步
-          </StepCount>
+          {!flowStatusInfo && <StepCount>未运行</StepCount>}
+          {stepEntries.length > 0 && (
+            <StepCount>
+              {stepEntries.filter(([, s]) => s.status !== 'idle').length}/{stepEntries.length} 步
+            </StepCount>
+          )}
         </HeaderLeft>
         {totalDuration !== null && <TotalDuration>总耗时 {totalDuration}ms</TotalDuration>}
       </PanelHeader>
@@ -360,7 +373,7 @@ const FlowRunPanel = ({ flowRun, nodes, edges, isRunning, onQuickMap }) => {
       {expanded && (
         <>
           {stepEntries.length === 0 ? (
-            <EmptyPanel>暂无步骤数据</EmptyPanel>
+            <EmptyPanel>暂无运行数据，点击工具栏「运行」开始执行 Flow</EmptyPanel>
           ) : (
             <StepList>
               {stepEntries.map(([stepId, state]) => {
