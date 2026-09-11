@@ -5,7 +5,9 @@ import {
   parseFlowExpression,
   validateFlowExpression,
   evaluateFlowExpression,
-  evaluateLastExpression
+  evaluateLastExpression,
+  evaluateCondition,
+  selectBranch
 } from '../expressions';
 
 describe('parseFlowExpression', () => {
@@ -141,5 +143,83 @@ describe('evaluateLastExpression', () => {
   it('无前驱时应返回 null', () => {
     const result = evaluateLastExpression('step_a', getPredecessor, flowContext, 'body.token');
     expect(result).toBeNull();
+  });
+});
+
+describe('evaluateCondition', () => {
+  const flowContext = {
+    step_a: {
+      body: { code: 0, user: { name: 'Alice' } },
+      status: 200,
+      duration: 100
+    }
+  };
+
+  it('无条件（null）应视为默认分支恒真', () => {
+    expect(evaluateCondition(null, flowContext)).toBe(true);
+    expect(evaluateCondition(undefined, flowContext)).toBe(true);
+  });
+
+  it('简单条件各运算符', () => {
+    expect(evaluateCondition({ field: 'step_a.status', operator: 'eq', value: 200 }, flowContext)).toBe(true);
+    expect(evaluateCondition({ field: 'step_a.status', operator: 'eq', value: '200' }, flowContext)).toBe(true);
+    expect(evaluateCondition({ field: 'step_a.status', operator: 'ne', value: 200 }, flowContext)).toBe(false);
+    expect(evaluateCondition({ field: 'step_a.status', operator: 'gt', value: 199 }, flowContext)).toBe(true);
+    expect(evaluateCondition({ field: 'step_a.status', operator: 'lte', value: 200 }, flowContext)).toBe(true);
+    expect(evaluateCondition({ field: 'step_a.body.user.name', operator: 'contains', value: 'lic' }, flowContext)).toBe(true);
+    expect(evaluateCondition({ field: 'step_a.status', operator: 'regex', value: '^2' }, flowContext)).toBe(true);
+    expect(evaluateCondition({ field: 'step_a.body.code', operator: 'eq', value: 0 }, flowContext)).toBe(true);
+  });
+
+  it('字段缺失时应返回 false 而非抛错', () => {
+    expect(evaluateCondition({ field: 'step_ghost.status', operator: 'eq', value: 200 }, flowContext)).toBe(false);
+  });
+
+  it('未知运算符应返回 false', () => {
+    expect(evaluateCondition({ field: 'step_a.status', operator: 'frobnicate', value: 1 }, flowContext)).toBe(false);
+  });
+
+  it('JS 表达式条件应通过受限求值器执行', () => {
+    expect(evaluateCondition({ expression: 'context.step_a.status === 200' }, flowContext)).toBe(true);
+    expect(evaluateCondition({ expression: 'context.step_a.body.code === 0' }, flowContext)).toBe(true);
+    expect(evaluateCondition({ expression: 'context.step_a.status === 500' }, flowContext)).toBe(false);
+  });
+
+  it('JS 表达式访问未注入标识符应返回 false（禁止全局访问）', () => {
+    expect(evaluateCondition({ expression: 'globalThis.foo === 1' }, flowContext)).toBe(false);
+    expect(evaluateCondition({ expression: 'fetch("http://evil")' }, flowContext)).toBe(false);
+  });
+
+  it('JS 表达式语法错误应返回 false', () => {
+    expect(evaluateCondition({ expression: 'context.step_a.status ===' }, flowContext)).toBe(false);
+  });
+});
+
+describe('selectBranch', () => {
+  const flowContext = { step_a: { status: 200, body: { ok: true } } };
+
+  const edge = (target, condition) => ({ id: `e_${target}`, source: 'step_a', target, condition });
+
+  it('应优先选择满足条件的第一条边', () => {
+    const edges = [edge('step_b', { field: 'step_a.status', operator: 'eq', value: 200 }), edge('step_c')];
+    expect(selectBranch(edges, flowContext).target).toBe('step_b');
+  });
+
+  it('条件都不满足时应走无条件默认边', () => {
+    const edges = [edge('step_b', { field: 'step_a.status', operator: 'eq', value: 500 }), edge('step_c')];
+    expect(selectBranch(edges, flowContext).target).toBe('step_c');
+  });
+
+  it('只有条件边且都不满足时应返回 null', () => {
+    const edges = [
+      edge('step_b', { field: 'step_a.status', operator: 'eq', value: 500 }),
+      edge('step_c', { field: 'step_a.status', operator: 'eq', value: 404 })
+    ];
+    expect(selectBranch(edges, flowContext)).toBeNull();
+  });
+
+  it('空出边列表应返回 null', () => {
+    expect(selectBranch([], flowContext)).toBeNull();
+    expect(selectBranch(null, flowContext)).toBeNull();
   });
 });

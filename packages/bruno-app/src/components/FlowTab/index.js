@@ -7,7 +7,7 @@ import FlowConditionModal from './FlowConditionModal';
 import StyledWrapper from './StyledWrapper';
 import { reconcileFlowNodes, removeOrphanedNodes } from 'utils/flow/reconcile';
 import { findItemInCollection, findCollectionByItemUid } from 'utils/collections';
-import { validateGraph } from 'utils/flow/graph';
+import { validateGraph, generateNodeStepId } from 'utils/flow/graph';
 import {
   addFlowNode,
   addFlowEdge,
@@ -210,7 +210,7 @@ const FlowTab = ({ flow }) => {
         const sourceNodeId = payload.id;
         const sourcePosition = payload.position || { x: 300, y: 200 };
         const newNode = {
-          id: `step_${Date.now()}`,
+          id: generateNodeStepId(),
           type: 'request',
           position: { x: sourcePosition.x + 280, y: sourcePosition.y },
           inputs: []
@@ -231,7 +231,7 @@ const FlowTab = ({ flow }) => {
       case 'addNodeAtPane': {
         const { paneX: x, paneY: y } = payload;
         const newNode = {
-          id: `step_${Date.now()}`,
+          id: generateNodeStepId(),
           type: 'request',
           position: { x: x || 300, y: y || 200 },
           inputs: []

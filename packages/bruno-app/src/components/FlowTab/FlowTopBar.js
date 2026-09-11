@@ -211,15 +211,15 @@ const FlowTopBar = ({
   const hasErrors = errors && errors.length > 0;
 
   return (
-    <TopBarRoot>
+    <TopBarRoot data-testid="flow-topbar">
       <RunGroup>
         {!isRunning ? (
-          <ToolButton $variant="primary" onClick={onRun} title="运行整条 Flow">
+          <ToolButton $variant="primary" onClick={onRun} title="运行整条 Flow" data-testid="flow-run-button">
             <IconPlayerPlay size={14} />
             运行
           </ToolButton>
         ) : (
-          <ToolButton $variant="danger" onClick={onCancel} title="取消运行">
+          <ToolButton $variant="danger" onClick={onCancel} title="取消运行" data-testid="flow-cancel-button">
             <IconPlayerStop size={14} />
             取消
           </ToolButton>

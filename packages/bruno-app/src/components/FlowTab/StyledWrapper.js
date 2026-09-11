@@ -7,7 +7,7 @@ const FlowTabStyledWrapper = styled.div`
   height: 100%;
   background: ${(props) => props.theme.background.base};
   color: ${(props) => props.theme.text};
-  /* 作为运行条/响应全屏浮层的定位基准：全屏只覆盖 Flow Tab 区域，不遮住软件标题栏 */
+  /* 作为响应全屏浮层的定位基准：全屏只覆盖 Flow Tab 区域，不遮住软件标题栏 */
   position: relative;
   overflow: hidden;
 

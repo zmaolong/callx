@@ -1,11 +1,12 @@
-export const sendNetworkRequest = async (item, collection, environment, runtimeVariables) => {
+export const sendNetworkRequest = async (item, collection, environment, runtimeVariables, cancelTokenUid) => {
   return new Promise((resolve, reject) => {
     if (['http-request', 'graphql-request'].includes(item.type)) {
-      sendHttpRequest(item, collection, environment, runtimeVariables)
+      sendHttpRequest(item, collection, environment, runtimeVariables, cancelTokenUid)
         .then((response) => {
           // if there is an error, we return the response object as is
           if (response?.error) {
             resolve(response);
+            return;
           }
 
           resolve({
@@ -43,12 +44,12 @@ export const sendGrpcRequest = async (item, collection, environment, runtimeVari
   });
 };
 
-const sendHttpRequest = async (item, collection, environment, runtimeVariables) => {
+const sendHttpRequest = async (item, collection, environment, runtimeVariables, cancelTokenUid) => {
   return new Promise((resolve, reject) => {
     const { ipcRenderer } = window;
 
     ipcRenderer
-      .invoke('send-http-request', item, collection, environment, runtimeVariables)
+      .invoke('send-http-request', item, collection, environment, runtimeVariables, cancelTokenUid)
       .then(resolve)
       .catch(reject);
   });

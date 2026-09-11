@@ -744,10 +744,11 @@ const registerNetworkIpc = (mainWindow) => {
     return scriptResult;
   };
 
-  const runRequest = async ({ item, collection, envVars, processEnvVars, runtimeVariables, runInBackground = false, callerBru = null, parentExecutionMode = null, parentRunnerEventData = null, parentRequestUid = null }) => {
+  const runRequest = async ({ item, collection, envVars, processEnvVars, runtimeVariables, runInBackground = false, callerBru = null, parentExecutionMode = null, parentRunnerEventData = null, parentRequestUid = null, cancelTokenUid: providedCancelTokenUid = null }) => {
     const collectionUid = collection.uid;
     const collectionPath = collection.pathname;
-    const cancelTokenUid = uuid();
+    // 调用方（如 Flow 执行器）可预生成 cancelTokenUid，保证取消请求能命中本次请求的 AbortController
+    const cancelTokenUid = providedCancelTokenUid || uuid();
     // Nested bru.runRequest() invocations have no item.requestUid; inherit the parent's
     // so script-driven variable updates aren't dropped by the renderer's requestUid gate.
     const requestUid = item.requestUid || parentRequestUid || uuid();
@@ -1344,12 +1345,12 @@ const registerNetworkIpc = (mainWindow) => {
   };
 
   // handler for sending http request
-  ipcMain.handle('send-http-request', async (event, item, collection, environment, runtimeVariables) => {
+  ipcMain.handle('send-http-request', async (event, item, collection, environment, runtimeVariables, cancelTokenUid) => {
     let seq = 0;
     const collectionUid = collection.uid;
     const envVars = getEnvVars(environment);
     const processEnvVars = getProcessEnvVars(collectionUid);
-    const response = await runRequest({ item, collection, envVars, processEnvVars, runtimeVariables, runInBackground: false });
+    const response = await runRequest({ item, collection, envVars, processEnvVars, runtimeVariables, runInBackground: false, cancelTokenUid });
     if (response.stream) {
       const stream = response.stream;
       response.stream = { running: response.status >= 200 && response.status < 300 };

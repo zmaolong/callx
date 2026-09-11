@@ -33,9 +33,9 @@ test.describe('Flow 编排', () => {
     });
 
     await test.step('验证 Flow 创建成功，Flow Tab 被打开', async () => {
-      // 验证 Flow Tab 渲染
-      await expect(page.getByTestId('flow-tab-placeholder')).toBeVisible({ timeout: 5000 });
-      await expect(page.getByTestId('flow-tab-placeholder')).toContainText(flowName);
+      // 验证 Flow Tab 渲染（顶栏承载 Flow 名称）
+      await expect(page.getByTestId('flow-topbar')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByTestId('flow-topbar')).toContainText(flowName);
     });
 
     await test.step('验证侧边栏中 Flow 容器显示', async () => {

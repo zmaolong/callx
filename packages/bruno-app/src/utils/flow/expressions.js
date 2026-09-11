@@ -5,6 +5,7 @@
  * 所有函数都是纯函数。
  */
 import get from 'lodash/get';
+import { safeEvaluate } from './safe-eval';
 
 /**
  * 解析 Flow 表达式，提取 stepId 和路径。
@@ -205,10 +206,10 @@ export function evaluateLastExpression(currentStepId, getPredecessor, flowContex
 export function evaluateCondition(condition, flowContext) {
   if (!condition) return true; // 无条件（默认分支）
 
-  // 如果有 expression 字段，直接 JS eval 求值
+  // 如果有 expression 字段，用受限求值器解析（禁止访问全局与函数调用）
   if (condition.expression) {
     try {
-      return new Function('context', `return (${condition.expression})`)(flowContext);
+      return Boolean(safeEvaluate(condition.expression, { context: flowContext }));
     } catch {
       return false;
     }
@@ -238,9 +239,10 @@ export function evaluateCondition(condition, flowContext) {
       }
       return false;
     case 'regex':
-      if (typeof actualValue === 'string' && typeof condition.value === 'string') {
+      if (actualValue !== null && actualValue !== undefined && typeof condition.value === 'string') {
         try {
-          return new RegExp(condition.value).test(actualValue);
+          // status 等字段是数字，先字符串化再匹配
+          return new RegExp(condition.value).test(String(actualValue));
         } catch {
           return false;
         }
