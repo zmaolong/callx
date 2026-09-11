@@ -87,6 +87,7 @@ const FlowCanvas = ({
   onBeforeDelete,
   onInstanceReady,
   requestInfoMap,
+  onCancelRun,
   onSave
 }) => {
   const dispatch = useDispatch();
@@ -169,7 +170,8 @@ const FlowCanvas = ({
     }
   }, [initialNodes, initialEdges]);
 
-  // 同步运行态到节点（executionStatus、duration、httpStatus、errorMessage）
+  // 同步运行态到节点（executionStatus、duration、httpStatus、errorMessage、取消回调）
+  // 依赖 initialNodes：图被外部重置（撤销/重做/同步）后重新叠加运行态，避免状态丢失
   useEffect(() => {
     if (!flowRun?.nodes) return;
     setNodes((nds) =>
@@ -183,12 +185,13 @@ const FlowCanvas = ({
             executionStatus: nodeState.status,
             duration: nodeState.duration,
             httpStatus: nodeState.httpStatus,
-            errorMessage: nodeState.error
+            errorMessage: nodeState.error,
+            onCancelRun
           }
         };
       })
     );
-  }, [flowRun?.nodes]);
+  }, [flowRun?.nodes, initialNodes, onCancelRun]);
 
   // 边动画：当前正在运行的节点对应的入边设置 animated: true
   useEffect(() => {
@@ -200,7 +203,7 @@ const FlowCanvas = ({
         return { ...e, animated: isActive };
       })
     );
-  }, [flowRun?.nodes]);
+  }, [flowRun?.nodes, initialEdges]);
 
   // 连线回调：校验合法性，失败给出明确提示
   const onConnect = useCallback(

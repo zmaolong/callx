@@ -8,10 +8,16 @@ import get from 'lodash/get';
 import { safeEvaluate } from './safe-eval';
 
 /**
+ * 支持的路径根字段（对应节点运行结果 flowContext[stepId] 的键）
+ */
+const EXPRESSION_ROOT_FIELDS = ['body', 'status', 'statusText', 'headers', 'duration'];
+
+/**
  * 解析 Flow 表达式，提取 stepId 和路径。
  *
  * 支持的格式：
- * - `{{$flow.<stepId>.body...}}` — 指定 stepId
+ * - `{{$flow.<stepId>.body...}}` — 指定 stepId 的响应体字段
+ * - `{{$flow.<stepId>.status}}` / `.statusText` / `.duration` / `.headers...` — 响应元信息
  * - `{{$flow.last.body...}}` — 上一个已执行节点
  *
  * 规则：
@@ -42,21 +48,22 @@ export function parseFlowExpression(expression) {
 
   const rest = inner.slice('$flow.'.length);
 
-  // 至少需要 stepId 和 body 两部分：stepId.body
+  // 至少需要 stepId 和 path 两部分：stepId.path
   const dotIndex = rest.indexOf('.');
   if (dotIndex === -1) {
     return null;
   }
 
   const stepId = rest.slice(0, dotIndex);
-  const path = rest.slice(dotIndex + 1); // 包含 "body..." 部分
+  const path = rest.slice(dotIndex + 1); // 包含根字段部分
 
   if (!stepId) {
     return null;
   }
 
-  // path 必须以 "body" 开头
-  if (!path.startsWith('body')) {
+  // path 首段必须是支持的根字段
+  const rootField = path.split('.')[0];
+  if (!EXPRESSION_ROOT_FIELDS.includes(rootField)) {
     return null;
   }
 
@@ -109,8 +116,9 @@ export function validateFlowExpression(expression) {
   }
 
   const path = rest.slice(dotIndex + 1);
-  if (!path.startsWith('body')) {
-    return { valid: false, error: 'Flow 表达式路径必须以 body 开头' };
+  const rootField = path.split('.')[0];
+  if (!EXPRESSION_ROOT_FIELDS.includes(rootField)) {
+    return { valid: false, error: 'Flow 表达式路径必须以 body/status/statusText/headers/duration 开头' };
   }
 
   return { valid: true };
@@ -277,3 +285,5 @@ export function selectBranch(outgoingEdges, flowContext) {
   // 无默认边，返回 null（流程终止）
   return null;
 }
+
+export { EXPRESSION_ROOT_FIELDS };

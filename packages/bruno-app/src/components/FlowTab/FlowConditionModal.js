@@ -361,8 +361,10 @@ const FlowConditionModal = ({ edge, nodes, edges, flowRun, onSave, onClose }) =>
           selectedNodeId={edge?.source}
           includeSelf
           title="选取条件字段"
-          formatExpression={(stepId, path) => (
-            mode === 'expression' ? `context.${stepId}.body.${path}` : `${stepId}.body.${path}`
+          formatExpression={(stepId, path, rootPrefix = 'body') => (
+            mode === 'expression'
+              ? `context.${stepId}.${rootPrefix}${path ? `.${path}` : ''}`
+              : `${stepId}.${rootPrefix}${path ? `.${path}` : ''}`
           )}
           onClose={() => setPickerOpen(false)}
           onInsertExpression={(text) => {

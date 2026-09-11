@@ -149,16 +149,12 @@ export function resolveInputMapping(mapping, flowContext, currentStepId) {
         return { name: mapping.name, error: '$flow.last 需要当前节点 ID 上下文' };
       }
 
-      // 从 path 中提取 body 后面的路径部分
-      // path 格式为 "body.x.y"，去掉 "body." 前缀
-      const bodyPath = parsed.path.slice('body'.length); // 可能为 ".x.y" 或空字符串
-      const fullPath = `body${bodyPath}`;
-
+      // parsed.path 已包含根字段（body/status/headers/...），直接对前驱节点求值
       result = evaluateLastExpression(
         currentStepId,
         (stepId) => getPredecessorStepId(stepId, flowContext._edges),
         flowContext._nodeResults,
-        fullPath
+        parsed.path
       );
     } else {
       result = evaluateFlowExpression(expression, flowContext._nodeResults);

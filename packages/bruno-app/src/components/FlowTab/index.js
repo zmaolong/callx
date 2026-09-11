@@ -4,6 +4,7 @@ import FlowCanvas from './FlowCanvas';
 import FlowTopBar from './FlowTopBar';
 import FlowWorkbench from './FlowWorkbench';
 import FlowConditionModal from './FlowConditionModal';
+import QuickMapTargetModal from './QuickMapTargetModal';
 import StyledWrapper from './StyledWrapper';
 import { reconcileFlowNodes, removeOrphanedNodes } from 'utils/flow/reconcile';
 import { findItemInCollection, findCollectionByItemUid } from 'utils/collections';
@@ -48,6 +49,9 @@ const FlowTab = ({ flow }) => {
   );
   // ReactFlow 实例（用于节点定位 setCenter）
   const canvasInstanceRef = useRef(null);
+
+  // 快速映射多下游目标选择弹窗（{ sourceStepId, targets }）
+  const [quickMapTargets, setQuickMapTargets] = useState(null);
 
   const handleWorkbenchCollapsedChange = useCallback((next) => {
     setWorkbenchCollapsed(next);
@@ -653,12 +657,9 @@ const FlowTab = ({ flow }) => {
   }, [collectionUid, flow?.uid, dispatch]);
 
   // 一键映射下游：为下游节点真实创建一条引用当前步骤响应体的输入映射
-  const handleQuickMap = useCallback((sourceStepId) => {
-    const edges = flow?.flow?.edges || [];
+  // 源节点有多个下游请求节点时弹窗选择目标（quickMapTargets）
+  const applyQuickMap = useCallback((sourceStepId, targetEdge) => {
     const nodes = flow?.flow?.nodes || [];
-    const targetEdge = edges.find((e) => e.source === sourceStepId && e.target !== 'end');
-    if (!targetEdge) return;
-
     const downstreamNodeId = targetEdge.target;
     const downstreamNode = nodes.find((n) => n.id === downstreamNodeId);
     setSelectedNodeId(downstreamNodeId);
@@ -684,13 +685,41 @@ const FlowTab = ({ flow }) => {
       suffix += 1;
     }
 
-    takeSnapshot(nodes, edges);
+    takeSnapshot(nodes, flow?.flow?.edges || []);
     handleUpdateNodeInputs(downstreamNodeId, [
       ...existingInputs,
       { name: varName, source: { kind: 'flow', expression } }
     ]);
     toast.success(`已添加映射「${varName}」，可在工作台调整`);
-  }, [flow?.flow?.edges, flow?.flow?.nodes, takeSnapshot, handleUpdateNodeInputs]);
+  }, [flow?.flow?.nodes, flow?.flow?.edges, takeSnapshot, handleUpdateNodeInputs]);
+
+  const handleQuickMap = useCallback((sourceStepId) => {
+    const edges = flow?.flow?.edges || [];
+    const nodes = flow?.flow?.nodes || [];
+    const downstreamEdges = edges.filter((e) => e.source === sourceStepId && e.target !== 'end');
+    if (downstreamEdges.length === 0) {
+      toast.error('该节点没有下游请求节点');
+      return;
+    }
+    if (downstreamEdges.length === 1) {
+      applyQuickMap(sourceStepId, downstreamEdges[0]);
+      return;
+    }
+    // 多个下游：弹窗选择目标
+    setQuickMapTargets({
+      sourceStepId,
+      targets: downstreamEdges.map((edge) => {
+        const targetNode = nodes.find((n) => n.id === edge.target);
+        const info = requestInfoMap?.[targetNode?.requestUid];
+        return {
+          ...edge,
+          label: targetNode?.alias || edge.target,
+          method: info?.method,
+          url: info?.url
+        };
+      })
+    });
+  }, [flow?.flow?.edges, flow?.flow?.nodes, requestInfoMap, applyQuickMap]);
 
   return (
     <StyledWrapper className="flex flex-col flex-grow">
@@ -729,6 +758,7 @@ const FlowTab = ({ flow }) => {
               onBeforeDelete={takeSnapshotBeforeDelete}
               onInstanceReady={(instance) => { canvasInstanceRef.current = instance; }}
               requestInfoMap={requestInfoMap}
+              onCancelRun={handleCancel}
               onSave={handleManualSave}
             />
           </div>
@@ -778,6 +808,22 @@ const FlowTab = ({ flow }) => {
           flowRun={flowRun}
           onSave={handleSaveCondition}
           onClose={() => setConditionEdge(null)}
+        />
+      )}
+
+      {quickMapTargets && (
+        <QuickMapTargetModal
+          sourceName={
+            flow?.flow?.nodes?.find((n) => n.id === quickMapTargets.sourceStepId)?.alias
+            || quickMapTargets.sourceStepId
+          }
+          targets={quickMapTargets.targets}
+          onSelect={(edge) => {
+            const { sourceStepId } = quickMapTargets;
+            setQuickMapTargets(null);
+            applyQuickMap(sourceStepId, edge);
+          }}
+          onClose={() => setQuickMapTargets(null)}
         />
       )}
     </StyledWrapper>

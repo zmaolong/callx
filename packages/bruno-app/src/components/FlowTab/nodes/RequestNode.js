@@ -1,11 +1,17 @@
 import React from 'react';
 import styled, { keyframes, useTheme } from 'styled-components';
 import { Handle, Position } from '@xyflow/react';
+import { IconPlayerStop } from '@tabler/icons';
 import { getStatusColor, getMethodColor, STATUS_COLORS, STRATEGY_BADGE } from '../constants';
 
 const spin = keyframes`
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+`;
+
+const breathe = keyframes`
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); }
+  50% { box-shadow: 0 0 0 7px rgba(59, 130, 246, 0); }
 `;
 
 const Spinner = styled.span`
@@ -30,6 +36,31 @@ const NodeCard = styled.div`
   font-size: 13px;
   cursor: pointer;
   position: relative;
+
+  ${(props) => props.$running && `animation: ${breathe} 1.6s ease-in-out infinite;`}
+`;
+
+const CancelNodeButton = styled.button`
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid ${(props) => props.theme.border?.border2 || '#64748b'};
+  border-radius: 50%;
+  background: ${(props) => props.theme.background?.crust || '#1e1e1e'};
+  color: ${(props) => props.theme.status?.danger?.text || '#ef4444'};
+  cursor: pointer;
+  z-index: 5;
+  box-shadow: ${(props) => props.theme.shadow?.sm || '0 1px 4px rgba(0,0,0,0.3)'};
+
+  &:hover {
+    background: ${(props) => props.theme.status?.danger?.background || 'rgba(239,68,68,0.15)'};
+  }
 `;
 
 const NodeHeader = styled.div`
@@ -150,8 +181,22 @@ const RequestNode = ({ data }) => {
   const summaryTitle = summaryParts.length > 0 ? `${displayName}\n${summaryParts.join('\n')}` : displayName;
 
   return (
-    <NodeCard $statusColor={statusColor} title={summaryTitle}>
+    <NodeCard $statusColor={statusColor} $running={status === 'running'} title={summaryTitle}>
       <NodeHandle type="target" position={Position.Left} $color={statusColor} />
+
+      {status === 'running' && data.onCancelRun && (
+        <CancelNodeButton
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            data.onCancelRun();
+          }}
+          title="取消运行"
+          aria-label="取消运行"
+        >
+          <IconPlayerStop size={11} />
+        </CancelNodeButton>
+      )}
 
       <NodeHeader>
         {status === 'running' ? (

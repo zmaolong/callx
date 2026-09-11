@@ -159,9 +159,13 @@ const PathPreview = styled.div`
 
 /**
  * 递归渲染 JSON 值树
+ *
+ * @param {string} rootPrefix 根字段前缀（body / headers），用于生成插入表达式
  */
-const JsonValueTree = ({ label, value, path, stepId, depth, onSelect }) => {
+const JsonValueTree = ({ label, value, path, stepId, depth, onSelect, rootPrefix = 'body' }) => {
   const [expanded, setExpanded] = useState(depth < 2);
+  const insertPath = `${rootPrefix}${path ? `.${path}` : ''}`;
+  const insertTitle = `插入 {{$flow.${stepId}.${insertPath}}}`;
 
   if (value === null || value === undefined) {
     return (
@@ -175,7 +179,7 @@ const JsonValueTree = ({ label, value, path, stepId, depth, onSelect }) => {
           )}
           <ValueNull>null</ValueNull>
           {onSelect && (
-            <InsertBtn onClick={() => onSelect(stepId, path)} title={`插入 {{$flow.${stepId}.body.${path}}}`}>
+            <InsertBtn onClick={() => onSelect(stepId, path, rootPrefix)} title={insertTitle}>
               <IconCode size={10} />
               插入
             </InsertBtn>
@@ -201,9 +205,9 @@ const JsonValueTree = ({ label, value, path, stepId, depth, onSelect }) => {
           {onSelect && !isCollapsed && (
             <InsertBtn
               onClick={(e) => {
-                e.stopPropagation(); onSelect(stepId, path);
+                e.stopPropagation(); onSelect(stepId, path, rootPrefix);
               }}
-              title={`插入 {{$flow.${stepId}.body.${path}}}`}
+              title={insertTitle}
             >
               <IconCode size={10} />
               插入
@@ -220,6 +224,7 @@ const JsonValueTree = ({ label, value, path, stepId, depth, onSelect }) => {
               stepId={stepId}
               depth={depth + 1}
               onSelect={onSelect}
+              rootPrefix={rootPrefix}
             />
           ))}
       </TreeNode>
@@ -243,9 +248,9 @@ const JsonValueTree = ({ label, value, path, stepId, depth, onSelect }) => {
           {onSelect && !isCollapsed && (
             <InsertBtn
               onClick={(e) => {
-                e.stopPropagation(); onSelect(stepId, path);
+                e.stopPropagation(); onSelect(stepId, path, rootPrefix);
               }}
-              title={`插入 {{$flow.${stepId}.body.${path}}}`}
+              title={insertTitle}
             >
               <IconCode size={10} />
               插入
@@ -262,6 +267,7 @@ const JsonValueTree = ({ label, value, path, stepId, depth, onSelect }) => {
               stepId={stepId}
               depth={depth + 1}
               onSelect={onSelect}
+              rootPrefix={rootPrefix}
             />
           ))}
       </TreeNode>
@@ -288,7 +294,7 @@ const JsonValueTree = ({ label, value, path, stepId, depth, onSelect }) => {
         )}
         <ValueTag>{displayValue}</ValueTag>
         {onSelect && (
-          <InsertBtn onClick={() => onSelect(stepId, path)} title={`插入 {{$flow.${stepId}.body.${path}}}`}>
+          <InsertBtn onClick={() => onSelect(stepId, path, rootPrefix)} title={insertTitle}>
             <IconCode size={10} />
             插入
           </InsertBtn>
@@ -326,7 +332,13 @@ const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertE
           stepId: selectedNodeId,
           label: selfNode?.alias || selectedNodeId,
           status: selfState.status,
-          body: selfState.body
+          body: selfState.body,
+          meta: {
+            status: selfState.httpStatus,
+            statusText: selfState.statusText,
+            duration: selfState.duration,
+            headers: selfState.headers
+          }
         });
       }
       visited.add(selectedNodeId);
@@ -347,7 +359,13 @@ const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertE
           stepId: predecessorId,
           label: node?.alias || predecessorId,
           status: nodeState.status,
-          body: nodeState.body
+          body: nodeState.body,
+          meta: {
+            status: nodeState.httpStatus,
+            statusText: nodeState.statusText,
+            duration: nodeState.duration,
+            headers: nodeState.headers
+          }
         });
       }
 
@@ -357,10 +375,11 @@ const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertE
     return result;
   }, [flowRun, edges, selectedNodeId, nodes, includeSelf]);
 
-  const handleSelect = (stepId, path) => {
+  const handleSelect = (stepId, path, rootPrefix = 'body') => {
+    const fullPath = `${rootPrefix}${path ? `.${path}` : ''}`;
     const expression = formatExpression
       ? formatExpression(stepId, path)
-      : `{{$flow.${stepId}.body.${path}}}`;
+      : `{{$flow.${stepId}.${fullPath}}}`;
     onInsertExpression?.(expression);
     onClose?.();
   };
@@ -397,6 +416,28 @@ const FlowResponsePicker = ({ flowRun, edges, selectedNodeId, onClose, onInsertE
                       {step.status === 'success' ? '成功' : '失败'}
                     </StepBadge>
                   </StepHeader>
+                  {step.meta && (step.meta.status !== null && step.meta.status !== undefined) && (
+                    <JsonValueTree
+                      label="status"
+                      value={step.meta.status}
+                      path=""
+                      stepId={step.stepId}
+                      depth={0}
+                      onSelect={handleSelect}
+                      rootPrefix="status"
+                    />
+                  )}
+                  {step.meta && step.meta.headers && Object.keys(step.meta.headers).length > 0 && (
+                    <JsonValueTree
+                      label="headers"
+                      value={step.meta.headers}
+                      path=""
+                      stepId={step.stepId}
+                      depth={1}
+                      onSelect={handleSelect}
+                      rootPrefix="headers"
+                    />
+                  )}
                   {step.body !== null && step.body !== undefined ? (
                     <JsonValueTree
                       label={null}

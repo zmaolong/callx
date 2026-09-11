@@ -44,6 +44,21 @@ describe('parseFlowExpression', () => {
   it('混合模板应返回 null', () => {
     expect(parseFlowExpression('token-{{$flow.step_abc.body.id}}')).toBeNull();
   });
+
+  it('应支持 status/statusText/headers/duration 根字段', () => {
+    expect(parseFlowExpression('{{$flow.step_abc.status}}')).toEqual({ stepId: 'step_abc', path: 'status' });
+    expect(parseFlowExpression('{{$flow.step_abc.statusText}}')).toEqual({ stepId: 'step_abc', path: 'statusText' });
+    expect(parseFlowExpression('{{$flow.step_abc.duration}}')).toEqual({ stepId: 'step_abc', path: 'duration' });
+    expect(parseFlowExpression('{{$flow.step_abc.headers.content-type}}')).toEqual({
+      stepId: 'step_abc',
+      path: 'headers.content-type'
+    });
+  });
+
+  it('不支持的根字段应返回 null', () => {
+    expect(parseFlowExpression('{{$flow.step_abc.data}}')).toBeNull();
+    expect(parseFlowExpression('{{$flow.step_abc.response}}')).toBeNull();
+  });
 });
 
 describe('validateFlowExpression', () => {
@@ -73,6 +88,14 @@ describe('validateFlowExpression', () => {
     const result = validateFlowExpression('{{$flow.step_abc}}');
     expect(result.valid).toBe(false);
     expect(result.error).toContain('stepId');
+  });
+
+  it('应校验根字段范围', () => {
+    expect(validateFlowExpression('{{$flow.step_abc.status}}').valid).toBe(true);
+    expect(validateFlowExpression('{{$flow.step_abc.headers.x-token}}').valid).toBe(true);
+    const invalid = validateFlowExpression('{{$flow.step_abc.data.x}}');
+    expect(invalid.valid).toBe(false);
+    expect(invalid.error).toContain('body/status');
   });
 });
 
@@ -118,6 +141,18 @@ describe('evaluateFlowExpression', () => {
   it('文本类型 body 应正确返回', () => {
     const result = evaluateFlowExpression('{{$flow.step_b.body}}', nodeResults);
     expect(result).toEqual({ value: 'plain text response', stepId: 'step_b' });
+  });
+
+  it('应支持 status/headers/duration 等元信息路径', () => {
+    expect(evaluateFlowExpression('{{$flow.step_a.status}}', nodeResults)).toEqual({ value: 200, stepId: 'step_a' });
+    expect(evaluateFlowExpression('{{$flow.step_a.duration}}', nodeResults)).toEqual({ value: 100, stepId: 'step_a' });
+    const withHeaders = {
+      step_a: { body: {}, status: 200, duration: 100, headers: { 'content-type': 'application/json' } }
+    };
+    expect(evaluateFlowExpression('{{$flow.step_a.headers.content-type}}', withHeaders)).toEqual({
+      value: 'application/json',
+      stepId: 'step_a'
+    });
   });
 });
 
