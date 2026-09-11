@@ -417,6 +417,18 @@ const FlowTab = ({ flow }) => {
     return dispatch(saveFlow(flow.uid, collectionUid));
   }, [collectionUid, flow?.uid, dispatch]);
 
+  // 一键映射下游
+  const handleQuickMap = useCallback((sourceStepId) => {
+    // 找到 sourceStepId 的第一个下游请求节点
+    const edges = flow?.flow?.edges || [];
+    const targetEdge = edges.find((e) => e.source === sourceStepId && e.target !== 'end');
+    if (!targetEdge) return;
+
+    const downstreamNodeId = targetEdge.target;
+    // 选中下游节点
+    setSelectedNodeId(downstreamNodeId);
+  }, [flow?.flow?.edges]);
+
   return (
     <StyledWrapper className="flex flex-col flex-grow">
       <div style={{ display: 'flex', flexGrow: 1, overflow: 'hidden' }}>
@@ -445,7 +457,9 @@ const FlowTab = ({ flow }) => {
           <FlowRunPanel
             flowRun={flowRun}
             nodes={flow?.flow?.nodes}
+            edges={flow?.flow?.edges}
             isRunning={isRunning}
+            onQuickMap={handleQuickMap}
           />
         </div>
         <FlowSidebar
@@ -455,6 +469,9 @@ const FlowTab = ({ flow }) => {
           onEditRequest={handleEditRequest}
           onDeleteRequest={handleDeleteRequest}
           onDuplicateRequest={handleDuplicateRequest}
+          flowRun={flowRun}
+          edges={flow?.flow?.edges}
+          nodes={flow?.flow?.nodes}
         />
       </div>
 

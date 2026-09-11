@@ -5,9 +5,11 @@ import {
   IconCopy,
   IconTrash,
   IconPlus,
-  IconCheck
+  IconCheck,
+  IconCode
 } from '@tabler/icons';
 import { validateInputMappings } from 'utils/flow/input-mapping';
+import FlowResponsePicker from './FlowResponsePicker';
 
 const SidebarContainer = styled.div`
   width: 280px;
@@ -243,13 +245,17 @@ const FlowSidebar = ({
   onUpdateInputs,
   onEditRequest,
   onDeleteRequest,
-  onDuplicateRequest
+  onDuplicateRequest,
+  flowRun,
+  edges,
+  nodes
 }) => {
   const selectedNodeId = selectedNode?.id;
   const mappingSignature = JSON.stringify(selectedNode?.data?.inputs || []);
   const [mappings, setMappings] = useState(() => getMappingsFromNode(selectedNode));
   const [mappingErrors, setMappingErrors] = useState({});
   const [isSavingMappings, setIsSavingMappings] = useState(false);
+  const [flowResponsePickerOpenIndex, setFlowResponsePickerOpenIndex] = useState(null);
 
   useEffect(() => {
     setMappings(getMappingsFromNode(selectedNode));
@@ -515,13 +521,24 @@ const FlowSidebar = ({
                 {isFlowSource ? (
                   <MappingField>
                     <InputLabel>表达式</InputLabel>
-                    <SidebarInput
-                      disabled={isSavingMappings}
-                      value={mapping.source.expression || ''}
-                      onChange={(event) => updateMappingSource(index, { expression: event.target.value })}
-                      placeholder="{{$flow.step_x.body.id}}"
-                      aria-label={`映射 ${index + 1} Flow 表达式`}
-                    />
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <SidebarInput
+                        disabled={isSavingMappings}
+                        value={mapping.source.expression || ''}
+                        onChange={(event) => updateMappingSource(index, { expression: event.target.value })}
+                        placeholder="{{$flow.step_x.body.id}}"
+                        aria-label={`映射 ${index + 1} Flow 表达式`}
+                        style={{ flex: 1 }}
+                      />
+                      <MappingButton
+                        disabled={isSavingMappings}
+                        onClick={() => setFlowResponsePickerOpenIndex(index)}
+                        title="从响应选取字段"
+                        aria-label="从响应选取字段"
+                      >
+                        <IconCode size={14} />
+                      </MappingButton>
+                    </div>
                   </MappingField>
                 ) : (
                   <>
@@ -559,6 +576,19 @@ const FlowSidebar = ({
           })
         )}
       </div>
+
+      {flowResponsePickerOpenIndex !== null && (
+        <FlowResponsePicker
+          flowRun={flowRun}
+          edges={edges}
+          selectedNodeId={selectedNode.id}
+          nodes={nodes}
+          onClose={() => setFlowResponsePickerOpenIndex(null)}
+          onInsertExpression={(expression) => {
+            updateMappingSource(flowResponsePickerOpenIndex, { expression });
+          }}
+        />
+      )}
     </SidebarContainer>
   );
 };

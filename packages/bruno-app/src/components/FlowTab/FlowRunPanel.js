@@ -8,7 +8,8 @@ import {
   IconCircleOff,
   IconRefresh,
   IconPlayerPlay,
-  IconPlayerStop
+  IconPlayerStop,
+  IconArrowRight
 } from '@tabler/icons';
 
 const spin = keyframes`
@@ -203,12 +204,32 @@ const EmptyPanel = styled.div`
   font-size: 13px;
 `;
 
+const QuickMapButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border: 1px solid ${(props) => props.theme.border?.border1 || '#e2e8f0'};
+  border-radius: 4px;
+  background: ${(props) => props.theme.background?.surface0 || '#f8fafc'};
+  color: ${(props) => props.theme.colors?.text?.subtext0 || '#64748b'};
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: ${(props) => props.theme.background?.surface1 || '#f1f5f9'};
+    color: ${(props) => props.theme.text};
+  }
+`;
+
 /**
  * 底部抽屉结果面板
  *
  * 展示 Flow 运行的步骤列表、状态、输入变量、响应详情。
  */
-const FlowRunPanel = ({ flowRun, nodes, isRunning }) => {
+const FlowRunPanel = ({ flowRun, nodes, edges, isRunning, onQuickMap }) => {
   const [expanded, setExpanded] = useState(true);
   const [expandedSteps, setExpandedSteps] = useState(new Set());
 
@@ -295,6 +316,12 @@ const FlowRunPanel = ({ flowRun, nodes, isRunning }) => {
       return { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: '已取消' };
     }
     return null;
+  };
+
+  // 检查是否有下游请求节点
+  const hasDownstreamNode = (stepId) => {
+    if (!edges) return false;
+    return edges.some((e) => e.source === stepId && e.target !== 'end');
   };
 
   // 计算步骤数
@@ -390,7 +417,21 @@ const FlowRunPanel = ({ flowRun, nodes, isRunning }) => {
                         {/* 响应体 */}
                         {state.body !== null && state.body !== undefined && (
                           <DetailSection>
-                            <DetailTitle>响应体</DetailTitle>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <DetailTitle style={{ marginBottom: 0 }}>响应体</DetailTitle>
+                              {onQuickMap && hasDownstreamNode(stepId) && (
+                                <QuickMapButton
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onQuickMap(stepId);
+                                  }}
+                                  title="映射此节点响应到下游输入"
+                                >
+                                  <IconArrowRight size={10} />
+                                  映射到下游
+                                </QuickMapButton>
+                              )}
+                            </div>
                             <JsonBlock>{formatJson(state.body)}</JsonBlock>
                           </DetailSection>
                         )}
