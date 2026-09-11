@@ -8,7 +8,9 @@ import {
   IconArrowForwardUp,
   IconLayoutNavbar,
   IconDeviceFloppy,
-  IconAlertTriangle
+  IconAlertTriangle,
+  IconLayoutSidebarRightCollapse,
+  IconLayoutSidebarRightExpand
 } from '@tabler/icons';
 
 const TopBarRoot = styled.div`
@@ -181,7 +183,9 @@ const FlowTopBar = ({
   onAutoLayout,
   onSave,
   errors,
-  onFocusError
+  onFocusError,
+  workbenchCollapsed,
+  onToggleWorkbench
 }) => {
   const [errorPopoverOpen, setErrorPopoverOpen] = useState(false);
   const popoverRef = useRef(null);
@@ -260,6 +264,15 @@ const FlowTopBar = ({
         </IconButton>
         <IconButton onClick={onRedo} disabled={!canRedo} title="重做 (Ctrl+Shift+Z)">
           <IconArrowForwardUp size={15} />
+        </IconButton>
+        <IconButton
+          onClick={onToggleWorkbench}
+          title={workbenchCollapsed ? '唤起工作台面板' : '隐藏工作台面板'}
+          aria-label={workbenchCollapsed ? '唤起工作台面板' : '隐藏工作台面板'}
+        >
+          {workbenchCollapsed
+            ? <IconLayoutSidebarRightExpand size={15} />
+            : <IconLayoutSidebarRightCollapse size={15} />}
         </IconButton>
 
         {hasErrors && (

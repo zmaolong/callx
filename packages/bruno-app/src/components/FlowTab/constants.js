@@ -51,20 +51,14 @@ export const METHOD_COLORS = {
 export const getMethodColor = (method) => METHOD_COLORS[String(method || '').toUpperCase()] || '#64748b';
 
 // 节点工作台（右侧面板）尺寸约束（px）
-export const WORKBENCH_MIN_WIDTH = 320;
+export const WORKBENCH_MIN_WIDTH = 240;
 export const WORKBENCH_DEFAULT_WIDTH = 420;
 // 可拖拽上限：视口宽度的 60%
 export const WORKBENCH_MAX_VIEWPORT_RATIO = 0.6;
+// 拖拽宽度低于该阈值时面板完全隐藏
+export const WORKBENCH_HIDE_THRESHOLD = 240;
 export const WORKBENCH_WIDTH_STORAGE_KEY = 'bruno.flowWorkbenchWidth';
 export const WORKBENCH_COLLAPSED_STORAGE_KEY = 'bruno.flowWorkbenchCollapsed';
-
-// 底部运行条
-export const RUN_BAR_HEIGHT = 36;
-// 展开态默认高度：视口高度的 40%
-export const RUN_BAR_DEFAULT_EXPANDED_RATIO = 0.4;
-export const RUN_BAR_MIN_EXPANDED_HEIGHT = 120;
-export const RUN_BAR_COLLAPSED_STORAGE_KEY = 'bruno.flowRunBarCollapsed';
-export const RUN_BAR_EXPANDED_HEIGHT_STORAGE_KEY = 'bruno.flowRunBarExpandedHeight';
 
 const OPERATOR_SYMBOLS = {
   eq: '=',

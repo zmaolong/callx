@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import {
   IconPencil,
@@ -8,8 +8,6 @@ import {
   IconCode,
   IconMaximize,
   IconMinimize,
-  IconChevronRight,
-  IconChevronLeft,
   IconArrowRight,
   IconRefresh,
   IconCircleCheck,
@@ -26,8 +24,8 @@ import {
   WORKBENCH_MIN_WIDTH,
   WORKBENCH_DEFAULT_WIDTH,
   WORKBENCH_MAX_VIEWPORT_RATIO,
-  WORKBENCH_WIDTH_STORAGE_KEY,
-  WORKBENCH_COLLAPSED_STORAGE_KEY
+  WORKBENCH_HIDE_THRESHOLD,
+  WORKBENCH_WIDTH_STORAGE_KEY
 } from './constants';
 
 const spin = keyframes`
@@ -66,36 +64,6 @@ const WorkbenchContainer = styled.div`
   border-left: 1px solid ${(props) => props.theme.border.border1};
   flex-shrink: 0;
   min-height: 0;
-`;
-
-const CollapsedBar = styled.div`
-  width: 28px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 10px;
-  background: ${(props) => props.theme.background.base};
-  border-left: 1px solid ${(props) => props.theme.border.border1};
-`;
-
-const CollapseButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: ${(props) => props.theme.border.radius.sm};
-  background: transparent;
-  color: ${(props) => props.theme.colors.text.muted};
-  cursor: pointer;
-
-  &:hover {
-    background: ${(props) => props.theme.background.surface1};
-    color: ${(props) => props.theme.text};
-  }
 `;
 
 const TabHeader = styled.div`
@@ -430,6 +398,83 @@ const QuickMapButton = styled.button`
   }
 `;
 
+// 运行总览步骤列表
+const OverviewSteps = styled.div`
+  border: 1px solid ${(props) => props.theme.border.border1};
+  border-radius: ${(props) => props.theme.border.radius.sm};
+  background: ${(props) => props.theme.background.surface0};
+  overflow: hidden;
+`;
+
+const OverviewStepRow = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-left: 3px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: ${(props) => props.theme.text};
+  text-align: left;
+
+  & + & {
+    border-top: 1px solid ${(props) => props.theme.border.border1};
+  }
+
+  &:hover {
+    background: ${(props) => props.theme.background.surface1};
+  }
+
+  ${(props) => props.$active && `
+    background: ${props.theme.background.surface1};
+    border-left-color: ${props.theme.colors?.accent || '#3b82f6'};
+  `}
+
+  ${(props) => props.$failed && `
+    border-left-color: ${props.theme.status?.danger?.text || '#ef4444'};
+  `}
+`;
+
+const StepStatusText = styled.span`
+  min-width: 40px;
+  color: ${(props) => props.$color};
+  font-weight: 600;
+  flex-shrink: 0;
+`;
+
+const StepNameText = styled.span`
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 40%;
+`;
+
+const StepErrorText = styled.span`
+  flex: 1;
+  min-width: 0;
+  color: ${(props) => props.theme.status?.danger?.text || '#ef4444'};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const StepDurationText = styled.span`
+  margin-left: auto;
+  color: ${(props) => props.theme.colors?.text?.subtext0 || '#64748b'};
+  flex-shrink: 0;
+`;
+
+const StepHttpStatusText = styled.span`
+  color: ${(props) => (props.$ok ? STATUS_COLORS.success : STATUS_COLORS.failed)};
+  font-weight: 600;
+  flex-shrink: 0;
+`;
+
 // 请求预览折叠块
 const RequestPreview = styled.details`
   border: 1px solid ${(props) => props.theme.border.border1};
@@ -550,6 +595,9 @@ const FlowWorkbench = ({
   nodes,
   requestItem,
   collection,
+  collapsed,
+  onCollapsedChange,
+  onSelectStep,
   onUpdateNode,
   onUpdateInputs,
   onEditRequest,
@@ -566,7 +614,7 @@ const FlowWorkbench = ({
   const [expandedExprIndex, setExpandedExprIndex] = useState(null);
   const [responseFullscreen, setResponseFullscreen] = useState(false);
 
-  // 面板宽度 / 折叠状态（持久化到 localStorage）
+  // 面板宽度（持久化到 localStorage）；折叠状态由父组件持有（顶栏按钮可切换）
   const [width, setWidth] = useState(() => {
     const stored = Number(window.localStorage?.getItem(WORKBENCH_WIDTH_STORAGE_KEY));
     if (!stored || stored < WORKBENCH_MIN_WIDTH) {
@@ -576,9 +624,6 @@ const FlowWorkbench = ({
     const maxWidth = Math.max(WORKBENCH_MIN_WIDTH, Math.round(window.innerWidth * WORKBENCH_MAX_VIEWPORT_RATIO));
     return Math.min(maxWidth, stored);
   });
-  const [collapsed, setCollapsed] = useState(
-    () => window.localStorage?.getItem(WORKBENCH_COLLAPSED_STORAGE_KEY) === '1'
-  );
   const [dragging, setDragging] = useState(false);
   const dragStateRef = useRef(null);
   const containerRef = useRef(null);
@@ -598,7 +643,14 @@ const FlowWorkbench = ({
     const handleMouseMove = (e) => {
       const state = dragStateRef.current;
       if (!state || state.startX === undefined) return;
-      state.nextWidth = clamp(state.startWidth + (state.startX - e.clientX));
+      const next = state.startWidth + (state.startX - e.clientX);
+      // 拖到阈值以下：面板完全隐藏，松手后可从顶栏按钮重新唤起
+      if (next < WORKBENCH_HIDE_THRESHOLD) {
+        state.nextWidth = null; // 不记录过窄的宽度
+        onCollapsedChange?.(true);
+        return;
+      }
+      state.nextWidth = clamp(next);
       if (containerRef.current) {
         containerRef.current.style.width = `${state.nextWidth}px`;
       }
@@ -617,14 +669,7 @@ const FlowWorkbench = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragging]);
-
-  const toggleCollapsed = useCallback(() => {
-    setCollapsed((prev) => {
-      window.localStorage?.setItem(WORKBENCH_COLLAPSED_STORAGE_KEY, prev ? '0' : '1');
-      return !prev;
-    });
-  }, []);
+  }, [dragging, onCollapsedChange]);
 
   // 外部数据同步（切换节点或 Redux inputs 变化）时跳过一次自动保存
   const skipAutosaveRef = useRef(true);
@@ -635,8 +680,12 @@ const FlowWorkbench = ({
     setMappingErrors({});
     setExpandedExprIndex(null);
     skipAutosaveRef.current = true;
-    // 切换节点时回到配置 Tab，避免停留在上一节点的结果页
-    setActiveTab('config');
+    // 切换节点时默认回到配置 Tab；从结果 Tab 总览切换时保持结果 Tab
+    if (suppressTabResetRef.current) {
+      suppressTabResetRef.current = false;
+    } else {
+      setActiveTab('config');
+    }
     setResponseFullscreen(false);
   }, [selectedNodeId, mappingSignature]);
 
@@ -762,19 +811,144 @@ const FlowWorkbench = ({
     return edges.some((e) => e.source === stepId && e.target !== 'end');
   };
 
-  const renderResultTab = () => {
+  // 从结果 Tab 总览中切换选中节点时，保持在结果 Tab（抑制切换节点默认回配置 Tab）
+  const suppressTabResetRef = useRef(false);
+  const handleSelectStepFromOverview = (stepId) => {
+    suppressTabResetRef.current = true;
+    onSelectStep?.(stepId);
+  };
+
+  // 运行总览：整体状态 + 各步骤摘要（点击定位节点，详情见下方区块）
+  const stepEntries = useMemo(() => {
+    if (!flowRun?.nodes) return [];
+    return Object.entries(flowRun.nodes).filter(
+      ([stepId]) => stepId !== 'start' && stepId !== 'end'
+    );
+  }, [flowRun?.nodes]);
+
+  const getNodeName = useCallback((stepId) => {
+    const node = nodes?.find((n) => n.id === stepId);
+    return node ? (node.alias || node.id) : stepId;
+  }, [nodes]);
+
+  const totalDuration = useMemo(() => {
+    if (!flowRun?.nodes) return null;
+    let total = 0;
+    let hasNonZero = false;
+    for (const state of Object.values(flowRun.nodes)) {
+      if (state.duration != null && state.duration > 0) {
+        total += state.duration;
+        hasNonZero = true;
+      }
+    }
+    return hasNonZero ? total : null;
+  }, [flowRun?.nodes]);
+
+  const getFlowStatusInfo = () => {
+    if (flowRun?.status === 'running') {
+      return { bg: STATUS_BADGE_BG.running, color: STATUS_COLORS.running, label: '运行中' };
+    }
+    if (flowRun?.status === 'success') {
+      return { bg: STATUS_BADGE_BG.success, color: STATUS_COLORS.success, label: '成功' };
+    }
+    if (flowRun?.status === 'failed') {
+      return { bg: STATUS_BADGE_BG.failed, color: STATUS_COLORS.failed, label: '失败' };
+    }
+    if (flowRun?.status === 'cancelled') {
+      return { bg: STATUS_BADGE_BG.cancelled, color: STATUS_COLORS.cancelled, label: '已取消' };
+    }
+    return null;
+  };
+
+  const renderRunOverview = () => {
+    if (!flowRun) {
+      return (
+        <DetailSection>
+          <DetailTitle>运行总览</DetailTitle>
+          <MutedText>尚未运行，点击顶栏「运行」或「单跑此节点」开始</MutedText>
+        </DetailSection>
+      );
+    }
+
+    const flowStatusInfo = getFlowStatusInfo();
+    const executedCount = stepEntries.filter(([, state]) => state.status !== 'idle').length;
+
+    return (
+      <DetailSection>
+        <DetailTitleRow>
+          <DetailTitle>运行总览</DetailTitle>
+          {flowStatusInfo && (
+            <StatusBadge $bg={flowStatusInfo.bg} $color={flowStatusInfo.color}>
+              {flowRun.status === 'running' && <SpinningIcon size={12} />}
+              {flowStatusInfo.label}
+            </StatusBadge>
+          )}
+        </DetailTitleRow>
+        <OverviewSteps>
+          {stepEntries.map(([stepId, state]) => {
+            const statusInfo = getRunStatusInfo(state.status);
+            const isFailed = state.status === 'failed';
+            return (
+              <OverviewStepRow
+                key={stepId}
+                $active={selectedNodeId === stepId}
+                $failed={isFailed}
+                onClick={() => handleSelectStepFromOverview(stepId)}
+                title="点击查看该步骤详情"
+              >
+                <StepStatusText $color={statusInfo?.color}>{statusInfo?.label}</StepStatusText>
+                <StepNameText>{getNodeName(stepId)}</StepNameText>
+                {isFailed && state.error && (
+                  <StepErrorText title={String(state.error)}>
+                    {String(state.error).split('\n')[0]}
+                  </StepErrorText>
+                )}
+                {state.duration !== null && state.duration !== undefined && (
+                  <StepDurationText>{state.duration}ms</StepDurationText>
+                )}
+                {state.httpStatus !== null && state.httpStatus !== undefined && (
+                  <StepHttpStatusText $ok={state.httpStatus < 400}>{state.httpStatus}</StepHttpStatusText>
+                )}
+              </OverviewStepRow>
+            );
+          })}
+        </OverviewSteps>
+        <ResultMeta style={{ display: 'block', marginTop: 6 }}>
+          {executedCount}/{stepEntries.length} 步{totalDuration !== null ? ` · 总耗时 ${totalDuration}ms` : ''}
+        </ResultMeta>
+      </DetailSection>
+    );
+  };
+
+  // 选中节点的运行详情
+  const renderNodeDetail = () => {
     if (!selectedNode) {
-      return <EmptyContent>选择一个节点查看运行结果</EmptyContent>;
+      return (
+        <DetailSection>
+          <DetailTitle>节点详情</DetailTitle>
+          <MutedText>点击总览中的步骤或画布节点查看详情</MutedText>
+        </DetailSection>
+      );
     }
 
     const nodeType = selectedNode.data?.type || selectedNode.type;
     if (nodeType === 'start' || nodeType === 'end') {
-      return <EmptyContent>Start / End 节点不产生运行结果</EmptyContent>;
+      return (
+        <DetailSection>
+          <DetailTitle>节点详情</DetailTitle>
+          <MutedText>Start / End 节点不产生运行结果</MutedText>
+        </DetailSection>
+      );
     }
 
     const runState = flowRun?.nodes?.[selectedNode.id];
     if (!runState || runState.status === 'idle') {
-      return <EmptyContent>该节点尚未运行，点击顶栏「运行」或「单跑此节点」开始</EmptyContent>;
+      return (
+        <DetailSection>
+          <DetailTitle>节点详情</DetailTitle>
+          <MutedText>该节点尚未运行，点击顶栏「运行」或「单跑此节点」开始</MutedText>
+        </DetailSection>
+      );
     }
 
     const statusInfo = getRunStatusInfo(runState.status);
@@ -909,6 +1083,13 @@ const FlowWorkbench = ({
       </>
     );
   };
+
+  const renderResultTab = () => (
+    <>
+      {renderRunOverview()}
+      {renderNodeDetail()}
+    </>
+  );
 
   const renderConfigTab = () => {
     if (!selectedNode) {
@@ -1172,16 +1353,9 @@ const FlowWorkbench = ({
     );
   };
 
+  // 完全隐藏：不渲染任何内容，通过顶栏按钮唤起
   if (collapsed) {
-    return (
-      <WorkbenchRoot>
-        <CollapsedBar>
-          <CollapseButton onClick={toggleCollapsed} title="展开工作台" aria-label="展开工作台">
-            <IconChevronLeft size={16} />
-          </CollapseButton>
-        </CollapsedBar>
-      </WorkbenchRoot>
-    );
+    return null;
   }
 
   // 结果 Tab 上的状态点
@@ -1192,7 +1366,7 @@ const FlowWorkbench = ({
     <WorkbenchRoot>
       <ResizeHandle
         onMouseDown={handleResizeStart}
-        title="拖拽调整工作台宽度"
+        title="拖拽调整宽度，拖到最窄可完全隐藏"
       />
       <WorkbenchContainer ref={containerRef} $width={width}>
         <TabHeader>
@@ -1209,11 +1383,6 @@ const FlowWorkbench = ({
             {tabDotColor && <TabStatusDot $color={tabDotColor} />}
             运行结果
           </TabButton>
-          <div style={{ marginLeft: 'auto' }}>
-            <CollapseButton onClick={toggleCollapsed} title="折叠工作台" aria-label="折叠工作台">
-              <IconChevronRight size={16} />
-            </CollapseButton>
-          </div>
         </TabHeader>
         <TabBody>
           {activeTab === 'config' ? renderConfigTab() : renderResultTab()}

@@ -265,29 +265,35 @@ describe('FlowWorkbench 错误处理', () => {
   });
 });
 
-describe('FlowWorkbench 折叠', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
+describe('FlowWorkbench 折叠（受控）', () => {
+  it('collapsed=false 渲染面板，collapsed=true 时面板完全不渲染', () => {
+    const onCollapsedChange = jest.fn();
 
-  it('折叠后显示收起条，点击可重新展开', async () => {
-    const user = userEvent.setup();
-
-    renderWithTheme(
+    const { rerender } = renderWithTheme(
       <FlowWorkbench
         selectedNode={selectedNode}
+        collapsed={false}
+        onCollapsedChange={onCollapsedChange}
         onUpdateNode={jest.fn()}
         onUpdateInputs={jest.fn()}
       />
     );
-
-    await user.click(screen.getByRole('button', { name: '折叠工作台' }));
-    expect(screen.queryByLabelText('别名 (Alias)')).not.toBeInTheDocument();
-    expect(window.localStorage.getItem('bruno.flowWorkbenchCollapsed')).toBe('1');
-
-    await user.click(screen.getByRole('button', { name: '展开工作台' }));
     expect(screen.getByLabelText('别名 (Alias)')).toBeInTheDocument();
-    expect(window.localStorage.getItem('bruno.flowWorkbenchCollapsed')).toBe('0');
+
+    rerender(
+      <ThemeProvider theme={theme}>
+        <FlowWorkbench
+          selectedNode={selectedNode}
+          collapsed={true}
+          onCollapsedChange={onCollapsedChange}
+          onUpdateNode={jest.fn()}
+          onUpdateInputs={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+
+    // 完全隐藏：不渲染任何内容，唤起只能通过顶栏按钮
+    expect(screen.queryByLabelText('别名 (Alias)')).not.toBeInTheDocument();
   });
 });
 
@@ -296,7 +302,7 @@ describe('FlowWorkbench 运行结果 Tab', () => {
     window.localStorage.clear();
   });
 
-  it('展示成功节点的状态、耗时与 HTTP 状态码', async () => {
+  it('展示运行总览与成功节点的状态、耗时与 HTTP 状态码', async () => {
     const user = userEvent.setup();
     const flowRun = {
       status: 'success',
@@ -316,18 +322,23 @@ describe('FlowWorkbench 运行结果 Tab', () => {
       <FlowWorkbench
         selectedNode={selectedNode}
         flowRun={flowRun}
+        nodes={[{ id: 'step_b', type: 'request', alias: '查询供应商', position: { x: 0, y: 0 } }]}
         onUpdateNode={jest.fn()}
         onUpdateInputs={jest.fn()}
       />
     );
 
     await user.click(screen.getByRole('button', { name: /运行结果/ }));
-    expect(screen.getByText('成功')).toBeInTheDocument();
-    expect(screen.getByText('120ms')).toBeInTheDocument();
+    // 总览与详情中都会出现状态徽标与耗时
+    expect(screen.getAllByText('成功').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('120ms').length).toBeGreaterThan(0);
     expect(screen.getByText('HTTP 200')).toBeInTheDocument();
+    // 总览步骤行：显示节点别名，点击后定位节点
+    expect(screen.getByText('查询供应商')).toBeInTheDocument();
+    expect(screen.getByText(/1\/1 步/)).toBeInTheDocument();
   });
 
-  it('节点未运行时显示空态提示', async () => {
+  it('未运行时总览与详情分别显示空态提示', async () => {
     const user = userEvent.setup();
 
     renderWithTheme(
@@ -339,6 +350,7 @@ describe('FlowWorkbench 运行结果 Tab', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /运行结果/ }));
+    expect(screen.getByText(/^尚未运行，点击顶栏/)).toBeInTheDocument();
     expect(screen.getByText(/该节点尚未运行/)).toBeInTheDocument();
   });
 });

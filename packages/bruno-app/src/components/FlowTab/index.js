@@ -3,7 +3,6 @@ import { useDispatch, useSelector, useStore } from 'react-redux';
 import FlowCanvas from './FlowCanvas';
 import FlowTopBar from './FlowTopBar';
 import FlowWorkbench from './FlowWorkbench';
-import FlowRunBar from './FlowRunBar';
 import FlowConditionModal from './FlowConditionModal';
 import StyledWrapper from './StyledWrapper';
 import { reconcileFlowNodes, removeOrphanedNodes } from 'utils/flow/reconcile';
@@ -27,6 +26,7 @@ import { clearFlowRunState } from 'providers/ReduxStore/slices/flowRun';
 import { useFlowUndo } from 'hooks/useFlowUndo';
 import Modal from 'components/Modal';
 import toast from 'react-hot-toast';
+import { WORKBENCH_COLLAPSED_STORAGE_KEY } from './constants';
 
 const FlowTab = ({ flow }) => {
   const dispatch = useDispatch();
@@ -36,8 +36,17 @@ const FlowTab = ({ flow }) => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   // 正在配置条件的边（右键菜单「配置条件」打开弹窗）
   const [conditionEdge, setConditionEdge] = useState(null);
+  // 右侧工作台折叠状态（顶栏按钮与面板内按钮共用；持久化 localStorage）
+  const [workbenchCollapsed, setWorkbenchCollapsed] = useState(
+    () => window.localStorage?.getItem(WORKBENCH_COLLAPSED_STORAGE_KEY) === '1'
+  );
   // ReactFlow 实例（用于节点定位 setCenter）
   const canvasInstanceRef = useRef(null);
+
+  const handleWorkbenchCollapsedChange = useCallback((next) => {
+    setWorkbenchCollapsed(next);
+    window.localStorage?.setItem(WORKBENCH_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
+  }, []);
 
   const flowRun = useSelector((state) => state.flowRun?.runs?.[flow?.uid]);
   const collections = useSelector((state) => state.collections.collections);
@@ -424,6 +433,13 @@ const FlowTab = ({ flow }) => {
     };
   }, [flow?.uid, dispatch]);
 
+  // 开始运行时自动唤起右侧工作台（运行结果都在面板中展示）
+  useEffect(() => {
+    if (flowRun?.status === 'running') {
+      handleWorkbenchCollapsedChange(false);
+    }
+  }, [flowRun?.status, handleWorkbenchCollapsedChange]);
+
   // 校验错误（附加节点显示名，供顶栏错误弹层展示与定位）
   const errors = useMemo(() => {
     if (!flow?.flow) return [];
@@ -632,6 +648,8 @@ const FlowTab = ({ flow }) => {
         onSave={handleManualSave}
         errors={errors}
         onFocusError={handleFocusError}
+        workbenchCollapsed={workbenchCollapsed}
+        onToggleWorkbench={() => handleWorkbenchCollapsedChange(!workbenchCollapsed)}
       />
 
       <div style={{ display: 'flex', flexGrow: 1, overflow: 'hidden', minHeight: 0 }}>
@@ -659,6 +677,9 @@ const FlowTab = ({ flow }) => {
           nodes={flow?.flow?.nodes}
           requestItem={selectedRequestItem}
           collection={collection}
+          collapsed={workbenchCollapsed}
+          onCollapsedChange={handleWorkbenchCollapsedChange}
+          onSelectStep={focusNode}
           onUpdateNode={handleUpdateNode}
           onUpdateInputs={handleUpdateNodeInputs}
           onEditRequest={handleEditRequest}
@@ -667,15 +688,6 @@ const FlowTab = ({ flow }) => {
           onQuickMap={handleQuickMap}
         />
       </div>
-
-      <FlowRunBar
-        flowRun={flowRun}
-        nodes={flow?.flow?.nodes}
-        edges={flow?.flow?.edges}
-        isRunning={isRunning}
-        selectedNodeId={selectedNodeId}
-        onSelectStep={focusNode}
-      />
 
       {deleteTarget && (
         <Modal
