@@ -548,6 +548,105 @@ describe('Flow 执行器核心逻辑', () => {
     });
   });
 
+  describe('断言感知', () => {
+    const okWithAssertions = (assertionResults, body = { ok: true }) => ({
+      ...okResponse(body),
+      assertionResults
+    });
+
+    it('全部断言通过时节点应为 success 且保存断言明细', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okWithAssertions([
+        { uid: 'a1', lhsExpr: 'res.status', operator: 'eq', rhsExpr: '200', status: 'pass' },
+        { uid: 'a2', lhsExpr: 'res.body.ok', operator: 'eq', rhsExpr: 'true', status: 'pass' }
+      ]));
+
+      const result = await runExecuteFlow(
+        harness,
+        [makeNode('step_a')],
+        [makeEdge('start', 'step_a'), makeEdge('step_a', 'end')]
+      );
+
+      expect(result.success).toBe(true);
+      expect(statusOf(harness, 'step_a')).toBe(NODE_STATUS.SUCCESS);
+      const nodeState = harness.getRun().nodes.step_a;
+      expect(nodeState.assertionResults).toHaveLength(2);
+    });
+
+    it('断言失败时应判定节点 failed 并走 stop 策略', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okWithAssertions([
+        { uid: 'a1', lhsExpr: 'res.status', operator: 'eq', rhsExpr: '200', status: 'pass' },
+        { uid: 'a2', lhsExpr: 'res.body.code', operator: 'eq', rhsExpr: '0', status: 'fail', error: 'expected 1 to equal 0' }
+      ]));
+
+      const result = await runExecuteFlow(
+        harness,
+        [makeNode('step_a'), makeNode('step_b')],
+        [makeEdge('start', 'step_a'), makeEdge('step_a', 'step_b'), makeEdge('step_b', 'end')]
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('断言失败');
+      expect(statusOf(harness, 'step_a')).toBe(NODE_STATUS.FAILED);
+      expect(statusOf(harness, 'step_b')).toBe(NODE_STATUS.SKIPPED);
+      expect(harness.getRun()?.status).toBe(FLOW_STATUS.FAILED);
+      // 断言明细随节点状态保存
+      expect(harness.getRun().nodes.step_a.assertionResults).toHaveLength(2);
+      // 断言失败时 HTTP 请求已成功，body 应保留供查看
+      expect(harness.getRun().nodes.step_a.body).toEqual({ ok: true });
+    });
+
+    it('断言失败 + continue 策略时应继续执行下游', async () => {
+      const harness = makeHarness();
+      let callCount = 0;
+      sendNetworkRequest.mockImplementation(() => {
+        callCount += 1;
+        if (callCount === 1) {
+          return Promise.resolve(okWithAssertions([
+            { uid: 'a1', lhsExpr: 'res.body.ok', operator: 'eq', rhsExpr: 'true', status: 'fail', error: 'expected false' }
+          ]));
+        }
+        return Promise.resolve(okResponse());
+      });
+
+      const result = await runExecuteFlow(
+        harness,
+        [makeNode('step_a', { errorHandler: { strategy: 'continue' } }), makeNode('step_b')],
+        [makeEdge('start', 'step_a'), makeEdge('step_a', 'step_b'), makeEdge('step_b', 'end')]
+      );
+
+      expect(result.success).toBe(true);
+      expect(statusOf(harness, 'step_a')).toBe(NODE_STATUS.FAILED);
+      expect(statusOf(harness, 'step_b')).toBe(NODE_STATUS.SUCCESS);
+      // 失败节点的响应数据仍在 flowContext，断言明细保留
+      expect(harness.getRun().nodes.step_a.assertionResults).toHaveLength(1);
+    });
+
+    it('单跑节点断言失败应标 failed（不触发错误策略）', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okWithAssertions([
+        { uid: 'a1', lhsExpr: 'res.body.ok', operator: 'eq', rhsExpr: 'true', status: 'fail', error: 'expected false' }
+      ]));
+
+      const result = await executeSingleNode({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: makeGraph([makeNode('step_a')], []),
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('step_a'),
+        stepId: 'step_a',
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('断言失败');
+      expect(statusOf(harness, 'step_a')).toBe(NODE_STATUS.FAILED);
+      expect(harness.getRun().nodes.step_a.assertionResults).toHaveLength(1);
+    });
+  });
+
   describe('图校验失败', () => {
     it('图缺少 Start 节点时应返回失败且不初始化运行态', async () => {
       const harness = makeHarness();

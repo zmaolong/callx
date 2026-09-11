@@ -1175,6 +1175,9 @@ const registerNetworkIpc = (mainWindow) => {
             runtimeVariables,
             processEnvVars);
 
+          // 断言结果附加到响应：Flow 执行器据此判定节点成败（请求 Tab 仍走事件通道展示）
+          response.assertionResults = results;
+
           !runInBackground && mainWindow.webContents.send('main:run-request-event', {
             type: 'assertion-results',
             results: results,

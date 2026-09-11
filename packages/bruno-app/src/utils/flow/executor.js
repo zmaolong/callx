@@ -40,6 +40,15 @@ function isCancelledError(error) {
 }
 
 /**
+ * 提取请求断言结果与失败项（主进程将 assertionResults 附加在响应上）。
+ */
+function extractAssertionResults(response) {
+  const results = Array.isArray(response?.assertionResults) ? response.assertionResults : [];
+  const failed = results.filter((r) => r.status === 'fail');
+  return { results, failed };
+}
+
+/**
  * 执行 Flow。
  *
  * @param {Object} options
@@ -286,34 +295,67 @@ export async function executeFlow({
           }
           // continue → 走下方分支选择
         } else {
-          // 成功
-          flowContext[stepId] = {
-            body: response.data,
-            status: response.status,
-            duration: response.duration ?? duration,
-            headers: response.headers || null,
-            statusText: response.statusText ?? null
-          };
+          // 断言检查：任一断言失败即节点失败，走错误处理策略
+          const { results: assertionResults, failed: failedAssertions } = extractAssertionResults(response);
+          if (failedAssertions.length > 0) {
+            const assertError = `断言失败 (${assertionResults.length - failedAssertions.length}/${assertionResults.length} 通过): ${failedAssertions.map((a) => a.lhsExpr).join('; ')}`;
+            const outcome = await handleNodeError({
+              flowUid,
+              node,
+              stepId,
+              error: assertError,
+              body: response.data || null,
+              httpStatus: response.status || null,
+              duration: response.duration ?? duration,
+              requestSent: response.requestSent || null,
+              inputVariables: variables,
+              assertionResults,
+              flowContext,
+              dispatch
+            });
+            if (outcome.type === 'stop') {
+              return failFlow(assertError, remainingAfter(i));
+            }
+            if (outcome.type === 'jump') {
+              const targetIndex = executionPath.findIndex((s) => s.stepId === outcome.jumpToNodeId);
+              if (targetIndex > i) {
+                i = advanceTo(i, targetIndex);
+                continue;
+              }
+              return failFlow(`jump 目标不可达：${outcome.jumpToNodeId}`, remainingAfter(i));
+            }
+            // continue → 走下方分支选择（响应数据已在 flowContext，条件仍可引用）
+          } else {
+            // 成功
+            flowContext[stepId] = {
+              body: response.data,
+              status: response.status,
+              duration: response.duration ?? duration,
+              headers: response.headers || null,
+              statusText: response.statusText ?? null
+            };
 
-          dispatch(updateFlowNodeStatus({
-            flowUid,
-            stepId,
-            status: NODE_STATUS.SUCCESS,
-            body: response.data,
-            httpStatus: response.status,
-            duration,
-            inputVariables: variables,
-            requestSent: response.requestSent || null,
-            headers: response.headers || null,
-            dataBuffer: response.dataBuffer || null,
-            size: response.size ?? null,
-            statusText: response.statusText ?? null
-          }));
+            dispatch(updateFlowNodeStatus({
+              flowUid,
+              stepId,
+              status: NODE_STATUS.SUCCESS,
+              body: response.data,
+              httpStatus: response.status,
+              duration,
+              inputVariables: variables,
+              requestSent: response.requestSent || null,
+              headers: response.headers || null,
+              dataBuffer: response.dataBuffer || null,
+              size: response.size ?? null,
+              statusText: response.statusText ?? null,
+              assertionResults: assertionResults.length > 0 ? assertionResults : null
+            }));
 
-          // 「运行到此节点」：执行完目标节点后立即视为成功结束
-          if (stepId === stopAtNodeId) {
-            dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.SUCCESS }));
-            return { success: true, stoppedAt: stopAtNodeId };
+            // 「运行到此节点」：执行完目标节点后立即视为成功结束
+            if (stepId === stopAtNodeId) {
+              dispatch(setFlowRunStatus({ flowUid, status: FLOW_STATUS.SUCCESS }));
+              return { success: true, stoppedAt: stopAtNodeId };
+            }
           }
         }
       }
@@ -506,6 +548,29 @@ export async function executeSingleNode({
     return { success: false, error: response.error };
   }
 
+  // 断言检查：单跑不走错误策略，但断言失败同样判定节点失败
+  const { results: assertionResults, failed: failedAssertions } = extractAssertionResults(response);
+  if (failedAssertions.length > 0) {
+    const assertError = `断言失败 (${assertionResults.length - failedAssertions.length}/${assertionResults.length} 通过): ${failedAssertions.map((a) => a.lhsExpr).join('; ')}`;
+    dispatch(updateFlowNodeStatus({
+      flowUid,
+      stepId,
+      status: NODE_STATUS.FAILED,
+      body: response.data || null,
+      httpStatus: response.status,
+      duration: response.duration ?? duration,
+      error: assertError,
+      inputVariables: variables,
+      requestSent: response.requestSent || null,
+      headers: response.headers || null,
+      dataBuffer: response.dataBuffer || null,
+      size: response.size ?? null,
+      statusText: response.statusText ?? null,
+      assertionResults
+    }));
+    return { success: false, error: assertError };
+  }
+
   dispatch(updateFlowNodeStatus({
     flowUid,
     stepId,
@@ -518,7 +583,8 @@ export async function executeSingleNode({
     headers: response.headers || null,
     dataBuffer: response.dataBuffer || null,
     size: response.size ?? null,
-    statusText: response.statusText ?? null
+    statusText: response.statusText ?? null,
+    assertionResults: assertionResults.length > 0 ? assertionResults : null
   }));
   return { success: true };
 }
@@ -541,6 +607,7 @@ async function handleNodeError({
   duration,
   requestSent,
   inputVariables,
+  assertionResults,
   flowContext,
   dispatch
 }) {
@@ -557,7 +624,8 @@ async function handleNodeError({
     duration: duration || null,
     error,
     inputVariables: inputVariables || null,
-    requestSent: requestSent || null
+    requestSent: requestSent || null,
+    assertionResults: assertionResults || null
   }));
 
   if (strategy === 'continue') {

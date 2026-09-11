@@ -379,6 +379,54 @@ const ErrorText = styled.div`
   word-break: break-all;
 `;
 
+const AssertionList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const AssertionRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: ${(props) => props.$failed
+    ? props.theme.status.danger?.background || 'rgba(239,68,68,0.08)'
+    : props.theme.status.success?.background || 'rgba(34,197,94,0.08)'};
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+`;
+
+const AssertionRowHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: ${(props) => props.theme.text};
+  word-break: break-all;
+`;
+
+const AssertionStatusDot = styled.span`
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: ${(props) => props.$failed
+    ? props.theme.status.danger?.text || '#ef4444'
+    : props.theme.status.success?.text || '#22c55e'};
+`;
+
+const AssertionExpr = styled.span`
+  flex: 1;
+  min-width: 0;
+`;
+
+const AssertionErrorText = styled.span`
+  color: ${(props) => props.theme.status.danger?.text || '#ef4444'};
+  font-size: 11px;
+  word-break: break-all;
+`;
+
 const QuickMapButton = styled.button`
   display: inline-flex;
   align-items: center;
@@ -977,6 +1025,29 @@ const FlowWorkbench = ({
           <DetailSection>
             <DetailTitle>错误</DetailTitle>
             <ErrorText>{runState.error}</ErrorText>
+          </DetailSection>
+        )}
+
+        {runState.assertionResults && runState.assertionResults.length > 0 && (
+          <DetailSection>
+            <DetailTitle>
+              {`断言 (${runState.assertionResults.filter((a) => a.status === 'pass').length}/${runState.assertionResults.length} 通过)`}
+            </DetailTitle>
+            <AssertionList>
+              {runState.assertionResults.map((assertion, index) => (
+                <AssertionRow key={assertion.uid || index} $failed={assertion.status === 'fail'}>
+                  <AssertionRowHead>
+                    <AssertionStatusDot $failed={assertion.status === 'fail'} />
+                    <AssertionExpr>
+                      {assertion.lhsExpr} {assertion.operator} {assertion.rhsExpr}
+                    </AssertionExpr>
+                  </AssertionRowHead>
+                  {assertion.status === 'fail' && assertion.error && (
+                    <AssertionErrorText>{assertion.error}</AssertionErrorText>
+                  )}
+                </AssertionRow>
+              ))}
+            </AssertionList>
           </DetailSection>
         )}
 

@@ -69,7 +69,8 @@ const flowRunSlice = createSlice({
           headers: null,
           dataBuffer: null,
           size: null,
-          statusText: null
+          statusText: null,
+          assertionResults: null
         };
       }
 
@@ -100,7 +101,8 @@ const flowRunSlice = createSlice({
         headers,
         dataBuffer,
         size,
-        statusText
+        statusText,
+        assertionResults
       } = action.payload;
       const run = state.runs[flowUid];
       if (!run) return;
@@ -117,7 +119,8 @@ const flowRunSlice = createSlice({
           headers: headers !== undefined ? headers : run.nodes[stepId].headers,
           dataBuffer: dataBuffer !== undefined ? dataBuffer : run.nodes[stepId].dataBuffer,
           size: size !== undefined ? size : run.nodes[stepId].size,
-          statusText: statusText !== undefined ? statusText : run.nodes[stepId].statusText
+          statusText: statusText !== undefined ? statusText : run.nodes[stepId].statusText,
+          assertionResults: assertionResults !== undefined ? assertionResults : run.nodes[stepId].assertionResults
         };
       }
     },
@@ -147,7 +150,8 @@ const flowRunSlice = createSlice({
             headers: null,
             dataBuffer: null,
             size: null,
-            statusText: null
+            statusText: null,
+            assertionResults: null
           };
         }
         state.runs[flowUid] = {
@@ -175,7 +179,8 @@ const flowRunSlice = createSlice({
           headers: null,
           dataBuffer: null,
           size: null,
-          statusText: null
+          statusText: null,
+          assertionResults: null
         };
       }
     },
