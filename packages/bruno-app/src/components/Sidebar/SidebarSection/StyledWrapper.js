@@ -102,6 +102,50 @@ const StyledWrapper = styled.div`
     }
   }
 
+  .sidebar-panel-content {
+    display: flex;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    padding-bottom: 28px;
+  }
+
+  .sidebar-panel {
+    display: none;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: hidden;
+
+    &.active {
+      display: flex;
+      flex-direction: column;
+    }
+  }
+
+  .sidebar-panel-tabs {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    margin-right: 2px;
+
+    .action-icon {
+      color: ${(props) => props.theme.sidebar.muted};
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      opacity: 0.65;
+
+      &:hover,
+      &:focus-visible,
+      &.active {
+        color: ${(props) => props.theme.text};
+        background: ${(props) => props.theme.dropdown.hoverBg};
+        opacity: 1;
+      }
+    }
+  }
+
   .section-content {
     display: flex;
     flex-direction: column;

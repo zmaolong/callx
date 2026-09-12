@@ -13,10 +13,12 @@ import {
   IconSortDescendingLetters,
   IconSquareX,
   IconBox,
+  IconFileCode,
   IconTerminal2
 } from '@tabler/icons';
 
 import { importCollection, importCollectionFromZip, newHttpRequest } from 'providers/ReduxStore/slices/collections/actions';
+import { openApiSpec } from 'providers/ReduxStore/slices/apiSpec';
 import { sortCollections } from 'providers/ReduxStore/slices/collections/index';
 import { savePreferences, setIsCreatingCollection, setIsOpeningCollection, toggleSidebarSearch } from 'providers/ReduxStore/slices/app';
 import { normalizePath } from 'utils/common/path';
@@ -36,12 +38,16 @@ import PostmanPackageReport from 'components/Sidebar/PostmanPackageReport';
 import usePostmanPackagePrompt from 'hooks/usePostmanPackagePrompt';
 import WelcomeModal from 'components/WelcomeModal';
 import Collections from 'components/Sidebar/Collections';
+import ApiSpecs from 'components/Sidebar/ApiSpecs';
+import CreateApiSpec from 'components/Sidebar/ApiSpecs/CreateApiSpec';
 import SidebarSection from 'components/Sidebar/SidebarSection';
+import { useSidebarAccordion } from 'components/Sidebar/SidebarAccordionContext';
 import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
 import useKeybinding from 'hooks/useKeybinding';
 
 const CollectionsSection = () => {
   const dispatch = useDispatch();
+  const { setSectionExpanded } = useSidebarAccordion();
   const showSearch = useSelector((state) => state.app.showSidebarSearch);
 
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
@@ -52,6 +58,8 @@ const CollectionsSection = () => {
   const { isCreatingCollection } = useSelector((state) => state.app);
   const preferences = useSelector((state) => state.app.preferences);
   const [collectionsToClose, setCollectionsToClose] = useState([]);
+  const [activePanel, setActivePanel] = useState('collections');
+  const [createApiSpecModalOpen, setCreateApiSpecModalOpen] = useState(false);
 
   const [importData, setImportData] = useState(null);
   const [createCollectionModalOpen, setCreateCollectionModalOpen] = useState(false);
@@ -237,6 +245,13 @@ const CollectionsSection = () => {
     setCreateCollectionModalOpen(true);
   };
 
+  const handleOpenApiSpec = () => {
+    dispatch(openApiSpec()).catch((err) => {
+      console.error(err);
+      toast.error('An error occurred while opening the API spec');
+    });
+  };
+
   const addDropdownItems = [
     {
       id: 'create',
@@ -291,42 +306,89 @@ const CollectionsSection = () => {
     }
   ];
 
-  const sectionActions = (
-    <>
+  const apiSpecAddDropdownItems = [
+    {
+      id: 'create-api-spec',
+      leftSection: IconPlus,
+      label: 'Create API Spec',
+      onClick: () => setCreateApiSpecModalOpen(true)
+    },
+    {
+      id: 'open-api-spec',
+      leftSection: IconFileCode,
+      label: 'Open API Spec',
+      onClick: handleOpenApiSpec
+    }
+  ];
+
+  const panelTabs = (
+    <div className="sidebar-panel-tabs" role="tablist" aria-label="Sidebar panels" onClick={(event) => event.stopPropagation()}>
       <ActionIcon
-        onClick={handleToggleSearch}
-        label="Search requests"
+        size="sm"
+        className={activePanel === 'collections' ? 'active' : ''}
+        onClick={() => {
+          setActivePanel('collections');
+          setSectionExpanded('collections', true);
+        }}
+        label="Collections"
+        aria-selected={activePanel === 'collections'}
+        aria-pressed={activePanel === 'collections'}
+        role="tab"
+        data-testid="collections-panel-tab"
       >
+        <IconBox size={14} stroke={1.5} aria-hidden="true" />
+      </ActionIcon>
+      <ActionIcon
+        size="sm"
+        className={activePanel === 'api-specs' ? 'active' : ''}
+        onClick={() => {
+          setActivePanel('api-specs');
+          setSectionExpanded('collections', true);
+        }}
+        label="API Specs"
+        aria-selected={activePanel === 'api-specs'}
+        aria-pressed={activePanel === 'api-specs'}
+        role="tab"
+        data-testid="api-specs-panel-tab"
+      >
+        <IconFileCode size={14} stroke={1.5} aria-hidden="true" />
+      </ActionIcon>
+    </div>
+  );
+
+  const collectionActions = (
+    <>
+      <ActionIcon onClick={handleToggleSearch} label="Search requests">
         <IconSearch size={14} stroke={1.5} aria-hidden="true" />
       </ActionIcon>
-
-      <MenuDropdown
-        data-testid="collections-header-add-menu"
-        items={addDropdownItems}
-        placement="bottom-end"
-      >
-        <ActionIcon
-          label="Add new collection"
-        >
+      <MenuDropdown data-testid="collections-header-add-menu" items={addDropdownItems} placement="bottom-end">
+        <ActionIcon label="Add new collection">
           <IconPlus size={14} stroke={1.5} aria-hidden="true" />
         </ActionIcon>
       </MenuDropdown>
-
-      <MenuDropdown
-        data-testid="collections-header-actions-menu"
-        items={actionsDropdownItems}
-        placement="bottom-end"
-      >
-        <ActionIcon
-          label="More actions"
-        >
+      <MenuDropdown data-testid="collections-header-actions-menu" items={actionsDropdownItems} placement="bottom-end">
+        <ActionIcon label="More actions">
           <IconDotsVertical size={14} stroke={1.5} aria-hidden="true" />
         </ActionIcon>
       </MenuDropdown>
-
       {collectionsToClose.length > 0 && (
         <RemoveCollections collectionUids={collectionsToClose} onClose={clearCollectionsToClose} />
       )}
+    </>
+  );
+
+  const apiSpecActions = (
+    <MenuDropdown data-testid="api-specs-header-add-menu" items={apiSpecAddDropdownItems} placement="bottom-end">
+      <ActionIcon label="Add new API Spec">
+        <IconPlus size={14} stroke={1.5} aria-hidden="true" />
+      </ActionIcon>
+    </MenuDropdown>
+  );
+
+  const sectionActions = (
+    <>
+      {panelTabs}
+      {activePanel === 'collections' ? collectionActions : apiSpecActions}
     </>
   );
 
@@ -401,19 +463,29 @@ const CollectionsSection = () => {
           onClose={clearPostmanPackagePrompt}
         />
       )}
+      {createApiSpecModalOpen && (
+        <CreateApiSpec onClose={() => setCreateApiSpecModalOpen(false)} />
+      )}
       <SidebarSection
         id="collections"
-        title="Collections"
-        icon={IconBox}
+        title={activePanel === 'collections' ? 'Collections' : 'API Specs'}
+        icon={activePanel === 'collections' ? IconBox : IconFileCode}
         actions={sectionActions}
       >
-        <Collections
-          showSearch={showSearch}
-          isCreatingCollection={isCreatingCollection}
-          onCreateClick={() => dispatch(setIsCreatingCollection(true))}
-          onDismissCreate={() => dispatch(setIsCreatingCollection(false))}
-          onOpenAdvancedCreate={handleOpenAdvancedCreate}
-        />
+        <div className="sidebar-panel-content">
+          <div data-testid="collections-panel" className={`sidebar-panel ${activePanel === 'collections' ? 'active' : ''}`}>
+            <Collections
+              showSearch={showSearch}
+              isCreatingCollection={isCreatingCollection}
+              onCreateClick={() => dispatch(setIsCreatingCollection(true))}
+              onDismissCreate={() => dispatch(setIsCreatingCollection(false))}
+              onOpenAdvancedCreate={handleOpenAdvancedCreate}
+            />
+          </div>
+          <div data-testid="api-specs-panel" className={`sidebar-panel ${activePanel === 'api-specs' ? 'active' : ''}`}>
+            <ApiSpecs />
+          </div>
+        </div>
       </SidebarSection>
     </>
   );

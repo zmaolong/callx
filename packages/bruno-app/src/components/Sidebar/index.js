@@ -8,7 +8,6 @@ import SidebarEdgeControls from 'components/SidebarEdgeControls';
 import { updateLeftSidebarWidth, updateIsDragging, toggleSidebarSearch, setSidebarCollapsed } from 'providers/ReduxStore/slices/app';
 import { setLocalStorageValue, SIDEBAR_WIDTH_KEY, SIDEBAR_COLLAPSED_KEY } from 'utils/common/localStorage';
 import CollectionsSection from './Sections/CollectionsSection/index';
-import ApiSpecsSection from './Sections/ApiSpecsSection/index';
 import MockServersSection from './Sections/MockServersSection/index';
 import useKeybinding from 'hooks/useKeybinding';
 import useClearSidebarSelectionOnEscape from 'hooks/useClearSidebarSelectionOnEscape';
@@ -25,10 +24,6 @@ const Sidebar = () => {
       {
         id: 'collections',
         component: CollectionsSection
-      },
-      {
-        id: 'api-specs',
-        component: ApiSpecsSection
       }
     ];
 
