@@ -27,6 +27,16 @@ import {
 } from 'providers/ReduxStore/slices/flowRun';
 
 /**
+ * 从 requestSent 对象中剥离所有不可序列化的字段（如 dataBuffer Uint8Array），
+ * 确保存入 Redux 状态的值是可序列化的。
+ */
+function sanitizeRequestSent(requestSent) {
+  if (!requestSent) return null;
+  const { dataBuffer, ...rest } = requestSent;
+  return Object.keys(rest).length > 0 ? rest : null;
+}
+
+/**
  * 主进程取消后以 resolve 返回带 isCancel 标记的响应对象。
  */
 function isCancelledResponse(response) {
@@ -305,7 +315,7 @@ async function executeFlowInternal({
             body: response?.data || null,
             httpStatus: response?.status || null,
             duration: response?.duration ?? duration,
-            requestSent: response?.requestSent || null,
+            requestSent: sanitizeRequestSent(response?.requestSent),
             inputVariables: variables,
             flowContext,
             dispatch
@@ -335,7 +345,7 @@ async function executeFlowInternal({
               body: response.data || null,
               httpStatus: response.status || null,
               duration: response.duration ?? duration,
-              requestSent: response.requestSent || null,
+              requestSent: sanitizeRequestSent(response.requestSent),
               inputVariables: variables,
               assertionResults,
               flowContext,
@@ -371,7 +381,7 @@ async function executeFlowInternal({
               httpStatus: response.status,
               duration,
               inputVariables: variables,
-              requestSent: response.requestSent || null,
+              requestSent: sanitizeRequestSent(response.requestSent),
               headers: response.headers || null,
               dataBuffer: response.dataBuffer || null,
               size: response.size ?? null,
@@ -571,7 +581,7 @@ export async function executeSingleNode({
       duration: response.duration ?? duration,
       error: response.error,
       inputVariables: variables,
-      requestSent: response.requestSent || null
+      requestSent: sanitizeRequestSent(response.requestSent)
     }));
     return { success: false, error: response.error };
   }
@@ -589,7 +599,7 @@ export async function executeSingleNode({
       duration: response.duration ?? duration,
       error: assertError,
       inputVariables: variables,
-      requestSent: response.requestSent || null,
+      requestSent: sanitizeRequestSent(response.requestSent),
       headers: response.headers || null,
       dataBuffer: response.dataBuffer || null,
       size: response.size ?? null,
@@ -607,7 +617,7 @@ export async function executeSingleNode({
     httpStatus: response.status,
     duration,
     inputVariables: variables,
-    requestSent: response.requestSent || null,
+    requestSent: sanitizeRequestSent(response.requestSent),
     headers: response.headers || null,
     dataBuffer: response.dataBuffer || null,
     size: response.size ?? null,

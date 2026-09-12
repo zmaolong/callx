@@ -9,6 +9,15 @@ export const sendNetworkRequest = async (item, collection, environment, runtimeV
             return;
           }
 
+          // Strip Uint8Array from requestSent — dataBuffer is the raw binary of the request body,
+          // not serializable in Redux. The string form is already in requestSent.data.
+          const requestSent = response.requestSent
+            ? { ...response.requestSent }
+            : null;
+          if (requestSent) {
+            delete requestSent.dataBuffer;
+          }
+
           resolve({
             state: 'success',
             data: response.data,
@@ -21,7 +30,7 @@ export const sendNetworkRequest = async (item, collection, environment, runtimeV
             duration: response.duration,
             timeline: response.timeline,
             stream: response.stream,
-            requestSent: response.requestSent
+            requestSent
           });
         })
         .catch((err) => reject(err));

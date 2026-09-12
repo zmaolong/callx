@@ -3572,7 +3572,14 @@ export const collectionsSlice = createSlice({
           }
 
           if (type === 'request-sent') {
-            const { cancelTokenUid, requestSent } = action.payload;
+            const { cancelTokenUid, requestSent: rawRequestSent } = action.payload;
+            // Strip Uint8Array dataBuffer — not serializable for Redux
+            const requestSent = rawRequestSent
+              ? { ...rawRequestSent }
+              : null;
+            if (requestSent) {
+              delete requestSent.dataBuffer;
+            }
             item.requestSent = requestSent;
 
             // sometimes the response is received before the request-sent event arrives
@@ -3688,7 +3695,13 @@ export const collectionsSlice = createSlice({
         if (type === 'request-sent') {
           const item = collection.runnerResult.items.findLast((i) => i.uid === request.uid);
           item.status = 'running';
-          item.requestSent = action.payload.requestSent;
+          // Strip Uint8Array dataBuffer — not serializable for Redux
+          const rawRequestSent = action.payload.requestSent;
+          const sanitized = rawRequestSent ? { ...rawRequestSent } : null;
+          if (sanitized) {
+            delete sanitized.dataBuffer;
+          }
+          item.requestSent = sanitized;
         }
 
         if (type === 'response-received') {
