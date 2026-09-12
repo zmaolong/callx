@@ -1,4 +1,4 @@
-import reducer, { updatePreferences } from './app';
+import reducer, { updatePreferences, setSidebarCollapsed, setTabBarCollapsed, updateTabBarWidth } from './app';
 
 describe('app preferences', () => {
   const initialState = reducer(undefined, { type: 'unknown' });
@@ -17,5 +17,19 @@ describe('app preferences', () => {
     }));
 
     expect(state.preferences.general.tabPosition).toBe('right');
+  });
+
+  it('sets sidebar collapse state explicitly', () => {
+    const state = reducer(undefined, setSidebarCollapsed(true));
+
+    expect(state.sidebarCollapsed).toBe(true);
+  });
+
+  it('sets tab bar collapse state and width explicitly', () => {
+    const collapsed = reducer(undefined, setTabBarCollapsed(true));
+    const state = reducer(collapsed, updateTabBarWidth({ tabBarWidth: 320 }));
+
+    expect(state.tabBarCollapsed).toBe(true);
+    expect(state.tabBarWidth).toBe(320);
   });
 });

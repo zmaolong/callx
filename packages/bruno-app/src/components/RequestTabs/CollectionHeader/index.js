@@ -18,8 +18,7 @@ import {
   IconFileOff,
   IconCode,
   IconAppWindow,
-  IconTransform,
-  IconLayoutSidebarRightCollapse
+  IconTransform
 } from '@tabler/icons';
 import IconSparkles from 'components/Icons/IconSparkles';
 import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
@@ -28,7 +27,6 @@ import { updateWorkspace } from 'providers/ReduxStore/slices/workspaces';
 import { showInFolder } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleCollectionFileMode } from 'providers/ReduxStore/slices/collections';
 import { toggleAiSidebar } from 'providers/ReduxStore/slices/chat';
-import { toggleTabBarCollapse } from 'providers/ReduxStore/slices/app';
 import { showMigrateToYmlModal } from 'providers/ReduxStore/slices/collection-migration';
 import { findItemInCollection, findItemInCollectionByPathname } from 'utils/collections';
 import find from 'lodash/find';
@@ -73,8 +71,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const preferences = useSelector((state) => state.app.preferences);
-  const tabBarCollapsed = useSelector((state) => state.app.tabBarCollapsed);
-  const tabPosition = get(preferences, 'general.tabPosition', 'top');
   const isAiEnabled = get(preferences, 'ai.enabled', false);
   const isAiSidebarOpen = useSelector((state) => state.chat.isOpen);
 
@@ -792,23 +788,6 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
                     {(hasOpenApiUpdates || hasOpenApiError) && (
                       <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: hasOpenApiError ? theme.status.danger.text : theme.status.warning.text }} />
                     )}
-                  </ActionIcon>
-                </ToolHint>
-              )}
-              {/* Tab bar collapse toggle (vertical mode only) */}
-              {tabPosition === 'right' && (
-                <ToolHint text={tabBarCollapsed ? 'Show tabs' : 'Hide tabs'} toolhintId="TabBarCollapseToolhintId" place="bottom">
-                  <ActionIcon
-                    onClick={() => dispatch(toggleTabBarCollapse())}
-                    aria-label={tabBarCollapsed ? 'Show tabs' : 'Hide tabs'}
-                    size="sm"
-                    data-testid="toggle-tab-bar-button"
-                  >
-                    <IconLayoutSidebarRightCollapse
-                      size={16}
-                      strokeWidth={1.5}
-                      style={{ transform: tabBarCollapsed ? 'scaleX(-1)' : 'none' }}
-                    />
                   </ActionIcon>
                 </ToolHint>
               )}

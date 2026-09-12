@@ -5,7 +5,8 @@ import classnames from 'classnames';
 import { IconChevronRight, IconChevronLeft, IconChevronDown, IconChevronUp } from '@tabler/icons';
 import { useSelector, useDispatch } from 'react-redux';
 import { focusTab, reorderTabs } from 'providers/ReduxStore/slices/tabs';
-import { updateTabBarWidth } from 'providers/ReduxStore/slices/app';
+import { updateTabBarWidth, setTabBarCollapsed } from 'providers/ReduxStore/slices/app';
+import { setLocalStorageValue, TAB_BAR_WIDTH_KEY, TAB_BAR_COLLAPSED_KEY } from 'utils/common/localStorage';
 import NewRequest from 'components/Sidebar/NewRequest';
 import CollectionHeader from './CollectionHeader';
 import RequestTab from './RequestTab';
@@ -13,8 +14,10 @@ import StyledWrapper from './StyledWrapper';
 import DraggableTab from './DraggableTab';
 import CreateTransientRequest from 'components/CreateTransientRequest';
 import ActionIcon from 'ui/ActionIcon/index';
+import SidebarEdgeControls from 'components/SidebarEdgeControls';
 
 const MIN_TAB_BAR_WIDTH = 150;
+const HIDE_TAB_BAR_THRESHOLD = 96;
 const MAX_TAB_BAR_WIDTH = 500;
 
 const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly = false }) => {
@@ -34,6 +37,7 @@ const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly
   const sidebarCollapsed = useSelector((state) => state.app.sidebarCollapsed);
   const tabBarCollapsed = useSelector((state) => state.app.tabBarCollapsed);
   const tabBarWidth = useSelector((state) => state.app.tabBarWidth);
+  const [tabWidth, setTabWidth] = useState(tabBarWidth);
   const screenWidth = useSelector((state) => state.app.screenWidth);
   const workspaces = useSelector((state) => state.workspaces.workspaces);
 
@@ -43,6 +47,7 @@ const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly
   const [dragging, setDragging] = useState(false);
   const draggingRef = useRef(false);
   const dragStateRef = useRef({ startX: 0, startWidth: tabBarWidth });
+  const expandedTabWidthRef = useRef(tabBarWidth);
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
   // Stable handlers via refs — bound once on mount, always read latest refs
@@ -50,7 +55,7 @@ const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly
     if (!draggingRef.current) return;
     e.preventDefault();
     const delta = e.clientX - dragStateRef.current.startX;
-    const nextWidth = clamp(dragStateRef.current.startWidth - delta, MIN_TAB_BAR_WIDTH, MAX_TAB_BAR_WIDTH);
+    const nextWidth = clamp(dragStateRef.current.startWidth - delta, 0, MAX_TAB_BAR_WIDTH);
     if (wrapperRef.current) {
       wrapperRef.current.style.width = nextWidth + 'px';
       wrapperRef.current.style.minWidth = nextWidth + 'px';
@@ -60,26 +65,37 @@ const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly
   const hdMouseUp = useRef((e) => {
     if (!draggingRef.current) return;
     e.preventDefault();
-    const finalWidth = wrapperRef.current
-      ? clamp(parseInt(wrapperRef.current.style.width, 10) || tabBarWidth, MIN_TAB_BAR_WIDTH, MAX_TAB_BAR_WIDTH)
-      : tabBarWidth;
+    const styleWidth = wrapperRef.current ? parseInt(wrapperRef.current.style.width, 10) : null;
+    const draggedWidth = Number.isFinite(styleWidth)
+      ? clamp(styleWidth, 0, MAX_TAB_BAR_WIDTH)
+      : dragStateRef.current.startWidth;
+    const shouldCollapse = draggedWidth < HIDE_TAB_BAR_THRESHOLD;
+    const finalWidth = shouldCollapse
+      ? expandedTabWidthRef.current
+      : clamp(draggedWidth, MIN_TAB_BAR_WIDTH, MAX_TAB_BAR_WIDTH);
     // Restore CSS transition before React commits the collapsed state
     if (wrapperRef.current) {
       wrapperRef.current.style.transition = '';
+      wrapperRef.current.style.width = '';
+      wrapperRef.current.style.minWidth = '';
     }
     setDragging(false);
     draggingRef.current = false;
     setTabWidth(finalWidth);
+    if (!shouldCollapse) {
+      expandedTabWidthRef.current = finalWidth;
+    }
     dispatch(updateTabBarWidth({ tabBarWidth: finalWidth }));
+    dispatch(setTabBarCollapsed(shouldCollapse));
+    setLocalStorageValue(TAB_BAR_WIDTH_KEY, finalWidth);
+    setLocalStorageValue(TAB_BAR_COLLAPSED_KEY, shouldCollapse);
   });
-
-  // We need setTabWidth for initial state, but keep it minimal
-  const [tabWidth, setTabWidth] = useState(tabBarWidth);
 
   const handleDragbarMouseDown = (e) => {
     e.preventDefault();
     if (tabBarCollapsed) return;
     dragStateRef.current = { startX: e.clientX, startWidth: tabBarWidth };
+    expandedTabWidthRef.current = tabBarWidth;
     // Kill CSS transition immediately on the DOM node so the first mousemove
     // doesn't fight a 0.2s animation
     if (wrapperRef.current) {
@@ -88,6 +104,15 @@ const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly
     setDragging(true);
     draggingRef.current = true;
   };
+
+  useEffect(() => {
+    if (!dragging) {
+      setTabWidth(tabBarWidth);
+      if (tabBarWidth >= MIN_TAB_BAR_WIDTH && tabBarWidth <= MAX_TAB_BAR_WIDTH) {
+        expandedTabWidthRef.current = tabBarWidth;
+      }
+    }
+  }, [tabBarWidth, dragging]);
 
   // Bind document-level events once on mount; handlers use refs so never stale
   useEffect(() => {
@@ -281,6 +306,7 @@ const RequestTabs = ({ position = 'top', showCollectionHeader = true, headerOnly
           <div className="tab-drag-border" />
         </div>
       )}
+      {isRightPosition && <SidebarEdgeControls side="right" />}
     </StyledWrapper>
   );
 };

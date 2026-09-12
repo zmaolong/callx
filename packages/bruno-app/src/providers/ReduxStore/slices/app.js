@@ -12,7 +12,9 @@ import {
   getLocalStorageValue,
   setLocalStorageValue,
   SIDEBAR_WIDTH_KEY,
-  SIDEBAR_COLLAPSED_KEY
+  SIDEBAR_COLLAPSED_KEY,
+  TAB_BAR_WIDTH_KEY,
+  TAB_BAR_COLLAPSED_KEY
 } from 'utils/common/localStorage';
 
 const initialState = {
@@ -149,6 +151,15 @@ export const appSlice = createSlice({
       }
       state.sidebarHydrated = true;
     },
+    setTabBarState: (state, action) => {
+      const { width, collapsed } = action.payload || {};
+      if (width !== undefined) {
+        state.tabBarWidth = width;
+      }
+      if (collapsed !== undefined) {
+        state.tabBarCollapsed = collapsed;
+      }
+    },
     startSnapshotHydrationSession: (state, action) => {
       const {
         workspaceUid = null,
@@ -254,8 +265,11 @@ export const appSlice = createSlice({
     toggleSidebarCollapse: (state) => {
       state.sidebarCollapsed = !state.sidebarCollapsed;
     },
-    toggleTabBarCollapse: (state) => {
-      state.tabBarCollapsed = !state.tabBarCollapsed;
+    setSidebarCollapsed: (state, action) => {
+      state.sidebarCollapsed = action.payload;
+    },
+    setTabBarCollapsed: (state, action) => {
+      state.tabBarCollapsed = action.payload;
     },
     toggleSidebarSearch: (state) => {
       state.showSidebarSearch = !state.showSidebarSearch;
@@ -315,6 +329,7 @@ export const {
   idbConnectionReady,
   setSnapshotReady,
   setSidebarState,
+  setTabBarState,
   startSnapshotHydrationSession,
   markSnapshotCollectionHydrated,
   clearSnapshotHydrationSession,
@@ -338,7 +353,8 @@ export const {
   updateSystemProxyLastRefreshedAt,
   updateGenerateCode,
   toggleSidebarCollapse,
-  toggleTabBarCollapse,
+  setSidebarCollapsed,
+  setTabBarCollapsed,
   toggleSidebarSearch,
   setFocusedSidebarPath,
   updateGitOperationProgress,
@@ -366,6 +382,21 @@ export const {
  * introduces a noticeable startup delay that we want to avoid.
  */
 export const hydrateSidebarState = () => async (dispatch) => {
+  const localTabWidth = getLocalStorageValue(TAB_BAR_WIDTH_KEY, null, (val) => {
+    const width = parseInt(val, 10);
+    return Number.isFinite(width) ? width : null;
+  });
+  const localTabCollapsed = getLocalStorageValue(TAB_BAR_COLLAPSED_KEY, null, (val) => val === 'true');
+  const hasLocalTabWidth = localTabWidth !== null;
+  const hasLocalTabCollapsed = localTabCollapsed !== null;
+
+  if (hasLocalTabWidth || hasLocalTabCollapsed) {
+    dispatch(setTabBarState({
+      ...(hasLocalTabWidth ? { width: localTabWidth } : {}),
+      ...(hasLocalTabCollapsed ? { collapsed: localTabCollapsed } : {})
+    }));
+  }
+
   if (!window.ipcRenderer) {
     return;
   }

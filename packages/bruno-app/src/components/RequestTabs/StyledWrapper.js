@@ -183,8 +183,31 @@ const Wrapper = styled.div`
     min-width: ${props.$collapsed ? '0px' : `${props.$width}px`};
     height: 100%;
     border-left: 0;
-    overflow: ${props.$collapsed ? 'hidden' : 'visible'};
+    overflow: visible;
     transition: width 0.2s ease-in-out, min-width 0.2s ease-in-out;
+
+    > *:not(.tabs-edge-toggle) {
+      visibility: ${props.$collapsed ? 'hidden' : 'visible'};
+    }
+
+    .tabs-edge-toggle {
+      position: absolute;
+      top: 50%;
+      left: -12px;
+      z-index: 4;
+      transform: translateY(-50%);
+      opacity: 0.55;
+
+      &:hover,
+      &:focus-visible {
+        opacity: 1;
+      }
+
+      &.edge-toggle-collapsed {
+        left: auto;
+        right: 0;
+      }
+    }
 
     &::after {
       display: none;

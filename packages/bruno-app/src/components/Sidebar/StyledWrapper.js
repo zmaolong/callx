@@ -145,6 +145,25 @@ const Wrapper = styled.div`
 
   }
 
+  .sidebar-edge-toggle {
+    position: absolute;
+    top: 50%;
+    right: -12px;
+    z-index: 4;
+    transform: translateY(-50%);
+    opacity: 0.55;
+
+    &:hover,
+    &:focus-visible {
+      opacity: 1;
+    }
+
+    &.edge-toggle-collapsed {
+      left: 0;
+      right: auto;
+    }
+  }
+
   div.sidebar-drag-handle {
     display: flex;
     align-items: center;

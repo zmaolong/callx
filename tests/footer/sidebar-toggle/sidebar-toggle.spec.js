@@ -33,4 +33,26 @@ test.describe('Sidebar Toggle', () => {
     const expandedSidebarBox = await sidebar.boundingBox();
     expect(expandedSidebarBox?.width).toBeGreaterThan(0);
   });
+
+  test('should toggle sidebar from the edge without adding layout width', async ({ page }) => {
+    const sidebar = page.locator('aside.sidebar');
+    const edgeToggle = page.getByTestId('toggle-collections-sidebar-button');
+
+    await expect(sidebar).toBeVisible();
+    await expect(edgeToggle).toBeVisible();
+
+    const expandedWidth = (await sidebar.boundingBox())?.width || 0;
+    await edgeToggle.click();
+    await expect(sidebar).not.toBeVisible();
+
+    const collapsedWidth = await sidebar.boundingBox();
+    const collapsedButtonBox = await edgeToggle.boundingBox();
+    expect(collapsedWidth?.width).toBe(0);
+    expect(collapsedButtonBox?.width).toBe(24);
+    expect(collapsedButtonBox?.height).toBe(24);
+
+    await edgeToggle.click();
+    await expect(sidebar).toBeVisible();
+    await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(expandedWidth);
+  });
 });
