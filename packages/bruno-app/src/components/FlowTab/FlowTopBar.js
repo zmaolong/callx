@@ -163,22 +163,6 @@ const ErrorItemNode = styled.span`
   margin-left: 6px;
 `;
 
-const SaveButtonWrapper = styled.div`
-  position: relative;
-  display: flex;
-`;
-
-const DirtyDot = styled.span`
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: ${(props) => props.theme.status?.warning?.text || '#f59e0b'};
-  pointer-events: none;
-`;
-
 /**
  * Flow 顶部工具栏：运行控制（全局运行 + 单节点运行）、流程名称、
  * 撤销/重做/自动布局/保存/校验错误。
@@ -273,12 +257,9 @@ const FlowTopBar = ({
         <IconButton onClick={onAutoLayout} title="自动布局">
           <IconLayoutNavbar size={15} />
         </IconButton>
-        <SaveButtonWrapper>
-          <IconButton onClick={onSave} title={isDirty ? '保存 Flow（有未保存修改，Ctrl+S）' : '保存 Flow（Ctrl+S）'} aria-label={isDirty ? '保存 Flow，有未保存修改' : '保存 Flow'}>
-            <IconDeviceFloppy size={15} />
-          </IconButton>
-          {isDirty && <DirtyDot data-testid="flow-dirty-dot" />}
-        </SaveButtonWrapper>
+        <IconButton onClick={onSave} title={isDirty ? '保存 Flow（有未保存修改，Ctrl+S）' : '保存 Flow（Ctrl+S）'} aria-label={isDirty ? '保存 Flow，有未保存修改' : '保存 Flow'}>
+          <IconDeviceFloppy size={15} />
+        </IconButton>
         <IconButton onClick={onUndo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
           <IconArrowBackUp size={15} />
         </IconButton>
