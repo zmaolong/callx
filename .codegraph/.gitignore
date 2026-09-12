@@ -14,3 +14,6 @@ cache/
 
 # Hook markers
 .dirty
+
+# Runtime PID file (per-machine, changes on every daemon restart)
+daemon.pid
