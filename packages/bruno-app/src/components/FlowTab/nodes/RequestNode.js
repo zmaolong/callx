@@ -1,5 +1,5 @@
 import React from 'react';
-import styled, { keyframes, useTheme } from 'styled-components';
+import styled, { css, keyframes, useTheme } from 'styled-components';
 import { Handle, Position } from '@xyflow/react';
 import { IconPlayerStop } from '@tabler/icons';
 import { getStatusColor, getMethodColor, STATUS_COLORS, STRATEGY_BADGE } from '../constants';
@@ -37,7 +37,7 @@ const NodeCard = styled.div`
   cursor: pointer;
   position: relative;
 
-  ${(props) => props.$running && `animation: ${breathe} 1.6s ease-in-out infinite;`}
+  ${(props) => props.$running && css`animation: ${breathe} 1.6s ease-in-out infinite;`}
 `;
 
 const CancelNodeButton = styled.button`
