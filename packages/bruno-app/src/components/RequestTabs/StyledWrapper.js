@@ -179,22 +179,12 @@ const Wrapper = styled.div`
   ${(props) => props.$position === 'right' && `
     display: flex;
     flex-direction: column;
-    width: 220px;
-    min-width: 220px;
+    width: ${props.$collapsed ? '0px' : `${props.$width}px`};
+    min-width: ${props.$collapsed ? '0px' : `${props.$width}px`};
     height: 100%;
     border-left: 0;
-
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      width: 1px;
-      background: ${props.theme.requestTabs.bottomBorder};
-      z-index: 1;
-      pointer-events: none;
-    }
+    overflow: ${props.$collapsed ? 'hidden' : 'visible'};
+    transition: width 0.2s ease-in-out, min-width 0.2s ease-in-out;
 
     &::after {
       display: none;
@@ -252,6 +242,30 @@ const Wrapper = styled.div`
             display: none;
           }
         }
+      }
+    }
+
+    div.tab-drag-handle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      left: -3px;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: col-resize;
+      background-color: transparent;
+      z-index: 1;
+
+      div.tab-drag-border {
+        width: 2px;
+        height: 100%;
+        border-left: solid 1px ${props.theme.sidebar.dragbar.border};
+      }
+
+      &:hover div.tab-drag-border {
+        border-left: solid 1px ${props.theme.sidebar.dragbar.activeBorder};
       }
     }
   `}

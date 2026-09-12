@@ -27,6 +27,8 @@ const initialState = {
   },
   leftSidebarWidth: null,
   sidebarCollapsed: null,
+  tabBarCollapsed: false,
+  tabBarWidth: 220,
   showSidebarSearch: false,
   focusedSidebarPath: null,
   screenWidth: 500,
@@ -190,6 +192,9 @@ export const appSlice = createSlice({
     updateLeftSidebarWidth: (state, action) => {
       state.leftSidebarWidth = action.payload.leftSidebarWidth;
     },
+    updateTabBarWidth: (state, action) => {
+      state.tabBarWidth = action.payload.tabBarWidth;
+    },
     updateIsDragging: (state, action) => {
       state.isDragging = action.payload.isDragging;
     },
@@ -248,6 +253,9 @@ export const appSlice = createSlice({
     },
     toggleSidebarCollapse: (state) => {
       state.sidebarCollapsed = !state.sidebarCollapsed;
+    },
+    toggleTabBarCollapse: (state) => {
+      state.tabBarCollapsed = !state.tabBarCollapsed;
     },
     toggleSidebarSearch: (state) => {
       state.showSidebarSearch = !state.showSidebarSearch;
@@ -312,6 +320,7 @@ export const {
   clearSnapshotHydrationSession,
   refreshScreenWidth,
   updateLeftSidebarWidth,
+  updateTabBarWidth,
   updateIsDragging,
   showHomePage,
   hideHomePage,
@@ -329,6 +338,7 @@ export const {
   updateSystemProxyLastRefreshedAt,
   updateGenerateCode,
   toggleSidebarCollapse,
+  toggleTabBarCollapse,
   toggleSidebarSearch,
   setFocusedSidebarPath,
   updateGitOperationProgress,
