@@ -61,7 +61,7 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
       || tab.type === 'graphql-request'
       || tab.type === 'grpc-request'
       || tab.type === 'ws-request';
-    const shouldSyncUid = isRequestType || tab.type === 'folder-settings';
+    const shouldSyncUid = isRequestType || tab.type === 'folder-settings' || tab.type === 'flow';
 
     if (!shouldSyncUid || !tab.pathname || !item?.uid || tab.uid === item.uid) {
       return;

@@ -98,6 +98,10 @@ const ToolButton = styled.button`
 
 const IconButton = styled(ToolButton)`
   padding: 5px;
+
+  svg {
+    color: ${(props) => (props.$dirty ? props.theme.draftColor : 'inherit')};
+  }
 `;
 
 const ErrorBadgeWrapper = styled.div`
@@ -257,7 +261,7 @@ const FlowTopBar = ({
         <IconButton onClick={onAutoLayout} title="自动布局">
           <IconLayoutNavbar size={15} />
         </IconButton>
-        <IconButton onClick={onSave} title={isDirty ? '保存 Flow（有未保存修改，Ctrl+S）' : '保存 Flow（Ctrl+S）'} aria-label={isDirty ? '保存 Flow，有未保存修改' : '保存 Flow'}>
+        <IconButton $dirty={isDirty} onClick={onSave} title={isDirty ? '保存 Flow（有未保存修改，Ctrl+S）' : '保存 Flow（Ctrl+S）'} aria-label={isDirty ? '保存 Flow，有未保存修改' : '保存 Flow'}>
           <IconDeviceFloppy size={15} />
         </IconButton>
         <IconButton onClick={onUndo} disabled={!canUndo} title="撤销 (Ctrl+Z)">
