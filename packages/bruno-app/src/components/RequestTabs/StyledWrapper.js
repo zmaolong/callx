@@ -192,15 +192,23 @@ const Wrapper = styled.div`
 
     .tabs-edge-toggle {
       position: absolute;
-      top: 50%;
-      left: -12px;
+      top: auto;
+      left: auto;
+      right: 0;
+      bottom: 4px;
       z-index: 4;
-      transform: translateY(-50%);
-      opacity: 0.55;
+      transform: none;
+      opacity: 0.35;
+      color: ${(props) => props.theme.sidebar.muted};
+      background: transparent;
+      border: 0;
+      box-shadow: none;
 
       &:hover,
       &:focus-visible {
         opacity: 1;
+        color: ${(props) => props.theme.text};
+        background: ${(props) => props.theme.dropdown.hoverBg};
       }
 
       &.edge-toggle-collapsed {
