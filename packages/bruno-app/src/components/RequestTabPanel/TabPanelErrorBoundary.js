@@ -18,7 +18,10 @@ class TabPanelErrorBoundaryInner extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('[TabPanelErrorBoundary] Unexpected render error:', error, errorInfo);
+    // 拆分打印：合并输出时 DevTools 会折叠对象导致看不到堆栈位置
+    console.error('[TabPanelErrorBoundary] Unexpected render error:', error?.message);
+    console.error('[TabPanelErrorBoundary] Error stack:', error?.stack);
+    console.error('[TabPanelErrorBoundary] Component stack:', errorInfo?.componentStack);
   }
 
   render() {

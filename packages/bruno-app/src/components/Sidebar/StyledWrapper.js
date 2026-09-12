@@ -155,6 +155,9 @@ const Wrapper = styled.div`
     width: 6px;
     right: -3px;
     transition: opacity 0.2s ease;
+    /* FlowTab 的 react-flow__pane 为 absolute 定位且 DOM 顺序靠后，会盖住把手
+       导致拖拽侧边栏时点不到；抬到 z-auto 之上，同时低于画布内交互浮层(ViewBar/TopBar/菜单) */
+    z-index: 1;
 
     div.drag-request-border {
       width: 2px;

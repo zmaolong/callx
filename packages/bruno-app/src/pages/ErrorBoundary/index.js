@@ -12,6 +12,12 @@ class ErrorBoundary extends React.Component {
   componentDidMount() {
     // Add a global error event listener to capture client-side errors
     window.onerror = (message, source, lineno, colno, error) => {
+      // ResizeObserver 循环告警是 Chromium 的良性异步布局通知（容器尺寸高频变化时出现，
+      // 例如拖拽侧边栏时 ReactFlow 画布连续重排），不代表渲染异常，忽略以免误杀整个应用
+      const msgText = typeof message === 'string' ? message : error?.message || '';
+      if (/ResizeObserver loop/i.test(msgText)) {
+        return;
+      }
       this.setState({ hasError: true, error });
     };
   }
