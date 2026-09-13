@@ -13,6 +13,14 @@ export const STATUS_COLORS = {
   idle: '#64748b'
 };
 
+// 运行中呼吸动效的光晕色（基于 running 色的 rgba，keyframes 内无法读主题故显式声明）
+export const STATUS_GLOW = {
+  running: {
+    from: 'rgba(59, 130, 246, 0.45)',
+    to: 'rgba(59, 130, 246, 0)'
+  }
+};
+
 export const getStatusColor = (status, fallback = '#64748b') => STATUS_COLORS[status] || fallback;
 
 // 状态徽标的浅色背景（与 STATUS_COLORS 一一对应）

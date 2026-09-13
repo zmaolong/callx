@@ -2,7 +2,7 @@ import React from 'react';
 import styled, { css, keyframes, useTheme } from 'styled-components';
 import { Handle, Position } from '@xyflow/react';
 import { IconPlayerStop } from '@tabler/icons';
-import { getStatusColor, getMethodColor, STATUS_COLORS, STRATEGY_BADGE } from '../constants';
+import { getStatusColor, getMethodColor, STATUS_COLORS, STATUS_GLOW, STRATEGY_BADGE } from '../constants';
 
 const spin = keyframes`
   from { transform: rotate(0deg); }
@@ -10,8 +10,8 @@ const spin = keyframes`
 `;
 
 const breathe = keyframes`
-  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); }
-  50% { box-shadow: 0 0 0 7px rgba(59, 130, 246, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 ${STATUS_GLOW.running.from}; }
+  50% { box-shadow: 0 0 0 7px ${STATUS_GLOW.running.to}; }
 `;
 
 const Spinner = styled.span`

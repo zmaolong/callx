@@ -93,6 +93,8 @@ const FlowCanvas = ({
   const dispatch = useDispatch();
   const theme = useTheme();
   const edgeColor = theme.colors?.text?.muted || theme.border?.border2 || '#64748b';
+  // 条件边/循环节点边使用主题强调色（与 ConditionEdge 内部渲染一致）
+  const accentColor = theme.accent || theme.colors?.accent || '#3b82f6';
   const reactFlowWrapper = useRef(null);
   const instanceRef = useRef(null);
 
@@ -127,7 +129,7 @@ const FlowCanvas = ({
       const info = requestInfoMap?.[n.requestUid];
       return {
         id: n.id,
-        type: n.type === 'start' ? 'start' : n.type === 'end' ? 'end' : 'request',
+        type: n.type === 'start' ? 'start' : n.type === 'end' ? 'end' : n.type === 'loop' ? 'loop' : 'request',
         position: n.position || { x: 0, y: 0 },
         data: {
           ...n,
@@ -142,15 +144,43 @@ const FlowCanvas = ({
 
   const initialEdges = useMemo(() => {
     if (!flow?.flow?.edges) return [];
-    return flow.flow.edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      ...(e.condition
-        ? { type: 'condition', data: { condition: e.condition }, style: { strokeWidth: 2 } }
-        : { ...defaultEdgeOptions })
-    }));
-  }, [flow?.flow?.edges, edgeColor]);
+    return flow.flow.edges.map((e) => {
+      if (e.condition) {
+        // 条件边：虚线 + 强调色 + 箭头（此前漏掉 markerEnd，视觉上与普通边不统一）
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          type: 'condition',
+          data: { condition: e.condition },
+          style: { strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: accentColor }
+        };
+      }
+      if (e.loopKind) {
+        // 循环节点的 body/done 出边：附标签说明语义
+        const labels = { body: '循环体', done: '完成后', back: '回边' };
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          label: labels[e.loopKind] || '',
+          labelShowBg: true,
+          labelBgPadding: [4, 1],
+          labelBgBorderRadius: 6,
+          labelBgStyle: { fill: theme.background?.crust, color: accentColor, fillOpacity: 1 },
+          style: { strokeWidth: 2, stroke: accentColor, strokeDasharray: e.loopKind === 'back' ? '6 4' : undefined },
+          markerEnd: { type: MarkerType.ArrowClosed, color: accentColor }
+        };
+      }
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        ...defaultEdgeOptions
+      };
+    });
+  }, [flow?.flow?.edges, edgeColor, accentColor, theme]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
