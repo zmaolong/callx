@@ -101,6 +101,10 @@ export const tabsSlice = createSlice({
 
       const existingTab = find(state.tabs, (tab) => tab.uid === uid);
       if (existingTab) {
+        // 目录先被打开为 folder-settings 时，后续 Flow 打开动作应修正旧 Tab 类型。
+        if (type === 'flow' && existingTab.type === 'folder-settings') {
+          existingTab.type = 'flow';
+        }
         state.activeTabUid = ensureTabUid(existingTab);
         return;
       }
@@ -289,6 +293,13 @@ export const tabsSlice = createSlice({
 
       if (responseName !== undefined) {
         tab.responseName = responseName;
+      }
+    },
+    updateTabType: (state, action) => {
+      const { uid, type } = action.payload;
+      const tab = find(state.tabs, (t) => t.uid === uid);
+      if (tab && type) {
+        tab.type = type;
       }
     },
     updateResponseFormat: (state, action) => {
@@ -648,6 +659,7 @@ export const {
   updateRequestPaneTab,
   updateResponsePaneTab,
   updateTabMeta,
+  updateTabType,
   updateResponseFormat,
   updateResponseViewTab,
   updateResponseTablePath,

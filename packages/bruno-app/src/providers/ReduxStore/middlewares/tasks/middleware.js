@@ -3,12 +3,61 @@ import each from 'lodash/each';
 import filter from 'lodash/filter';
 import { createListenerMiddleware } from '@reduxjs/toolkit';
 import { removeTaskFromQueue } from 'providers/ReduxStore/slices/app';
-import { addTab } from 'providers/ReduxStore/slices/tabs';
+import { addTab, updateTabType } from 'providers/ReduxStore/slices/tabs';
 import { collectionAddFileEvent, collectionChangeFileEvent, collectionLoadedFromTree } from 'providers/ReduxStore/slices/collections';
 import { findCollectionByUid, findItemInCollectionByPathname, getDefaultRequestPaneTab, findItemInCollectionByItemUid } from 'utils/collections/index';
 import { taskTypes } from './utils';
 
 const taskMiddleware = createListenerMiddleware();
+
+const syncFlowTabType = (collectionUid, flowPathname, flowUid, listenerApi) => {
+  const state = listenerApi.getState();
+  const tabs = state.tabs?.tabs || [];
+  const staleTabs = tabs.filter((tab) => (
+    tab.collectionUid === collectionUid
+    && tab.type === 'folder-settings'
+    && (tab.uid === flowUid || tab.pathname === flowPathname)
+  ));
+  for (const tab of staleTabs) {
+    listenerApi.dispatch(updateTabType({ uid: tab.uid, type: 'flow' }));
+  }
+};
+
+// Flow 根文件可能早于目录事件到达，解析成功后修正旧的 folder-settings Tab。
+taskMiddleware.startListening({
+  matcher: (action) => (
+    action.type === collectionAddFileEvent.type
+    || action.type === collectionChangeFileEvent.type
+    || action.type === collectionLoadedFromTree.type
+  ),
+  effect: (action, listenerApi) => {
+    if (action.type === collectionLoadedFromTree.type) {
+      const collectionUid = action.payload?.collectionUid;
+      const flowItems = [];
+      const walk = (items = []) => {
+        for (const item of items) {
+          if (item?.type === 'flow') flowItems.push(item);
+          walk(item?.items || []);
+        }
+      };
+      walk(action.payload?.tree?.items || []);
+      for (const flow of flowItems) {
+        syncFlowTabType(collectionUid, flow.pathname, flow.uid, listenerApi);
+      }
+      return;
+    }
+
+    const file = action.payload?.file;
+    if (file?.meta?.folderRoot && file?.data?.type === 'flow') {
+      syncFlowTabType(
+        file.meta.collectionUid,
+        file.meta.pathname ? file.meta.pathname.replace(/[\\/]flow\.(bru|yml|yaml)$/i, '') : null,
+        file.data.uid,
+        listenerApi
+      );
+    }
+  }
+});
 
 /*
  * When a new request is created in the app, a task to open the request is added to the queue.

@@ -154,7 +154,7 @@ const FlowCanvas = ({
         position: n.position || { x: 0, y: 0 },
         data: {
           ...n,
-          label: n.alias || info?.name || n.id,
+          label: n.alias || info?.name || (n.type === 'loop' ? '循环' : n.id),
           collectionUid,
           method: info?.method,
           url: info?.url

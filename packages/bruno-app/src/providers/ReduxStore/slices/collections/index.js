@@ -128,6 +128,71 @@ const mergeTreeItems = (existingItems, newItems) => {
   });
 };
 
+// 增量 watcher 事件可能先收到 flow.yml，再收到对应目录的 addDir。
+// 先建出目录链并直接落成 Flow，避免 flow 根文件事件被丢弃后永久退化为 folder。
+const ensureDirectoryItem = (collection, directoryPath, options = {}) => {
+  const subDirectories = getSubdirectoriesFromRoot(collection.pathname, directoryPath);
+  if (subDirectories.length === 0) return null;
+
+  let currentPath = collection.pathname;
+  let currentItems = collection.items || (collection.items = []);
+  let item = null;
+
+  subDirectories.forEach((directoryName, index) => {
+    currentPath = path.join(currentPath, directoryName);
+    item = currentItems.find((candidate) =>
+      (candidate.type === 'folder' || candidate.type === 'flow')
+      && (candidate.filename === directoryName || candidate.pathname === currentPath)
+    );
+
+    if (!item) {
+      item = {
+        uid: index === subDirectories.length - 1 && options.uid ? options.uid : uuid(),
+        pathname: currentPath,
+        name: directoryName,
+        filename: directoryName,
+        collapsed: true,
+        type: 'folder',
+        items: []
+      };
+      currentItems.push(item);
+    } else {
+      item.pathname = currentPath;
+      item.filename = directoryName;
+    }
+
+    currentItems = item.items || (item.items = []);
+  });
+
+  return item;
+};
+
+const applyFlowRootEvent = (collection, file) => {
+  if (!collection || file?.data?.type !== 'flow') return null;
+
+  const folderPath = path.dirname(file.meta.pathname);
+  const folderItem = findItemInCollectionByPathname(collection, folderPath)
+    || ensureDirectoryItem(collection, folderPath, { uid: file.data.uid });
+  if (!folderItem) return null;
+
+  folderItem.root = mergeRootWithPreservedUids(folderItem.root, file.data);
+  if (isFlowDirty(folderItem.uid)) {
+    markFlowExternalChange(folderItem.uid);
+    folderItem.name = file.data.name || folderItem.name;
+    return folderItem;
+  }
+
+  folderItem.type = 'flow';
+  folderItem.name = file.data.name || folderItem.name;
+  if (file.data.seq) folderItem.seq = file.data.seq;
+  folderItem.flow = {
+    nodes: file.data.flow?.nodes || [],
+    edges: file.data.flow?.edges || []
+  };
+  addDepth(collection.items);
+  return folderItem;
+};
+
 // gRPC status code meanings
 const grpcStatusCodes = {
   0: 'OK',
@@ -3109,6 +3174,11 @@ export const collectionsSlice = createSlice({
       }
 
       if (isFolderRoot) {
+        if (file?.data?.type === 'flow') {
+          applyFlowRootEvent(collection, file);
+          return;
+        }
+
         const folderPath = path.dirname(file.meta.pathname);
         const folderItem = findItemInCollectionByPathname(collection, folderPath);
         if (folderItem) {
@@ -3118,26 +3188,6 @@ export const collectionsSlice = createSlice({
           folderItem.root = mergeRootWithPreservedUids(folderItem.root, file.data);
           if (file?.data?.meta?.seq) {
             folderItem.seq = file.data?.meta?.seq;
-          }
-          // Flow root: data has name/seq/type at top level, not inside meta
-          if (file?.data?.type === 'flow') {
-            // 脏保护：外部 flow.yml 变更事件不得覆盖未保存的画布修改
-            if (isFlowDirty(folderItem.uid)) {
-              markFlowExternalChange(folderItem.uid);
-              folderItem.name = file?.data?.name || folderItem.name;
-            } else {
-              folderItem.type = 'flow';
-              if (file?.data?.name) {
-                folderItem.name = file?.data?.name;
-              }
-              if (file?.data?.seq) {
-                folderItem.seq = file?.data?.seq;
-              }
-              folderItem.flow = {
-                nodes: file?.data?.flow?.nodes || [],
-                edges: file?.data?.flow?.edges || []
-              };
-            }
           }
         }
         return;
@@ -3267,8 +3317,11 @@ export const collectionsSlice = createSlice({
         let currentSubItems = collection.items;
         subDirectories.forEach((directoryName, idx) => {
           const isLeaf = idx === subDirectories.length - 1;
-          let childItem = currentSubItems.find((f) => (f.type === 'folder' || f.type === 'flow') && f.filename === directoryName);
           currentPath = path.join(currentPath, directoryName);
+          let childItem = currentSubItems.find((f) =>
+            (f.type === 'folder' || f.type === 'flow')
+            && (f.filename === directoryName || f.pathname === currentPath)
+          );
 
           // On a rename (e.g. a case-only rename on a case-insensitive filesystem),
           // the addDir event can arrive with a new-cased path while the existing
@@ -3276,10 +3329,13 @@ export const collectionsSlice = createSlice({
           // the existing node is updated in place instead of creating a duplicate.
           if (!childItem && isLeaf && dir?.meta?.uid) {
             childItem = currentSubItems.find((f) => (f.type === 'folder' || f.type === 'flow') && f.uid === dir.meta.uid);
-            if (childItem) {
-              childItem.name = dir?.meta?.name || directoryName;
-              childItem.filename = directoryName;
-              childItem.pathname = currentPath;
+          }
+
+          if (childItem) {
+            childItem.pathname = currentPath;
+            childItem.filename = directoryName;
+            if (isLeaf && dir?.meta?.name) {
+              childItem.name = dir.meta.name;
             }
           }
 
@@ -3318,6 +3374,11 @@ export const collectionsSlice = createSlice({
       }
 
       if (isFolderRoot) {
+        if (file?.data?.type === 'flow') {
+          applyFlowRootEvent(collection, file);
+          return;
+        }
+
         const folderPath = path.dirname(file.meta.pathname);
         const folderItem = findItemInCollectionByPathname(collection, folderPath);
         if (folderItem) {
@@ -3328,26 +3389,6 @@ export const collectionsSlice = createSlice({
             folderItem.seq = file?.data?.meta?.seq;
           }
           folderItem.root = mergeRootWithPreservedUids(folderItem.root, file.data);
-          // Flow root: data has name/seq/type at top level, not inside meta
-          if (file?.data?.type === 'flow') {
-            // 脏保护：外部 flow.yml 变更事件不得覆盖未保存的画布修改
-            if (isFlowDirty(folderItem.uid)) {
-              markFlowExternalChange(folderItem.uid);
-              folderItem.name = file?.data?.name || folderItem.name;
-            } else {
-              folderItem.type = 'flow';
-              if (file?.data?.name) {
-                folderItem.name = file?.data?.name;
-              }
-              if (file?.data?.seq) {
-                folderItem.seq = file?.data?.seq;
-              }
-              folderItem.flow = {
-                nodes: file?.data?.flow?.nodes || [],
-                edges: file?.data?.flow?.edges || []
-              };
-            }
-          }
         }
         return;
       }

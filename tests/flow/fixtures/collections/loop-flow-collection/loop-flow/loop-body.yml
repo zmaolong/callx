@@ -1,0 +1,7 @@
+info:
+  name: loop-body
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: http://localhost:8081/api/echo/anything/body

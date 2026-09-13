@@ -20,6 +20,11 @@ const FlowTabStyledWrapper = styled.div`
       cursor: pointer;
     }
 
+    /* 边标签纯展示：不拦截指针，避免压住节点把手导致连线/点击失效 */
+    .react-flow__edge-textwrapper {
+      pointer-events: none;
+    }
+
     .react-flow__node-start,
     .react-flow__node-end {
       cursor: default;

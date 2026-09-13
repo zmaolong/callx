@@ -1,0 +1,65 @@
+info:
+  name: loop-flow
+  type: flow
+  seq: 1
+flow:
+  nodes:
+    - id: start
+      type: start
+      position:
+        x: 80
+        y: 300
+    - id: loop1
+      type: loop
+      alias: 分页循环
+      position:
+        x: 450
+        y: 300
+      loopConfig:
+        source:
+          kind: literal
+          value: '[1, 2]'
+        collectExpression: ''
+        maxIterations: 1000
+    - id: step_body
+      type: request
+      requestUid: seed-loop-body
+      requestPath: loop-body.yml
+      alias: loop-body
+      position:
+        x: 780
+        y: 180
+      inputs: []
+    - id: step_after
+      type: request
+      requestUid: seed-after-loop
+      requestPath: after-loop.yml
+      alias: after-loop
+      position:
+        x: 780
+        y: 420
+      inputs: []
+    - id: end
+      type: end
+      position:
+        x: 1080
+        y: 300
+  edges:
+    - id: edge_start_loop1
+      source: start
+      target: loop1
+    - id: edge_loop1_body
+      source: loop1
+      target: step_body
+      loopKind: body
+    - id: edge_body_loop1
+      source: step_body
+      target: loop1
+      loopKind: back
+    - id: edge_loop1_after
+      source: loop1
+      target: step_after
+      loopKind: done
+    - id: edge_after_end
+      source: step_after
+      target: end

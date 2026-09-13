@@ -121,7 +121,7 @@ export function useFlowGraphActions({
         break;
       }
       case 'addAfterNode': {
-        // 新节点放在源节点右侧，并自动连线 源→新节点
+        // 新节点放在源节点右侧，并自动连线 源→新节点；创建后自动选中以便立即配置
         const sourceNodeId = payload.id;
         const sourcePosition = payload.position || { x: 300, y: 200 };
         const newNode = createFlowNode(payload.nodeType, {
@@ -139,6 +139,7 @@ export function useFlowGraphActions({
             target: newNode.id
           }
         }));
+        setSelectedNodeId?.(newNode.id);
         break;
       }
       case 'addNodeAtPane': {
@@ -146,6 +147,7 @@ export function useFlowGraphActions({
         const newNode = createFlowNode(nodeType, { x: x || 300, y: y || 200 });
         takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
         dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
+        setSelectedNodeId?.(newNode.id);
         break;
       }
       case 'configureCondition': {
