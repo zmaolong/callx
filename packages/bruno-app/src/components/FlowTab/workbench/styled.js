@@ -583,6 +583,68 @@ export const UnsavedMark = styled.span`
   color: ${(props) => props.theme.status?.danger?.text || '#ef4444'};
 `;
 
+/* ---------- 循环节点轮次明细 ---------- */
+
+export const RoundItem = styled.details`
+  border: 1px solid ${(props) => props.theme.border.border1};
+  border-radius: ${(props) => props.theme.border.radius.sm};
+  background: ${(props) => props.theme.background.surface0};
+  font-size: 12px;
+  margin-bottom: 4px;
+
+  summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+    user-select: none;
+    color: ${(props) => props.theme.text};
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+
+  &[open] summary {
+    border-bottom: 1px solid ${(props) => props.theme.border.border1};
+  }
+`;
+
+export const RoundStatusDot = styled.span`
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: ${(props) => (props.$failed
+    ? props.theme.status.danger?.text || '#ef4444'
+    : props.theme.status.success?.text || '#22c55e')};
+`;
+
+export const RoundIndex = styled.span`
+  flex-shrink: 0;
+  font-weight: 600;
+`;
+
+export const RoundItemText = styled.span`
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: ${(props) => props.theme.colors?.text?.muted || '#94a3b8'};
+`;
+
+export const RoundMeta = styled.span`
+  flex-shrink: 0;
+  color: ${(props) => props.theme.colors?.text?.subtext0 || '#64748b'};
+`;
+
+export const RoundError = styled.div`
+  padding: 4px 8px;
+  color: ${(props) => props.theme.status.danger?.text || '#ef4444'};
+  font-size: 11px;
+  line-height: 1.4;
+  word-break: break-all;
+`;
+
 /* ---------- 逻辑常量与工具 ---------- */
 
 export const LITERAL_TYPES = [

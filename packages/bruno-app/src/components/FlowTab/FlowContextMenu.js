@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { IconPencil, IconCopy, IconTrash, IconPlus, IconSettings } from '@tabler/icons';
+import { IconPencil, IconCopy, IconTrash, IconPlus, IconSettings, IconRepeat } from '@tabler/icons';
 
 const MenuContainer = styled.div`
   position: fixed;
@@ -109,6 +109,13 @@ const FlowContextMenu = ({ x, y, paneX, paneY, node, edge, onClose, onAction }) 
         </>
       )}
 
+      {/* 循环节点菜单：配置在工作台，此处仅删除 */}
+      {node && nodeType === 'loop' && (
+        <MenuItem $danger onClick={() => emit('deleteNode')}>
+          <IconTrash size={14} /> 删除节点
+        </MenuItem>
+      )}
+
       {/* 边菜单 */}
       {edge && (
         <>
@@ -123,9 +130,14 @@ const FlowContextMenu = ({ x, y, paneX, paneY, node, edge, onClose, onAction }) 
 
       {/* 空白区域菜单 */}
       {!node && !edge && (
-        <MenuItem onClick={() => emit('addNodeAtPane', { paneX: paneX ?? x, paneY: paneY ?? y })}>
-          <IconPlus size={14} /> 添加请求节点
-        </MenuItem>
+        <>
+          <MenuItem onClick={() => emit('addNodeAtPane', { paneX: paneX ?? x, paneY: paneY ?? y })}>
+            <IconPlus size={14} /> 添加请求节点
+          </MenuItem>
+          <MenuItem onClick={() => emit('addNodeAtPane', { paneX: paneX ?? x, paneY: paneY ?? y, nodeType: 'loop' })}>
+            <IconRepeat size={14} /> 添加循环节点
+          </MenuItem>
+        </>
       )}
     </MenuContainer>
   );

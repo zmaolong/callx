@@ -9,8 +9,21 @@ import { safeEvaluate } from './safe-eval';
 
 /**
  * 支持的路径根字段（对应节点运行结果 flowContext[stepId] 的键）
+ *
+ * item / index / iterations / collected 为循环节点暴露的迭代上下文：
+ * 执行器每轮迭代会写入 flowContext[loopStepId] = { item, index, iterations, collected }
  */
-const EXPRESSION_ROOT_FIELDS = ['body', 'status', 'statusText', 'headers', 'duration'];
+const EXPRESSION_ROOT_FIELDS = [
+  'body',
+  'status',
+  'statusText',
+  'headers',
+  'duration',
+  'item',
+  'index',
+  'iterations',
+  'collected'
+];
 
 /**
  * 解析 Flow 表达式，提取 stepId 和路径。
@@ -118,7 +131,10 @@ export function validateFlowExpression(expression) {
   const path = rest.slice(dotIndex + 1);
   const rootField = path.split('.')[0];
   if (!EXPRESSION_ROOT_FIELDS.includes(rootField)) {
-    return { valid: false, error: 'Flow 表达式路径必须以 body/status/statusText/headers/duration 开头' };
+    return {
+      valid: false,
+      error: 'Flow 表达式路径必须以 body/status/statusText/headers/duration 开头，或以循环节点的 item/index/iterations/collected 开头'
+    };
   }
 
   return { valid: true };

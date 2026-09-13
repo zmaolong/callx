@@ -186,3 +186,109 @@ describe('resolveExecutionPath — 合流与环检测', () => {
     expect(path).toHaveLength(4);
   });
 });
+
+describe('validateGraph — 循环节点', () => {
+  const makeNodes = (extra = []) => [
+    { id: 'start', type: 'start' },
+    { id: 'end', type: 'end' },
+    ...extra
+  ];
+
+  const makeEdges = (pairs, extraProps = {}) =>
+    pairs.map(([source, target], i) => ({
+      id: `edge_${source}_${target}_${i}`,
+      source,
+      target,
+      ...(extraProps[`${source}->${target}`] || {})
+    }));
+
+  const validLoopConfig = {
+    source: { kind: 'literal', value: '[1, 2]' },
+    collectExpression: '',
+    maxIterations: 100
+  };
+
+  const loopGraph = (overrides = {}) => {
+    const nodes = makeNodes([
+      { id: 'loop1', type: 'loop', loopConfig: overrides.loopConfig || validLoopConfig },
+      { id: 'step_b1', type: 'request' },
+      { id: 'step_d', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'loop1'],
+      ['loop1', 'step_b1'],
+      ['loop1', 'step_d'],
+      ['step_b1', 'loop1'],
+      ['step_d', 'end']
+    ], {
+      'loop1->step_b1': { loopKind: 'body' },
+      'loop1->step_d': { loopKind: 'done' },
+      'step_b1->loop1': { loopKind: 'back' }
+    });
+    return { nodes, edges: overrides.edges || edges };
+  };
+
+  it('完整合法的循环节点图应返回空错误', () => {
+    expect(validateGraph(loopGraph().nodes, loopGraph().edges)).toEqual([]);
+  });
+
+  it('缺回边应报错', () => {
+    const { nodes, edges } = loopGraph({
+      edges: makeEdges([
+        ['start', 'loop1'],
+        ['loop1', 'step_b1'],
+        ['loop1', 'step_d'],
+        ['step_d', 'end']
+      ], {
+        'loop1->step_b1': { loopKind: 'body' },
+        'loop1->step_d': { loopKind: 'done' }
+      })
+    });
+    const errors = validateGraph(nodes, edges);
+    expect(errors.some((e) => e.message.includes('缺少回边'))).toBe(true);
+  });
+
+  it('出边未标记 body/done 语义应报错', () => {
+    const { nodes, edges } = loopGraph({
+      edges: makeEdges([
+        ['start', 'loop1'],
+        ['loop1', 'step_b1'],
+        ['loop1', 'step_d'],
+        ['step_b1', 'loop1'],
+        ['step_d', 'end']
+      ], {
+        'step_b1->loop1': { loopKind: 'back' }
+      })
+    });
+    const errors = validateGraph(nodes, edges);
+    expect(errors.some((e) => e.message.includes('循环体'))).toBe(true);
+    expect(errors.some((e) => e.message.includes('完成后'))).toBe(true);
+  });
+
+  it('字面量数据源不是数组应报错', () => {
+    const { nodes, edges } = loopGraph({
+      loopConfig: { ...validLoopConfig, source: { kind: 'literal', value: '{"a":1}' } }
+    });
+    const errors = validateGraph(nodes, edges);
+    expect(errors.some((e) => e.message.includes('JSON 数组'))).toBe(true);
+  });
+
+  it('迭代上限非正整数应报错', () => {
+    const { nodes, edges } = loopGraph({
+      loopConfig: { ...validLoopConfig, maxIterations: 0 }
+    });
+    const errors = validateGraph(nodes, edges);
+    expect(errors.some((e) => e.message.includes('迭代上限'))).toBe(true);
+  });
+
+  it('无任何连线的循环节点不报结构错误', () => {
+    const nodes = makeNodes([{ id: 'loop1', type: 'loop', loopConfig: validLoopConfig }]);
+    expect(validateGraph(nodes, [])).toEqual([]);
+  });
+
+  it('loop+back-edge 结构不应被拓扑环检测误判', () => {
+    const { nodes, edges } = loopGraph();
+    const path = resolveExecutionPath(nodes, edges);
+    expect(path.map((p) => p.stepId)).toEqual(['loop1', 'step_b1', 'step_d']);
+  });
+});

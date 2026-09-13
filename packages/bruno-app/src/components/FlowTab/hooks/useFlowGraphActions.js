@@ -23,6 +23,18 @@ import { sanitizeName } from 'utils/common/regex';
 import { findItemInCollection } from 'utils/collections';
 import { generateNodeStepId } from 'utils/flow/graph';
 
+// 循环节点默认配置
+const DEFAULT_LOOP_CONFIG = {
+  source: { kind: 'expression', expression: '' },
+  collectExpression: '',
+  maxIterations: 1000
+};
+
+// 按类型创建画布节点
+const createFlowNode = (nodeType, position) => (nodeType === 'loop'
+  ? { id: generateNodeStepId(), type: 'loop', position, loopConfig: DEFAULT_LOOP_CONFIG }
+  : { id: generateNodeStepId(), type: 'request', position, inputs: [] });
+
 export function useFlowGraphActions({
   flow,
   collection,
@@ -112,12 +124,10 @@ export function useFlowGraphActions({
         // 新节点放在源节点右侧，并自动连线 源→新节点
         const sourceNodeId = payload.id;
         const sourcePosition = payload.position || { x: 300, y: 200 };
-        const newNode = {
-          id: generateNodeStepId(),
-          type: 'request',
-          position: { x: sourcePosition.x + 280, y: sourcePosition.y },
-          inputs: []
-        };
+        const newNode = createFlowNode(payload.nodeType, {
+          x: sourcePosition.x + 280,
+          y: sourcePosition.y
+        });
         takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
         dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
         dispatch(addFlowEdge({
@@ -132,13 +142,8 @@ export function useFlowGraphActions({
         break;
       }
       case 'addNodeAtPane': {
-        const { paneX: x, paneY: y } = payload;
-        const newNode = {
-          id: generateNodeStepId(),
-          type: 'request',
-          position: { x: x || 300, y: y || 200 },
-          inputs: []
-        };
+        const { paneX: x, paneY: y, nodeType } = payload;
+        const newNode = createFlowNode(nodeType, { x: x || 300, y: y || 200 });
         takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
         dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
         break;

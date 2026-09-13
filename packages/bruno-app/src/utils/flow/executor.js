@@ -14,9 +14,9 @@
  * 对 Redux 的读写收拢在 createRunStore 适配层，核心循环不直接依赖 action 形状。
  */
 import { uuid } from 'utils/common';
-import { resolveExecutionPath } from 'utils/flow/graph';
+import { resolveExecutionPath, NODE_TYPES, LOOP_EDGE_KINDS } from 'utils/flow/graph';
 import { resolveInputMappings } from 'utils/flow/input-mapping';
-import { selectBranch } from 'utils/flow/expressions';
+import { selectBranch, evaluateFlowExpression } from 'utils/flow/expressions';
 import { findEnvironmentInCollection } from 'utils/collections';
 import { sendNetworkRequest, cancelNetworkRequest } from 'utils/network/index';
 import { buildRunRecord, saveFlowRunRecord } from 'utils/flow/run-history';
@@ -83,6 +83,9 @@ function createRunStore(flowUid, dispatch, getState) {
       dispatch(updateFlowNodeStatus({ flowUid, stepId, status: NODE_STATUS.SUCCESS, ...fields })),
     markCancelled: (stepId) =>
       dispatch(updateFlowNodeStatus({ flowUid, stepId, status: NODE_STATUS.CANCELLED })),
+    // 通用字段补丁（循环节点的 loopProgress/rounds 等增量更新）
+    patchNode: (stepId, fields) =>
+      dispatch(updateFlowNodeStatus({ flowUid, stepId, ...fields })),
     skipNodes: (stepIds) => {
       if (stepIds && stepIds.length > 0) {
         dispatch(markNodesSkipped({ flowUid, stepIds }));
@@ -319,12 +322,70 @@ async function runStep({
 
   runStore.markRunning(stepId);
 
+  // 循环节点：控制器接管循环体与主链推进（循环体节点不经过主循环）
+  if (node.type === NODE_TYPES.LOOP) {
+    return runLoopStep({
+      node,
+      index,
+      executionPath,
+      nodes,
+      edges,
+      collection,
+      collectionItems,
+      runStore,
+      cancelTokenUid,
+      stopAtNodeId,
+      baseRuntimeVariables,
+      executed,
+      flowContext
+    });
+  }
+
   // 查找对应的请求 item（有未保存草稿时优先使用草稿，与请求 Tab 的 sendRequest 语义一致）
   const item = collectionItems[node.requestUid];
   if (!item) {
     runStore.markMissing(stepId, `请求 ${node.requestUid} 不存在`);
     return { kind: 'fail', index, error: `请求 ${node.requestUid} 不存在` };
   }
+
+  const outcome = await executeRequestNode({
+    node,
+    stepId,
+    item,
+    collection,
+    runStore,
+    flowContext,
+    edges,
+    baseRuntimeVariables,
+    cancelTokenUid
+  });
+
+  if (outcome.type === 'cancelled') {
+    return { kind: 'cancelled', index, stepId };
+  }
+  if (outcome.type === 'success') {
+    return selectNextBranch({ stepId, node, index, executionPath, edges, runStore, executed, stopAtNodeId, flowContext });
+  }
+  return afterErrorOutcome(outcome, { stepId, node, index, executionPath, edges, runStore, executed, stopAtNodeId, flowContext });
+}
+
+/**
+ * 请求节点执行核心（主链与循环体共用）：
+ * 输入映射解析 → 运行变量注入 → 发送请求 → 断言检查 → 错误策略。
+ *
+ * @returns {Promise<{ type: 'success'|'continue'|'jump'|'stop'|'cancelled', jumpToNodeId?: string, error?: string }>}
+ */
+async function executeRequestNode({
+  node,
+  stepId,
+  item,
+  collection,
+  runStore,
+  flowContext,
+  edges,
+  baseRuntimeVariables,
+  cancelTokenUid
+}) {
   const itemWithDraft = item.draft?.request
     ? { ...item, request: item.draft.request }
     : item;
@@ -338,7 +399,7 @@ async function runStep({
 
   if (mappingErrors.length > 0) {
     const errorMsg = mappingErrors.map((e) => `${e.variableName}: ${e.error}`).join('; ');
-    const outcome = applyErrorStrategy({
+    return applyErrorStrategy({
       node,
       stepId,
       runStore,
@@ -346,7 +407,6 @@ async function runStep({
       error: `输入映射失败: ${errorMsg}`,
       inputVariables: variables
     });
-    return afterErrorOutcome(outcome, { stepId, node, index, executionPath, edges, runStore, executed, stopAtNodeId, flowContext });
   }
 
   // 每个节点独立的运行变量：基础变量 + 本节点输入映射，执行后不残留
@@ -362,13 +422,13 @@ async function runStep({
     cancelTokenUid
   });
   if (cancelled) {
-    return { kind: 'cancelled', index, stepId };
+    return { type: 'cancelled' };
   }
 
   // 请求失败：走错误策略
   if (requestError || response?.error) {
     const error = requestError ? (requestError.message || '网络请求失败') : response.error;
-    const outcome = applyErrorStrategy({
+    return applyErrorStrategy({
       node,
       stepId,
       runStore,
@@ -380,14 +440,13 @@ async function runStep({
       requestSent: sanitizeRequestSent(response?.requestSent),
       inputVariables: variables
     });
-    return afterErrorOutcome(outcome, { stepId, node, index, executionPath, edges, runStore, executed, stopAtNodeId, flowContext });
   }
 
   // 断言检查：任一断言失败即节点失败，走错误处理策略
   const { results: assertionResults, failed: failedAssertions } = extractAssertionResults(response);
   if (failedAssertions.length > 0) {
     const assertError = `断言失败 (${assertionResults.length - failedAssertions.length}/${assertionResults.length} 通过): ${failedAssertions.map((a) => a.lhsExpr).join('; ')}`;
-    const outcome = applyErrorStrategy({
+    return applyErrorStrategy({
       node,
       stepId,
       runStore,
@@ -400,7 +459,6 @@ async function runStep({
       inputVariables: variables,
       assertionResults
     });
-    return afterErrorOutcome(outcome, { stepId, node, index, executionPath, edges, runStore, executed, stopAtNodeId, flowContext });
   }
 
   // 成功：记录响应上下文并落盘节点状态
@@ -423,9 +481,311 @@ async function runStep({
     statusText: response.statusText ?? null,
     assertionResults: assertionResults.length > 0 ? assertionResults : null
   });
+  return { type: 'success' };
+}
 
-  // 分支选择（成功路径）
-  return selectNextBranch({ stepId, node, index, executionPath, edges, runStore, executed, stopAtNodeId, flowContext });
+// 循环节点默认迭代上限（可在节点配置中调低/调高）
+const DEFAULT_LOOP_MAX_ITERATIONS = 1000;
+
+// 轮次摘要中 item 的展示截断长度（控制历史体积）
+const LOOP_ITEM_SUMMARY_MAX = 120;
+
+const summarizeLoopItem = (item) => {
+  if (item === null || item === undefined) return String(item);
+  let text;
+  try {
+    text = typeof item === 'string' ? item : JSON.stringify(item);
+  } catch {
+    text = String(item);
+  }
+  return text.length > LOOP_ITEM_SUMMARY_MAX ? `${text.slice(0, LOOP_ITEM_SUMMARY_MAX)}…` : text;
+};
+
+/**
+ * 循环节点控制器。
+ *
+ * 执行模型（线性路径架构下的循环语义）：
+ * - 循环体的图表达：loop --body--> 体链（BFS 序中紧跟 loop 的连续段），
+ *   体链尾 --back--> loop（回边，仅用于声明体段范围，运行时不真正回跳），
+ *   loop --done--> 完成后继续的链。
+ * - 数据源解析为 items 数组后逐轮执行体段：每轮重置体段节点状态、
+ *   注入迭代上下文 flowContext[loopId] = { item, index, iterations, collected }，
+ *   体链节点通过 {{$flow.<loopId>.item}} 等表达式引用（经输入映射转为请求变量）。
+ * - 体段节点失败沿用错误策略：stop=终止流程；continue=跳过本轮剩余体段继续下一轮；
+ *   jump 由校验层禁止（循环体内不支持）。
+ * - 收集表达式每轮求值一次：数组拼接、标量/对象追加，经 collected 供 done 链引用。
+ * - 完成后主链推进到 done 目标；体段节点保留最后一轮终态，loop 节点记录
+ *   loopProgress（进度徽标）与 rounds（轮次摘要，不含响应体）。
+ */
+async function runLoopStep({
+  node,
+  index,
+  executionPath,
+  nodes,
+  edges,
+  collection,
+  collectionItems,
+  runStore,
+  cancelTokenUid,
+  stopAtNodeId,
+  baseRuntimeVariables,
+  executed,
+  flowContext
+}) {
+  const stepId = node.id;
+
+  // 1. 连线计划
+  const outEdges = edges.filter((e) => e.source === stepId);
+  const bodyEdge = outEdges.find((e) => e.loopKind === LOOP_EDGE_KINDS.BODY);
+  const doneEdge = outEdges.find((e) => e.loopKind === LOOP_EDGE_KINDS.DONE);
+  const backEdges = edges.filter((e) => e.target === stepId && e.loopKind === LOOP_EDGE_KINDS.BACK);
+  if (!bodyEdge || !doneEdge || backEdges.length !== 1) {
+    const error = '循环节点连线不完整（需要恰好一条循环体出边、一条完成后出边和一条回边）';
+    runStore.markMissing(stepId, error);
+    return { kind: 'fail', index, error };
+  }
+
+  const bodyStart = executionPath.findIndex((s) => s.stepId === bodyEdge.target);
+  const bodyEnd = executionPath.findIndex((s) => s.stepId === backEdges[0].source);
+  const doneIndex = executionPath.findIndex((s) => s.stepId === doneEdge.target);
+  if (bodyStart === -1 || bodyEnd === -1 || doneIndex === -1 || bodyStart <= index || bodyEnd < bodyStart || doneIndex <= index) {
+    const error = '循环节点执行路径不完整（循环体或完成后链不在执行路径上）';
+    runStore.markMissing(stepId, error);
+    return { kind: 'fail', index, error };
+  }
+
+  const bodySteps = executionPath.slice(bodyStart, bodyEnd + 1);
+  const bodyStepIds = bodySteps.map((s) => s.stepId);
+  const bodyStepIdSet = new Set(bodyStepIds);
+  // 循环体节点由控制器执行，主循环不得再次进入
+  bodyStepIds.forEach((id) => executed.add(id));
+
+  // 2. 数据源解析为 items 数组
+  const source = node.loopConfig?.source || {};
+  let items = null;
+  if (source.kind === 'literal') {
+    try {
+      items = typeof source.value === 'string' ? JSON.parse(source.value) : source.value;
+    } catch {
+      items = null;
+    }
+    if (!Array.isArray(items)) {
+      const error = '循环数据源无效：字面量必须是 JSON 数组';
+      runStore.patchNode(stepId, { status: NODE_STATUS.FAILED, error });
+      return { kind: 'fail', index, error };
+    }
+  } else if (source.kind === 'variable') {
+    const value = collection.runtimeVariables?.[source.variableName];
+    if (!Array.isArray(value)) {
+      const error = `循环数据源无效：变量 ${source.variableName} 不是数组`;
+      runStore.patchNode(stepId, { status: NODE_STATUS.FAILED, error });
+      return { kind: 'fail', index, error };
+    }
+    items = value;
+  } else {
+    const result = evaluateFlowExpression(source.expression, flowContext);
+    if (!result || !Array.isArray(result.value)) {
+      const error = `循环数据源无效：表达式未解析出数组（${source.expression}）`;
+      runStore.patchNode(stepId, { status: NODE_STATUS.FAILED, error });
+      return { kind: 'fail', index, error };
+    }
+    items = result.value;
+  }
+
+  const maxIterations = Number(node.loopConfig?.maxIterations) > 0
+    ? Math.floor(Number(node.loopConfig.maxIterations))
+    : DEFAULT_LOOP_MAX_ITERATIONS;
+  if (items.length > maxIterations) {
+    const error = `循环迭代次数 ${items.length} 超过上限 ${maxIterations}`;
+    runStore.patchNode(stepId, { status: NODE_STATUS.FAILED, error });
+    return { kind: 'fail', index, error };
+  }
+
+  // 3. 逐轮迭代执行体段
+  const collectExpression = String(node.loopConfig?.collectExpression || '').trim();
+  const collected = [];
+  const rounds = [];
+
+  for (let iter = 0; iter < items.length; iter++) {
+    if (runStore.isCancelRequested()) {
+      runStore.patchNode(stepId, {
+        loopProgress: { current: iter, total: items.length, collectedCount: collected.length },
+        rounds
+      });
+      return { kind: 'cancelled', index, stepId };
+    }
+
+    // 迭代上下文：体链节点通过 {{$flow.<loopId>.item}} 等引用（经输入映射转请求变量）
+    flowContext[stepId] = {
+      item: items[iter],
+      index: iter,
+      iterations: items.length,
+      collected
+    };
+    runStore.patchNode(stepId, {
+      status: NODE_STATUS.RUNNING,
+      loopProgress: { current: iter + 1, total: items.length, collectedCount: collected.length }
+    });
+
+    const roundStartedAt = Date.now();
+    let roundError = null;
+    let stopAtHit = false;
+    let cancelled = false;
+
+    for (let idx = bodyStart; idx <= bodyEnd; idx++) {
+      const bodyStepId = executionPath[idx].stepId;
+      const bodyNode = nodes.find((n) => n.id === bodyStepId);
+      if (!bodyNode || bodyNode.type !== NODE_TYPES.REQUEST) {
+        const error = `循环体节点 ${bodyStepId} 不可执行`;
+        runStore.markMissing(bodyStepId, error);
+        rounds.push({
+          index: iter,
+          item: summarizeLoopItem(items[iter]),
+          status: 'failed',
+          error,
+          durationMs: Date.now() - roundStartedAt
+        });
+        runStore.patchNode(stepId, {
+          status: NODE_STATUS.FAILED,
+          error: `第 ${iter + 1} 轮循环失败：${error}`,
+          loopProgress: { current: iter + 1, total: items.length, collectedCount: collected.length },
+          rounds
+        });
+        return { kind: 'fail', index, error: `第 ${iter + 1} 轮循环失败：${error}` };
+      }
+
+      // 每轮重置体段节点状态，避免上一轮响应残留误导
+      runStore.resetNode(bodyStepId);
+      runStore.markRunning(bodyStepId);
+
+      const bodyItem = collectionItems[bodyNode.requestUid];
+      if (!bodyItem) {
+        const error = `请求 ${bodyNode.requestUid} 不存在`;
+        runStore.markMissing(bodyStepId, error);
+        rounds.push({
+          index: iter,
+          item: summarizeLoopItem(items[iter]),
+          status: 'failed',
+          error,
+          durationMs: Date.now() - roundStartedAt
+        });
+        runStore.patchNode(stepId, {
+          status: NODE_STATUS.FAILED,
+          error: `第 ${iter + 1} 轮循环失败：${error}`,
+          loopProgress: { current: iter + 1, total: items.length, collectedCount: collected.length },
+          rounds
+        });
+        return { kind: 'fail', index, error: `第 ${iter + 1} 轮循环失败：${error}` };
+      }
+
+      const outcome = await executeRequestNode({
+        node: bodyNode,
+        stepId: bodyStepId,
+        item: bodyItem,
+        collection,
+        runStore,
+        flowContext,
+        edges,
+        baseRuntimeVariables,
+        cancelTokenUid
+      });
+
+      if (outcome.type === 'cancelled') {
+        cancelled = true;
+        break;
+      }
+      if (outcome.type === 'stop' || outcome.type === 'jump') {
+        // 循环体内 stop / jump（jump 由校验层禁止，此处兜底）→ 终止整个循环与流程
+        roundError = outcome.error || '循环体执行失败';
+        runStore.patchNode(stepId, {
+          status: NODE_STATUS.FAILED,
+          error: `第 ${iter + 1} 轮循环失败：${roundError}`,
+          loopProgress: { current: iter + 1, total: items.length, collectedCount: collected.length },
+          rounds
+        });
+        rounds.push({
+          index: iter,
+          item: summarizeLoopItem(items[iter]),
+          status: 'failed',
+          error: roundError,
+          durationMs: Date.now() - roundStartedAt
+        });
+        return { kind: 'fail', index, error: `第 ${iter + 1} 轮循环失败：${roundError}` };
+      }
+      if (outcome.type === 'continue') {
+        // 忽略错误继续：跳过本轮剩余体段，下一轮恢复
+        roundError = outcome.error || '循环体节点失败（continue 策略）';
+        const restIds = executionPath.slice(idx + 1, bodyEnd + 1).map((s) => s.stepId);
+        runStore.skipNodes(restIds);
+        break;
+      }
+      // success → 继续体段下一个节点
+
+      // 「运行到此」落在循环体内：执行到该节点即整体收尾
+      if (stopAtNodeId && bodyStepId === stopAtNodeId) {
+        stopAtHit = true;
+        break;
+      }
+    }
+
+    rounds.push({
+      index: iter,
+      item: summarizeLoopItem(items[iter]),
+      status: roundError ? 'failed' : 'success',
+      error: roundError,
+      durationMs: Date.now() - roundStartedAt
+    });
+
+    if (cancelled) {
+      runStore.patchNode(stepId, {
+        loopProgress: { current: iter + 1, total: items.length, collectedCount: collected.length },
+        rounds
+      });
+      return { kind: 'cancelled', index, stepId };
+    }
+
+    if (stopAtHit) {
+      runStore.patchNode(stepId, {
+        status: NODE_STATUS.SUCCESS,
+        loopProgress: { current: iter + 1, total: items.length, collectedCount: collected.length },
+        rounds
+      });
+      return { kind: 'end', index, stoppedAt: stopAtNodeId };
+    }
+
+    // 收集表达式：数组拼接、标量/对象追加；求值失败该轮跳过
+    if (collectExpression) {
+      try {
+        const result = evaluateFlowExpression(collectExpression, flowContext);
+        if (result && result.value !== undefined && result.value !== null) {
+          if (Array.isArray(result.value)) {
+            collected.push(...result.value);
+          } else {
+            collected.push(result.value);
+          }
+        }
+      } catch {
+        // 收集失败不影响循环推进
+      }
+    }
+  }
+
+  // 4. 完成：主链推进到完成后链；体段节点保留最后一轮终态
+  runStore.patchNode(stepId, {
+    status: NODE_STATUS.SUCCESS,
+    loopProgress: { current: items.length, total: items.length, collectedCount: collected.length },
+    rounds
+  });
+  const betweenSkip = executionPath
+    .slice(index + 1, doneIndex)
+    .map((s) => s.stepId)
+    .filter((id) => !bodyStepIdSet.has(id));
+  runStore.skipNodes(betweenSkip);
+
+  if (stopAtNodeId && stepId === stopAtNodeId) {
+    return { kind: 'end', index, stoppedAt: stopAtNodeId };
+  }
+  return { kind: 'goto', index: doneIndex };
 }
 
 /**

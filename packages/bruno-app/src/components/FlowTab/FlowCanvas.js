@@ -19,10 +19,12 @@ import { IconFocusCentered, IconMap, IconMapOff } from '@tabler/icons';
 import StartNode from './nodes/StartNode';
 import EndNode from './nodes/EndNode';
 import RequestNode from './nodes/RequestNode';
+import LoopNode from './nodes/LoopNode';
 import ConditionEdge from './edges/ConditionEdge';
 import FlowContextMenu from './FlowContextMenu';
 import StyledWrapper from './StyledWrapper';
 import { STATUS_COLORS } from './constants';
+import { LOOP_EDGE_KINDS } from 'utils/flow/graph';
 import {
   updateFlowNodes,
   addFlowEdge,
@@ -33,12 +35,31 @@ import {
 const nodeTypes = {
   start: StartNode,
   end: EndNode,
-  request: RequestNode
+  request: RequestNode,
+  loop: LoopNode
 };
 
 const edgeTypes = {
   condition: ConditionEdge
 };
+
+// 从 fromId 沿普通出边 BFS（不经过 avoidId、不走回边），判断能否到达 toId——用于循环回边判定
+function isReachable(edgeList, fromId, toId, avoidId) {
+  const queue = [fromId];
+  const visited = new Set();
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === toId) return true;
+    if (visited.has(current) || current === avoidId) continue;
+    visited.add(current);
+    for (const edge of edgeList) {
+      if (edge.source === current && edge.loopKind !== LOOP_EDGE_KINDS.BACK) {
+        queue.push(edge.target);
+      }
+    }
+  }
+  return false;
+}
 
 // 画布内视图控制条：适应视图 / 小地图开关（运行等全局操作已移至顶栏）
 const ViewBar = styled.div`
@@ -216,6 +237,7 @@ const FlowCanvas = ({
             duration: nodeState.duration,
             httpStatus: nodeState.httpStatus,
             errorMessage: nodeState.error,
+            loopProgress: nodeState.loopProgress,
             onCancelRun
           }
         };
@@ -251,18 +273,14 @@ const FlowCanvas = ({
       const sourceType = sourceNode.data?.type || sourceNode.type;
       const targetType = targetNode.data?.type || targetNode.type;
 
-      // 合法连线规则：Start→Request、Request→Request、Request→End
-      const validPairs = [
-        ['start', 'request'],
-        ['request', 'request'],
-        ['request', 'end']
-      ];
-      const isValid = validPairs.some(
-        ([s, t]) => sourceType === s && targetType === t
-      );
-
-      if (!isValid) {
-        toast.error('连线方向不合法：只能从 Start/请求节点 连向 请求节点/End');
+      // 合法连线：Start→Request/Loop、Request→Request/Loop/End、Loop→Request/End
+      const validTargets = {
+        start: ['request', 'loop'],
+        request: ['request', 'loop', 'end'],
+        loop: ['request', 'end']
+      };
+      if (!(validTargets[sourceType] || []).includes(targetType)) {
+        toast.error('连线方向不合法：Start/请求节点 → 请求/循环节点，循环节点 → 请求节点/End');
         return;
       }
 
@@ -275,11 +293,44 @@ const FlowCanvas = ({
         return;
       }
 
+      // 循环节点连线语义：出边自动分配 循环体/完成后；入边自动区分 入口/回边
+      let loopKind = null;
+      if (sourceType === 'loop') {
+        const outEdgeList = edges.filter((e) => e.source === connection.source);
+        const hasBody = outEdgeList.some((e) => e.loopKind === LOOP_EDGE_KINDS.BODY);
+        const hasDone = outEdgeList.some((e) => e.loopKind === LOOP_EDGE_KINDS.DONE);
+        if (hasBody && hasDone) {
+          toast.error('循环节点最多两条出边（循环体 / 完成后），如需调整请先删除连线');
+          return;
+        }
+        loopKind = hasBody ? LOOP_EDGE_KINDS.DONE : LOOP_EDGE_KINDS.BODY;
+        toast(loopKind === LOOP_EDGE_KINDS.BODY ? '已设为「循环体」出边' : '已设为「完成后」出边', { icon: 'ℹ️', duration: 2500 });
+      } else if (targetType === 'loop') {
+        const loopId = connection.target;
+        const bodyEdge = edges.find((e) => e.source === loopId && e.loopKind === LOOP_EDGE_KINDS.BODY);
+        // 源节点已在循环体内 → 回边；否则作为入口连线（入口仅允许一条）
+        const inBody = bodyEdge
+          ? isReachable(edges, bodyEdge.target, connection.source, loopId)
+          : false;
+        if (inBody) {
+          const backCount = edges.filter((e) => e.target === loopId && e.loopKind === LOOP_EDGE_KINDS.BACK).length;
+          if (backCount >= 1) {
+            toast.error('循环节点只允许一条回边');
+            return;
+          }
+          loopKind = LOOP_EDGE_KINDS.BACK;
+          toast('已设为循环回边', { icon: 'ℹ️', duration: 2500 });
+        } else if (edges.some((e) => e.target === loopId && !e.loopKind)) {
+          toast.error('循环节点只能有一条入口连线');
+          return;
+        }
+      }
+
       const newEdge = {
         id: `edge_${connection.source}_${connection.target}`,
         source: connection.source,
         target: connection.target,
-        ...defaultEdgeOptions
+        ...(loopKind ? { loopKind } : {})
       };
 
       // 记录撤销快照后写 Redux（与删边/删节点一致，连线可被 Ctrl+Z 撤销）
@@ -289,11 +340,7 @@ const FlowCanvas = ({
       dispatch(addFlowEdge({
         collectionUid,
         itemUid: flow.uid,
-        edge: {
-          id: newEdge.id,
-          source: newEdge.source,
-          target: newEdge.target
-        }
+        edge: newEdge
       }));
     },
     [nodes, edges, dispatch, collectionUid, flow?.uid, onBeforeDelete]

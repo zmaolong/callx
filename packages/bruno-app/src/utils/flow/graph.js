@@ -5,6 +5,7 @@
  * 所有函数都是纯函数，不依赖 Redux 或外部状态。
  */
 import { customAlphabet } from 'nanoid';
+import { validateFlowExpression } from './expressions';
 
 const STEP_ID_ALPHABET = 'useandom26T198340PX75pxJACKVERYMINDBUSHWOLFGQZbfghjklqvwyzrict';
 const generateStepId = customAlphabet(STEP_ID_ALPHABET, 16);
@@ -12,11 +13,19 @@ const generateStepId = customAlphabet(STEP_ID_ALPHABET, 16);
 const NODE_TYPES = {
   START: 'start',
   END: 'end',
-  REQUEST: 'request'
+  REQUEST: 'request',
+  LOOP: 'loop'
 };
 
 const EDGE_TYPES = {
   DEFAULT: 'default'
+};
+
+// 循环节点边的语义标记（存储在 edge.loopKind）
+const LOOP_EDGE_KINDS = {
+  BODY: 'body', // 循环体入口（每轮迭代执行的链）
+  DONE: 'done', // 循环完成后继续的链
+  BACK: 'back' // 循环体尾连回循环节点的回边
 };
 
 /**
@@ -131,13 +140,16 @@ export function resolveExecutionPath(nodes, edges) {
   // 不能用 BFS 序下标判断——合流分支长度不等时，汇合点在 BFS 序中
   // 可能先于长分支尾节点出现，会被误判为环。
   if (path.length > 0) {
-    // 统计可达子图内各节点的入度（只统计来自可达节点的边，忽略指向 start 的边）
     const pathIds = new Set(path.map((p) => p.stepId));
+    const loopIds = new Set(nodes.filter((n) => n.type === NODE_TYPES.LOOP).map((n) => n.id));
+    // 统计可达子图内各节点的入度（只统计来自可达节点的边；
+    // 指向循环节点的边不计数——回边是循环语义的一部分，由循环节点控制器接管，
+    // 计入会让"入口→循环节点→循环体→回边"的合法结构被误判为环）
     const inDegree = new Map();
     for (const step of path) {
       if (!inDegree.has(step.stepId)) inDegree.set(step.stepId, 0);
       for (const edge of step.outgoingEdges) {
-        if (edge.target !== 'end' && edge.target !== 'start' && pathIds.has(edge.target)) {
+        if (edge.target !== 'end' && edge.target !== 'start' && pathIds.has(edge.target) && !loopIds.has(edge.target)) {
           inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1);
         }
       }
@@ -151,7 +163,7 @@ export function resolveExecutionPath(nodes, edges) {
       removed.add(current);
       const step = path.find((p) => p.stepId === current);
       for (const edge of step.outgoingEdges) {
-        if (edge.target !== 'end' && edge.target !== 'start' && pathIds.has(edge.target)) {
+        if (edge.target !== 'end' && edge.target !== 'start' && pathIds.has(edge.target) && !loopIds.has(edge.target)) {
           const nextDegree = (inDegree.get(edge.target) || 0) - 1;
           inDegree.set(edge.target, nextDegree);
           if (nextDegree === 0 && !removed.has(edge.target)) {
@@ -231,23 +243,54 @@ export function validateGraph(nodes, edges) {
     const sourceNode = nodeMap.get(edge.source);
     const targetNode = nodeMap.get(edge.target);
     if (sourceNode && targetNode) {
-      // 仅允许 Start→Request、Request→Request、Request→End
-      const validPairs = [
-        ['start', 'request'],
-        ['request', 'request'],
-        ['request', 'end']
-      ];
-      const isValid = validPairs.some(([s, t]) => {
-        const srcType = s === 'start' ? 'start' : 'request';
-        const tgtType = t === 'end' ? 'end' : 'request';
-        return sourceNode.type === srcType && targetNode.type === tgtType;
-      });
+      // 合法连线：Start→Request/Loop、Request→Request/Loop/End、Loop→Request/End
+      const validTargets = {
+        start: ['request', 'loop'],
+        request: ['request', 'loop', 'end'],
+        loop: ['request', 'end']
+      };
+      const isValid = (validTargets[sourceNode.type] || []).includes(targetNode.type);
       if (!isValid) {
         errors.push({
           message: `非法连线：${sourceNode.type} → ${targetNode.type}`,
           edgeId: edge.id
         });
       }
+    }
+  }
+
+  // 循环节点结构校验（已有任一连线时才检查，避免新建空节点即报错）
+  for (const node of nodes) {
+    if (node.type !== NODE_TYPES.LOOP) continue;
+    const outEdges = edges.filter((e) => e.source === node.id);
+    const inEdges = edges.filter((e) => e.target === node.id);
+    if (outEdges.length === 0 && inEdges.length === 0) continue;
+
+    const nodeName = node.alias || node.id;
+    const bodyCount = outEdges.filter((e) => e.loopKind === LOOP_EDGE_KINDS.BODY).length;
+    const doneCount = outEdges.filter((e) => e.loopKind === LOOP_EDGE_KINDS.DONE).length;
+    const backCount = inEdges.filter((e) => e.loopKind === LOOP_EDGE_KINDS.BACK).length;
+    const entryCount = inEdges.filter((e) => !e.loopKind).length;
+
+    if (bodyCount !== 1) {
+      errors.push({ message: `循环节点「${nodeName}」必须有恰好一条「循环体」出边`, nodeId: node.id });
+    }
+    if (doneCount !== 1) {
+      errors.push({ message: `循环节点「${nodeName}」必须有恰好一条「完成后」出边`, nodeId: node.id });
+    }
+    if (entryCount !== 1) {
+      errors.push({ message: `循环节点「${nodeName}」必须有恰好一条入口连线`, nodeId: node.id });
+    }
+    if (backCount === 0) {
+      errors.push({ message: `循环节点「${nodeName}」缺少回边（循环体尾节点需连回循环节点）`, nodeId: node.id });
+    }
+    if (backCount > 1) {
+      errors.push({ message: `循环节点「${nodeName}」只允许一条回边`, nodeId: node.id });
+    }
+
+    const configCheck = validateLoopConfig(node.loopConfig);
+    if (!configCheck.valid) {
+      errors.push({ message: `循环节点「${nodeName}」${configCheck.error}`, nodeId: node.id });
     }
   }
 
@@ -287,4 +330,77 @@ export function getPredecessorStepId(stepId, edges) {
   return null;
 }
 
-export { NODE_TYPES, EDGE_TYPES };
+/**
+ * 校验循环节点的数据源配置。
+ *
+ * @param {Object} loopConfig { source: { kind, expression?, value?, variableName? }, collectExpression?, maxIterations? }
+ * @returns {{ valid: boolean, error?: string }}
+ */
+export function validateLoopConfig(loopConfig) {
+  const cfg = loopConfig || {};
+  const source = cfg.source || {};
+
+  if (source.kind === 'expression') {
+    if (!source.expression || !source.expression.trim()) {
+      return { valid: false, error: '未配置数据源表达式' };
+    }
+    const { valid, error } = validateFlowExpression(source.expression.trim());
+    if (!valid) {
+      return { valid: false, error: `数据源表达式无效：${error}` };
+    }
+  } else if (source.kind === 'literal') {
+    if (source.value === undefined || String(source.value).trim() === '') {
+      return { valid: false, error: '未配置字面量数据源' };
+    }
+    try {
+      const parsed = typeof source.value === 'string' ? JSON.parse(source.value) : source.value;
+      if (!Array.isArray(parsed)) {
+        return { valid: false, error: '字面量数据源必须是 JSON 数组' };
+      }
+    } catch {
+      return { valid: false, error: '字面量数据源 JSON 解析失败' };
+    }
+  } else if (source.kind === 'variable') {
+    if (!source.variableName || !source.variableName.trim()) {
+      return { valid: false, error: '未配置数据源变量名' };
+    }
+  } else {
+    return { valid: false, error: '未配置数据源' };
+  }
+
+  if (cfg.collectExpression && String(cfg.collectExpression).trim()) {
+    const { valid, error } = validateFlowExpression(String(cfg.collectExpression).trim());
+    if (!valid) {
+      return { valid: false, error: `收集表达式无效：${error}` };
+    }
+  }
+
+  if (cfg.maxIterations !== undefined && cfg.maxIterations !== null && cfg.maxIterations !== '') {
+    const max = Number(cfg.maxIterations);
+    if (!Number.isInteger(max) || max < 1) {
+      return { valid: false, error: '迭代上限必须是不小于 1 的整数' };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * 生成循环节点数据源的摘要文案（画布卡片与配置面板使用）。
+ */
+export function summarizeLoopSource(loopConfig) {
+  const source = loopConfig?.source || {};
+  if (source.kind === 'literal') {
+    const raw = typeof source.value === 'string' ? source.value : JSON.stringify(source.value);
+    return `字面量 ${(raw || '').slice(0, 24)}`;
+  }
+  if (source.kind === 'variable') {
+    return `变量 ${source.variableName || '?'}`;
+  }
+  if (source.kind === 'expression') {
+    return source.expression || '未配置数据源';
+  }
+  return '未配置数据源';
+}
+
+export { NODE_TYPES, EDGE_TYPES, LOOP_EDGE_KINDS };

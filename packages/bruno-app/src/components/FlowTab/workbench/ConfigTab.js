@@ -61,6 +61,129 @@ const ConfigTab = ({
     );
   }
 
+  // 循环节点：别名 + 数据源/收集/迭代上限（无错误策略、请求操作与输入映射）
+  if (nodeType === 'loop') {
+    return (
+      <>
+        <div style={{ marginBottom: 12 }}>
+          <InputLabel>
+            别名 (Alias)
+          </InputLabel>
+          <SidebarInput
+            value={nodeData.alias || ''}
+            onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, { alias: event.target.value })}
+            placeholder="例如 分页拉取"
+            aria-label="循环别名 (Alias)"
+          />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <MappingHeader>
+            <SectionTitle style={{ marginBottom: 0 }}>
+              循环数据源
+            </SectionTitle>
+          </MappingHeader>
+          <MappingField style={{ marginTop: 0 }}>
+            <InputLabel>数据源类型</InputLabel>
+            <SidebarSelect
+              value={nodeData.loopConfig?.source?.kind || 'expression'}
+              onChange={(event) => {
+                const kind = event.target.value;
+                const source = kind === 'expression'
+                  ? { kind, expression: '' }
+                  : kind === 'literal'
+                    ? { kind, value: '' }
+                    : { kind, variableName: '' };
+                onUpdateNode && onUpdateNode(selectedNode.id, {
+                  loopConfig: { ...nodeData.loopConfig, source }
+                });
+              }}
+              aria-label="循环数据源类型"
+            >
+              <option value="expression">上游响应表达式</option>
+              <option value="literal">字面量 JSON 数组</option>
+              <option value="variable">环境/集合变量</option>
+            </SidebarSelect>
+          </MappingField>
+
+          {(nodeData.loopConfig?.source?.kind || 'expression') === 'expression' && (
+            <MappingField>
+              <InputLabel>数据源表达式（求值结果须为数组）</InputLabel>
+              <SidebarInput
+                value={nodeData.loopConfig?.source?.expression || ''}
+                onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, {
+                  loopConfig: { ...nodeData.loopConfig, source: { kind: 'expression', expression: event.target.value } }
+                })}
+                placeholder="{{$flow.step_x.body.data.list}}"
+                aria-label="循环数据源表达式"
+              />
+            </MappingField>
+          )}
+
+          {nodeData.loopConfig?.source?.kind === 'literal' && (
+            <MappingField>
+              <InputLabel>字面量 JSON 数组</InputLabel>
+              <SidebarTextarea
+                value={nodeData.loopConfig?.source?.value ?? ''}
+                onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, {
+                  loopConfig: { ...nodeData.loopConfig, source: { kind: 'literal', value: event.target.value } }
+                })}
+                placeholder={'[1, 2, 3] 或 [{"id": 1}]'}
+                aria-label="循环字面量数据源"
+              />
+            </MappingField>
+          )}
+
+          {nodeData.loopConfig?.source?.kind === 'variable' && (
+            <MappingField>
+              <InputLabel>变量名（值须为数组）</InputLabel>
+              <SidebarInput
+                value={nodeData.loopConfig?.source?.variableName || ''}
+                onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, {
+                  loopConfig: { ...nodeData.loopConfig, source: { kind: 'variable', variableName: event.target.value } }
+                })}
+                placeholder="例如 pageList"
+                aria-label="循环数据源变量名"
+              />
+            </MappingField>
+          )}
+
+          <MappingField>
+            <InputLabel>收集表达式（可选，每轮求值一次：数组拼接、标量追加）</InputLabel>
+            <SidebarInput
+              value={nodeData.loopConfig?.collectExpression || ''}
+              onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, {
+                loopConfig: { ...nodeData.loopConfig, collectExpression: event.target.value }
+              })}
+              placeholder="{{$flow.step_x.body.data.list}}"
+              aria-label="循环收集表达式"
+            />
+          </MappingField>
+
+          <MappingField>
+            <InputLabel>迭代上限（超出判失败，防止死循环）</InputLabel>
+            <SidebarInput
+              type="number"
+              min={1}
+              value={nodeData.loopConfig?.maxIterations ?? 1000}
+              onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, {
+                loopConfig: { ...nodeData.loopConfig, maxIterations: event.target.value }
+              })}
+              aria-label="循环迭代上限"
+            />
+          </MappingField>
+
+          <MutedText style={{ marginTop: 8, lineHeight: 1.6 }}>
+            连线：循环节点的前两条出边自动设为「循环体」和「完成后」；
+            循环体尾节点连回循环节点即形成回边。循环体节点用
+            {' '}<code>{'{{$flow.<循环>.item}}'}</code>、<code>.index</code>、<code>.iterations</code> 引用当前迭代，
+            完成后链用 <code>{'{{$flow.<循环>.collected}}'}</code> 取收集结果。
+          </MutedText>
+        </div>
+      </>
+    );
+  }
+
   const {
     mappings,
     mappingErrors,

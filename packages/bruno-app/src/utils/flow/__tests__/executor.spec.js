@@ -806,6 +806,258 @@ describe('Flow 执行器核心逻辑', () => {
     });
   });
 
+  describe('循环节点', () => {
+    const makeLoopNode = (id, loopConfig = {}, extra = {}) => ({
+      id,
+      type: 'loop',
+      loopConfig: {
+        source: { kind: 'expression', expression: '' },
+        collectExpression: '',
+        maxIterations: 1000,
+        ...loopConfig
+      },
+      ...extra
+    });
+
+    // 标准循环图：start→loop→B1(体) →back→loop；loop→D(完成后)→end
+    const makeLoopGraph = (loopConfig) => ({
+      nodes: [
+        { id: 'start', type: 'start' },
+        { id: 'end', type: 'end' },
+        makeNode('B1'),
+        makeNode('D'),
+        makeLoopNode('loop1', loopConfig)
+      ],
+      edges: [
+        makeEdge('start', 'loop1'),
+        { id: 'edge_loop1_B1', source: 'loop1', target: 'B1', loopKind: 'body' },
+        { id: 'edge_loop1_D', source: 'loop1', target: 'D', loopKind: 'done' },
+        { id: 'edge_B1_loop1', source: 'B1', target: 'loop1', loopKind: 'back' },
+        makeEdge('D', 'end')
+      ]
+    });
+
+    it('字面量数据源应逐轮执行体链并注入迭代变量', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okResponse({ code: 1 }, 200));
+
+      const graph = makeLoopGraph({
+        source: { kind: 'literal', value: '[1, 2, 3]' }
+      });
+      // 体链节点用 {{$flow.loop1.index}} 引用迭代下标
+      graph.nodes.find((n) => n.id === 'B1').inputs = [
+        { name: 'idx', source: { kind: 'flow', expression: '{{$flow.loop1.index}}' } }
+      ];
+
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: graph,
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('B1', 'D'),
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(true);
+      // B1 三轮 + D 一次
+      expect(sendNetworkRequest).toHaveBeenCalledTimes(4);
+      // 每轮注入的迭代变量
+      const b1Calls = sendNetworkRequest.mock.calls.filter((c) => c[0].uid === 'req_B1');
+      expect(b1Calls).toHaveLength(3);
+      expect(b1Calls[0][3].idx).toBe(0);
+      expect(b1Calls[1][3].idx).toBe(1);
+      expect(b1Calls[2][3].idx).toBe(2);
+      // loop 节点成功并记录进度与轮次
+      const loopState = harness.getRun().nodes.loop1;
+      expect(loopState.status).toBe(NODE_STATUS.SUCCESS);
+      expect(loopState.loopProgress).toEqual({ current: 3, total: 3, collectedCount: 0 });
+      expect(loopState.rounds).toHaveLength(3);
+      expect(loopState.rounds.every((r) => r.status === 'success')).toBe(true);
+    });
+
+    it('收集表达式应把每轮结果合并为 collected 供完成后链引用', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okResponse({ code: 7 }, 200));
+
+      const graph = makeLoopGraph({
+        source: { kind: 'literal', value: '[1, 2]' },
+        collectExpression: '{{$flow.B1.body.code}}'
+      });
+      graph.nodes.find((n) => n.id === 'D').inputs = [
+        { name: 'collected', source: { kind: 'flow', expression: '{{$flow.loop1.collected}}' } }
+      ];
+
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: graph,
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('B1', 'D'),
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(true);
+      const dCall = sendNetworkRequest.mock.calls.find((c) => c[0].uid === 'req_D');
+      expect(dCall[3].collected).toEqual([7, 7]);
+      expect(harness.getRun().nodes.loop1.loopProgress.collectedCount).toBe(2);
+    });
+
+    it('表达式数据源应遍历上游响应中的数组', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockImplementation((item) => {
+        if (item.uid === 'req_A') {
+          return Promise.resolve(okResponse({ data: { list: ['a', 'b'] } }, 200));
+        }
+        return Promise.resolve(okResponse({}, 200));
+      });
+
+      const graph = makeLoopGraph({
+        source: { kind: 'expression', expression: '{{$flow.A.body.data.list}}' }
+      });
+      graph.nodes.unshift(makeNode('A'));
+      graph.edges.unshift(makeEdge('start', 'A'), makeEdge('A', 'loop1'));
+      graph.nodes.find((n) => n.id === 'B1').inputs = [
+        { name: 'item', source: { kind: 'flow', expression: '{{$flow.loop1.item}}' } }
+      ];
+
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: graph,
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('A', 'B1', 'D'),
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(true);
+      const b1Calls = sendNetworkRequest.mock.calls.filter((c) => c[0].uid === 'req_B1');
+      expect(b1Calls).toHaveLength(2);
+      expect(b1Calls[0][3].item).toBe('a');
+      expect(b1Calls[1][3].item).toBe('b');
+    });
+
+    it('空数组应跳过循环体直接走完成后链', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okResponse());
+
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: makeLoopGraph({ source: { kind: 'literal', value: '[]' } }),
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('B1', 'D'),
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(true);
+      // 只有 D 执行
+      expect(sendNetworkRequest).toHaveBeenCalledTimes(1);
+      expect(sendNetworkRequest.mock.calls[0][0].uid).toBe('req_D');
+      expect(harness.getRun().nodes.loop1.rounds).toEqual([]);
+      expect(statusOf(harness, 'B1')).toBe(NODE_STATUS.IDLE);
+    });
+
+    it('迭代次数超过上限时应判失败', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okResponse());
+
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: makeLoopGraph({ source: { kind: 'literal', value: '[1,2,3]' }, maxIterations: 2 }),
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('B1', 'D'),
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('超过上限');
+      expect(harness.getRun().status).toBe(FLOW_STATUS.FAILED);
+      expect(sendNetworkRequest).not.toHaveBeenCalled();
+    });
+
+    it('continue 策略下失败的轮次应记录并继续下一轮', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockImplementation((item) => {
+        if (item.uid === 'req_B1') {
+          return Promise.resolve({ error: 'ECONNREFUSED' });
+        }
+        return Promise.resolve(okResponse());
+      });
+
+      const graph = makeLoopGraph({ source: { kind: 'literal', value: '[1, 2]' } });
+      graph.nodes.find((n) => n.id === 'B1').errorHandler = { strategy: 'continue' };
+
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: graph,
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('B1', 'D'),
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(true);
+      const loopState = harness.getRun().nodes.loop1;
+      expect(loopState.status).toBe(NODE_STATUS.SUCCESS);
+      expect(loopState.rounds).toHaveLength(2);
+      expect(loopState.rounds.every((r) => r.status === 'failed')).toBe(true);
+      // D 仍然执行
+      const dCall = sendNetworkRequest.mock.calls.find((c) => c[0].uid === 'req_D');
+      expect(dCall).toBeTruthy();
+    });
+
+    it('运行到此落在循环体内时，执行到该节点即成功收尾', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okResponse());
+
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: makeLoopGraph({ source: { kind: 'literal', value: '[1, 2, 3]' } }),
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('B1', 'D'),
+        dispatch: harness.dispatch,
+        getState: harness.getState,
+        stopAtNodeId: 'B1'
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.stoppedAt).toBe('B1');
+      expect(harness.getRun().status).toBe(FLOW_STATUS.SUCCESS);
+      // 第一轮 B1 执行后即停
+      expect(sendNetworkRequest).toHaveBeenCalledTimes(1);
+      expect(harness.getRun().nodes.loop1.loopProgress.current).toBe(1);
+    });
+
+    it('连线不完整（缺回边）时应失败并提示', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okResponse());
+
+      const graph = makeLoopGraph({ source: { kind: 'literal', value: '[1]' } });
+      graph.edges = graph.edges.filter((e) => e.loopKind !== 'back');
+
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: graph,
+        collection: harness.collection,
+        collectionItems: makeCollectionItems('B1', 'D'),
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('连线不完整');
+    });
+  });
+
   describe('stop-at 语义（运行到此）', () => {
     it('stop-at 节点失败且策略为 continue 时应停在目标节点，不再向下游推进', async () => {
       const harness = makeHarness();

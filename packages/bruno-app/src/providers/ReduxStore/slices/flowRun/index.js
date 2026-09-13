@@ -38,6 +38,9 @@ const FLOW_STATUS = {
 /**
  * 节点运行态字段唯一工厂——新增字段只需改这里。
  * overrides 用于创建非 idle 初始态（如 initNodeRun 的 RUNNING 态）。
+ *
+ * loopProgress：循环节点运行进度 { current, total, collectedCount }（非循环节点为 null）
+ * rounds：循环节点轮次摘要 [{ index, item, status, error, durationMs }]（不含响应体，控制历史体积）
  */
 const createNodeState = (overrides = {}) => ({
   status: NODE_STATUS.IDLE,
@@ -52,6 +55,8 @@ const createNodeState = (overrides = {}) => ({
   size: null,
   statusText: null,
   assertionResults: null,
+  loopProgress: null,
+  rounds: null,
   ...overrides
 });
 
@@ -111,7 +116,9 @@ const flowRunSlice = createSlice({
         dataBuffer,
         size,
         statusText,
-        assertionResults
+        assertionResults,
+        loopProgress,
+        rounds
       } = action.payload;
       const run = state.runs[flowUid];
       if (!run) return;
@@ -129,7 +136,9 @@ const flowRunSlice = createSlice({
           dataBuffer: dataBuffer !== undefined ? dataBuffer : run.nodes[stepId].dataBuffer,
           size: size !== undefined ? size : run.nodes[stepId].size,
           statusText: statusText !== undefined ? statusText : run.nodes[stepId].statusText,
-          assertionResults: assertionResults !== undefined ? assertionResults : run.nodes[stepId].assertionResults
+          assertionResults: assertionResults !== undefined ? assertionResults : run.nodes[stepId].assertionResults,
+          loopProgress: loopProgress !== undefined ? loopProgress : run.nodes[stepId].loopProgress,
+          rounds: rounds !== undefined ? rounds : run.nodes[stepId].rounds
         };
       }
     },
