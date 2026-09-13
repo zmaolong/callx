@@ -265,6 +265,7 @@ const FlowTab = ({ flow }) => {
           requestItem={selectedRequestItem}
           collection={collection}
           collectionUid={collectionUid}
+          flowName={flow?.name}
           flowHistory={flowHistory}
           onLoadHistoryRecord={handleLoadHistoryRecord}
           onClearHistory={handleClearHistory}

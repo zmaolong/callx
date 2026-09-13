@@ -3127,6 +3127,30 @@ const registerMainEventHandlers = (mainWindow) => {
       return false;
     }
   });
+
+  // 运行报告导出：渲染层生成 HTML/Markdown 两种内容，按所选扩展名落盘
+  ipcMain.handle('flow-report:export', async (event, { defaultPath, html, markdown }) => {
+    try {
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: typeof defaultPath === 'string' && defaultPath.trim() ? defaultPath : 'flow-report.html',
+        filters: [
+          { name: 'HTML 报告', extensions: ['html'] },
+          { name: 'Markdown 报告', extensions: ['md'] }
+        ]
+      });
+      if (canceled || !filePath) {
+        return { success: false, canceled: true };
+      }
+      const content = /\.md$/i.test(filePath) ? markdown : html;
+      if (typeof content !== 'string') {
+        return { success: false, error: '报告内容缺失' };
+      }
+      fs.writeFileSync(filePath, content, 'utf8');
+      return { success: true, filePath };
+    } catch (error) {
+      return { success: false, error: error?.message || '保存失败' };
+    }
+  });
 };
 
 const registerCollectionsIpc = (mainWindow, watcher) => {

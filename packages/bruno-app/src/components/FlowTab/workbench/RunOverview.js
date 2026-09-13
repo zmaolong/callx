@@ -34,6 +34,8 @@ const RunOverview = ({
   onSelectStep,
   onHistorySelect,
   onClearHistory,
+  onExportReport,
+  exporting,
   getNodeName
 }) => {
   const stepEntries = useMemo(() => {
@@ -103,6 +105,15 @@ const RunOverview = ({
           {flowHistory && flowHistory.length > 0 && (
             <QuickMapButton onClick={onClearHistory} title="清空此 Flow 的全部运行历史">
               清空历史
+            </QuickMapButton>
+          )}
+          {onExportReport && (
+            <QuickMapButton
+              onClick={onExportReport}
+              disabled={exporting || displayRun.status === 'running'}
+              title="导出运行报告（Markdown / 自包含 HTML，敏感头默认脱敏）"
+            >
+              导出报告
             </QuickMapButton>
           )}
         </HistoryRow>

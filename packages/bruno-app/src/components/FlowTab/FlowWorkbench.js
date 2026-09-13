@@ -15,8 +15,10 @@
  * Tab「运行结果」：运行总览 + 选中节点的执行详情，运行完成后自动切换到此 Tab。
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { WORKBENCH_MIN_WIDTH, WORKBENCH_DEFAULT_WIDTH, WORKBENCH_MAX_VIEWPORT_RATIO, WORKBENCH_HIDE_THRESHOLD, WORKBENCH_WIDTH_STORAGE_KEY, getStatusColor } from './constants';
 import FlowResponsePicker from './FlowResponsePicker';
+import { exportRunReport } from 'utils/flow/report-export';
 import useMappingEditor from './workbench/useMappingEditor';
 import RunOverview from './workbench/RunOverview';
 import NodeDetail from './workbench/NodeDetail';
@@ -39,6 +41,7 @@ const FlowWorkbench = ({
   requestItem,
   collection,
   collectionUid,
+  flowName,
   flowHistory,
   onLoadHistoryRecord,
   onClearHistory,
@@ -96,6 +99,38 @@ const FlowWorkbench = ({
     }
     setViewingRecord(null);
   };
+
+  // 导出运行报告：当前运行或回看的历史记录均可；敏感头默认脱敏
+  const [exporting, setExporting] = useState(false);
+  const handleExportReport = useCallback(async () => {
+    if (exporting || !displayRun) return;
+    let unmask = false;
+    try {
+      unmask = window.confirm(
+        '是否在报告中包含完整敏感信息（Authorization、Cookie 等请求头）？\n\n'
+        + '「确定」= 包含完整信息；「取消」= 脱敏导出。\n'
+        + '（下一步仍可在保存对话框中取消导出）'
+      );
+    } catch {
+      unmask = false;
+    }
+    setExporting(true);
+    try {
+      const run = viewingRecord || {
+        runId: displayRun.flowRunId,
+        status: displayRun.status,
+        nodes: displayRun.nodes
+      };
+      const result = await exportRunReport({ flowName, run, unmask });
+      if (result?.success) {
+        toast.success(`报告已导出：${result.filePath}`);
+      } else if (result && !result.canceled && result.error) {
+        toast.error(`导出失败：${result.error}`);
+      }
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, displayRun, viewingRecord, flowName]);
 
   // 面板宽度（持久化到 localStorage）；折叠状态由父组件持有（顶栏按钮可切换）
   const [width, setWidth] = useState(() => {
@@ -243,6 +278,8 @@ const FlowWorkbench = ({
                 onSelectStep={handleSelectStepFromOverview}
                 onHistorySelect={handleHistorySelect}
                 onClearHistory={handleClearHistory}
+                onExportReport={handleExportReport}
+                exporting={exporting}
                 getNodeName={getNodeName}
               />
               <NodeDetail
