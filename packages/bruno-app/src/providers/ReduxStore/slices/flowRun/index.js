@@ -35,6 +35,26 @@ const FLOW_STATUS = {
   CANCELLED: 'cancelled'
 };
 
+/**
+ * 节点运行态字段唯一工厂——新增字段只需改这里。
+ * overrides 用于创建非 idle 初始态（如 initNodeRun 的 RUNNING 态）。
+ */
+const createNodeState = (overrides = {}) => ({
+  status: NODE_STATUS.IDLE,
+  body: null,
+  httpStatus: null,
+  duration: null,
+  error: null,
+  inputVariables: null,
+  requestSent: null,
+  headers: null,
+  dataBuffer: null,
+  size: null,
+  statusText: null,
+  assertionResults: null,
+  ...overrides
+});
+
 const initialState = {
   // key: flowUid
   runs: {},
@@ -60,20 +80,7 @@ const flowRunSlice = createSlice({
       const flowRunId = uuid();
       const nodeStates = {};
       for (const node of nodes) {
-        nodeStates[node.id] = {
-          status: NODE_STATUS.IDLE,
-          body: null,
-          httpStatus: null,
-          duration: null,
-          error: null,
-          inputVariables: null,
-          requestSent: null,
-          headers: null,
-          dataBuffer: null,
-          size: null,
-          statusText: null,
-          assertionResults: null
-        };
+        nodeStates[node.id] = createNodeState();
       }
 
       state.runs[flowUid] = {
@@ -141,20 +148,7 @@ const flowRunSlice = createSlice({
       if (!existing) {
         const nodeStates = {};
         for (const node of nodes) {
-          nodeStates[node.id] = {
-            status: NODE_STATUS.IDLE,
-            body: null,
-            httpStatus: null,
-            duration: null,
-            error: null,
-            inputVariables: null,
-            requestSent: null,
-            headers: null,
-            dataBuffer: null,
-            size: null,
-            statusText: null,
-            assertionResults: null
-          };
+          nodeStates[node.id] = createNodeState();
         }
         state.runs[flowUid] = {
           flowRunId: uuid(),
@@ -170,21 +164,20 @@ const flowRunSlice = createSlice({
       run.cancelled = false;
       run.cancelTokenUid = cancelTokenUid || null;
       if (run.nodes[stepId]) {
-        run.nodes[stepId] = {
-          status: NODE_STATUS.RUNNING,
-          body: null,
-          httpStatus: null,
-          duration: null,
-          error: null,
-          inputVariables: null,
-          requestSent: null,
-          headers: null,
-          dataBuffer: null,
-          size: null,
-          statusText: null,
-          assertionResults: null
-        };
+        run.nodes[stepId] = createNodeState({ status: NODE_STATUS.RUNNING });
       }
+    },
+
+    /**
+     * 将节点恢复为未执行状态（清除 skipped 标记与运行数据）。
+     * 用于合流回退：分支选择指向了此前被跳过、尚未真正执行的节点时，
+     * 恢复其状态后重新纳入执行（见 executor 的合流语义）。
+     */
+    resetNodeStatus: (state, action) => {
+      const { flowUid, stepId } = action.payload;
+      const run = state.runs[flowUid];
+      if (!run || !run.nodes[stepId]) return;
+      run.nodes[stepId] = createNodeState();
     },
 
     /**
@@ -260,6 +253,7 @@ export const {
   initFlowRun,
   initNodeRun,
   updateFlowNodeStatus,
+  resetNodeStatus,
   markNodesSkipped,
   setFlowRunStatus,
   cancelFlowRun,

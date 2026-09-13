@@ -2,10 +2,12 @@
  * Flow 执行器测试
  *
  * 覆盖：取消贯通（token 传递 + isCancel 识别）、jump 真跳转、
- * 分支终止语义、continue 后出边条件求值、runtimeVariables 隔离、并发拒绝。
+ * 分支终止语义、continue 后出边条件求值、runtimeVariables 隔离、并发拒绝、
+ * 合流 DAG（不等长分支）、运行历史防幽灵记录、stop-at 语义。
  */
-import flowRunReducer, { NODE_STATUS, FLOW_STATUS } from 'providers/ReduxStore/slices/flowRun';
+import flowRunReducer, { NODE_STATUS, FLOW_STATUS, initFlowRun } from 'providers/ReduxStore/slices/flowRun';
 import { executeFlow, executeSingleNode, cancelFlow } from 'utils/flow/executor';
+import * as runHistory from 'utils/flow/run-history';
 
 // 模拟网络层
 jest.mock('utils/network/index', () => ({
@@ -664,6 +666,182 @@ describe('Flow 执行器核心逻辑', () => {
       expect(result.error).toContain('图校验失败');
       expect(harness.getRun()).toBeUndefined();
       expect(sendNetworkRequest).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('合流 DAG（不等长分支）', () => {
+    // 图形：start→A→X→B 与 start→B 直连（B 为汇合点，两分支长度不等）
+    const mergeNodes = [makeNode('step_a'), makeNode('step_b'), makeNode('step_x')];
+    const mergeEdges = [
+      makeEdge('start', 'step_a'),
+      makeEdge('start', 'step_b'),
+      makeEdge('step_a', 'step_x'),
+      makeEdge('step_x', 'step_b'),
+      makeEdge('step_b', 'end')
+    ];
+
+    it('不等长分支经合流点应全部执行成功，不误报回跳', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okResponse());
+
+      const result = await runExecuteFlow(harness, mergeNodes, mergeEdges);
+
+      expect(result.success).toBe(true);
+      // start 默认走首条出边到 A，A→X 推进时 B 被跳过，X→B 合流回退执行 B
+      expect(sendNetworkRequest).toHaveBeenCalledTimes(3);
+      expect(statusOf(harness, 'step_a')).toBe(NODE_STATUS.SUCCESS);
+      expect(statusOf(harness, 'step_x')).toBe(NODE_STATUS.SUCCESS);
+      expect(statusOf(harness, 'step_b')).toBe(NODE_STATUS.SUCCESS);
+      expect(harness.getRun()?.status).toBe(FLOW_STATUS.SUCCESS);
+    });
+
+    it('合流前被跳过的节点在回退时应恢复为 success（清除 skipped）', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue(okResponse());
+
+      await runExecuteFlow(harness, mergeNodes, mergeEdges);
+
+      const stateB = harness.getRun()?.nodes?.step_b;
+      expect(stateB.status).toBe(NODE_STATUS.SUCCESS);
+      expect(stateB.body).toEqual({ ok: true });
+      expect(stateB.error).toBeNull();
+    });
+
+    it('jump 到已被跳过的合流节点时应恢复执行该节点', async () => {
+      const harness = makeHarness();
+      let callCount = 0;
+      sendNetworkRequest.mockImplementation(() => {
+        callCount += 1;
+        // X 失败（第 2 次调用），jump 回合流点 B
+        if (callCount === 2) {
+          return Promise.resolve({ error: 'ECONNREFUSED' });
+        }
+        return Promise.resolve(okResponse());
+      });
+
+      const jumpNodes = [
+        makeNode('step_a'),
+        makeNode('step_b'),
+        makeNode('step_x', { errorHandler: { strategy: 'jump', jumpToNodeId: 'step_b' } })
+      ];
+
+      const result = await runExecuteFlow(harness, jumpNodes, mergeEdges);
+
+      expect(result.success).toBe(true);
+      expect(sendNetworkRequest).toHaveBeenCalledTimes(3);
+      expect(statusOf(harness, 'step_a')).toBe(NODE_STATUS.SUCCESS);
+      expect(statusOf(harness, 'step_x')).toBe(NODE_STATUS.FAILED);
+      expect(statusOf(harness, 'step_b')).toBe(NODE_STATUS.SUCCESS);
+    });
+  });
+
+  describe('运行历史防幽灵记录', () => {
+    it('图校验失败时不应把残留运行态落成历史记录', async () => {
+      const harness = makeHarness();
+      const saveSpy = jest.spyOn(runHistory, 'saveFlowRunRecord').mockResolvedValue(true);
+
+      // 先正常跑一次，留下终态运行态
+      sendNetworkRequest.mockResolvedValue(okResponse());
+      await runExecuteFlow(
+        harness,
+        [makeNode('step_a')],
+        [makeEdge('start', 'step_a'), makeEdge('step_a', 'end')]
+      );
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+
+      saveSpy.mockClear();
+      // 再用非法图（缺 Start）触发校验失败
+      const result = await executeFlow({
+        flowUid: FLOW_UID,
+        collectionUid: 'col1',
+        flow: { nodes: [{ id: 'end', type: 'end' }], edges: [] },
+        collection: harness.collection,
+        collectionItems: {},
+        dispatch: harness.dispatch,
+        getState: harness.getState
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.initialized).toBe(false);
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+
+    it('并发拒绝时不应把运行中的状态落成历史记录', async () => {
+      const harness = makeHarness();
+      const saveSpy = jest.spyOn(runHistory, 'saveFlowRunRecord').mockResolvedValue(true);
+
+      // 直接注入一个 RUNNING 状态（模拟另一处已发起的运行）
+      harness.dispatch(initFlowRun({
+        flowUid: FLOW_UID,
+        nodes: [{ id: 'start', type: 'start' }, { id: 'end', type: 'end' }, makeNode('step_a')],
+        cancelTokenUid: 'tok-other'
+      }));
+
+      const result = await runExecuteFlow(
+        harness,
+        [makeNode('step_a')],
+        [makeEdge('start', 'step_a'), makeEdge('step_a', 'end')]
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.initialized).toBe(false);
+      expect(result.error).toContain('正在运行中');
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+
+    it('正常执行完成时仍应保存历史记录', async () => {
+      const harness = makeHarness();
+      const saveSpy = jest.spyOn(runHistory, 'saveFlowRunRecord').mockResolvedValue(true);
+      sendNetworkRequest.mockResolvedValue(okResponse());
+
+      await runExecuteFlow(
+        harness,
+        [makeNode('step_a')],
+        [makeEdge('start', 'step_a'), makeEdge('step_a', 'end')]
+      );
+
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+      const record = saveSpy.mock.calls[0][0];
+      expect(record.status).toBe('success');
+    });
+  });
+
+  describe('stop-at 语义（运行到此）', () => {
+    it('stop-at 节点失败且策略为 continue 时应停在目标节点，不再向下游推进', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue({ error: 'ECONNREFUSED' });
+
+      const result = await runExecuteFlow(
+        harness,
+        [makeNode('step_a', { errorHandler: { strategy: 'continue' } }), makeNode('step_b')],
+        [makeEdge('start', 'step_a'), makeEdge('step_a', 'step_b'), makeEdge('step_b', 'end')],
+        { stopAtNodeId: 'step_a' }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.stoppedAt).toBe('step_a');
+      expect(statusOf(harness, 'step_a')).toBe(NODE_STATUS.FAILED);
+      expect(statusOf(harness, 'step_b')).toBe(NODE_STATUS.IDLE);
+      expect(harness.getRun()?.status).toBe(FLOW_STATUS.SUCCESS);
+      expect(sendNetworkRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('stop-at 节点失败且策略为 jump 时应停在目标节点而非跳转', async () => {
+      const harness = makeHarness();
+      sendNetworkRequest.mockResolvedValue({ error: 'ECONNREFUSED' });
+
+      const result = await runExecuteFlow(
+        harness,
+        [makeNode('step_a', { errorHandler: { strategy: 'jump', jumpToNodeId: 'step_b' } }), makeNode('step_b')],
+        [makeEdge('start', 'step_a'), makeEdge('step_a', 'step_b'), makeEdge('step_b', 'end')],
+        { stopAtNodeId: 'step_a' }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.stoppedAt).toBe('step_a');
+      expect(statusOf(harness, 'step_a')).toBe(NODE_STATUS.FAILED);
+      expect(statusOf(harness, 'step_b')).toBe(NODE_STATUS.IDLE);
+      expect(sendNetworkRequest).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -31,7 +31,12 @@ const truncateNodeState = (nodeState) => {
   if (!nodeState) return nodeState;
   const cloned = { ...nodeState };
   cloned.body = truncateBody(cloned.body);
-  if (cloned.dataBuffer && String(cloned.dataBuffer).length > RUN_HISTORY_MAX_BODY) {
+  // 二进制响应体落盘前丢弃：Uint8Array 经 JSON 序列化会膨胀成逐字节对象
+  // （小体积也会把历史文件放大数倍），回放时也无法还原为二进制；
+  // 历史回看走 body 文本渲染，不受影响
+  if (ArrayBuffer.isView(cloned.dataBuffer)) {
+    cloned.dataBuffer = null;
+  } else if (cloned.dataBuffer && String(cloned.dataBuffer).length > RUN_HISTORY_MAX_BODY) {
     cloned.dataBuffer = null;
   }
   return cloned;

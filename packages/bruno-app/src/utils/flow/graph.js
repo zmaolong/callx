@@ -69,96 +69,10 @@ export function generateEdgeId(source, target) {
 }
 
 /**
- * 解析唯一主链——从 Start 出发，沿唯一出边遍历到 End。
+ * 构建有序执行路径——运行时与校验使用。
  *
- * 向后兼容：在无分支图中等同于旧版 resolveMainChain。
- * 新版按条件分支优先级遍历：优先选带条件的边（先匹配先走），最后走无条件边。
- *
- * @param {Array} nodes 图中所有节点
- * @param {Array} edges 图中所有边
- * @returns {string[]} 有序 stepId 数组（不含 Start/End）
- * @throws {Error} 当图不合法时抛出可定位错误
- */
-export function resolveMainChain(nodes, edges) {
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-
-  // 验证 Start 和 End 存在
-  const startNode = nodeMap.get('start');
-  const endNode = nodeMap.get('end');
-  if (!startNode) {
-    throw new Error('图缺少 Start 节点');
-  }
-  if (!endNode) {
-    throw new Error('图缺少 End 节点');
-  }
-
-  // 构建邻接表
-  const outgoingEdges = new Map(); // source -> [edge]
-  const incomingEdges = new Map(); // target -> [edge]
-
-  for (const edge of edges) {
-    if (!outgoingEdges.has(edge.source)) {
-      outgoingEdges.set(edge.source, []);
-    }
-    outgoingEdges.get(edge.source).push(edge);
-
-    if (!incomingEdges.has(edge.target)) {
-      incomingEdges.set(edge.target, []);
-    }
-    incomingEdges.get(edge.target).push(edge);
-  }
-
-  // 校验自连接
-  for (const edge of edges) {
-    if (edge.source === edge.target) {
-      throw new Error(`自连接非法：节点 ${edge.source} 连接到自身`);
-    }
-  }
-
-  // 没有连接到 Start 的边，返回空主链
-  const startOut = outgoingEdges.get('start') || [];
-  if (startOut.length === 0) {
-    return [];
-  }
-
-  // BFS 遍历：从 Start 到 End 的路径（仅用于校验和预览）
-  const chain = [];
-  const visited = new Set();
-  let current = startOut[0].target;
-
-  while (current !== 'end') {
-    // 检查环
-    if (visited.has(current)) {
-      throw new Error(`检测到环：节点 ${current} 被重复访问`);
-    }
-    visited.add(current);
-
-    // 检查节点存在
-    if (!nodeMap.has(current)) {
-      throw new Error(`边引用不存在的节点：${current}`);
-    }
-
-    const out = outgoingEdges.get(current) || [];
-
-    // 无出边 —— 链尾
-    if (out.length === 0) {
-      break;
-    }
-
-    chain.push(current);
-    // 优先走无条件边；多条无条件边时走第一条
-    const defaultEdge = out.find((e) => !e.condition) || out[0];
-    current = defaultEdge.target;
-  }
-
-  return chain;
-}
-
-/**
- * 构建有序执行路径——运行时使用。
- *
- * 与 resolveMainChain 不同，该函数在分支点收集所有分支信息，
- * 返回的 path 包含每个节点的出边列表，供运行时动态评估条件选择分支。
+ * 从 Start 做 BFS 收集所有可达节点，返回每个节点的出边列表，
+ * 供运行时动态评估条件选择分支；环检测使用拓扑排序（允许不等长分支合流）。
  *
  * @param {Array} nodes
  * @param {Array} edges
@@ -213,21 +127,43 @@ export function resolveExecutionPath(nodes, edges) {
     }
   }
 
-  // 环检测
+  // 环检测：对可达子图做 Kahn 拓扑排序。
+  // 不能用 BFS 序下标判断——合流分支长度不等时，汇合点在 BFS 序中
+  // 可能先于长分支尾节点出现，会被误判为环。
   if (path.length > 0) {
-    // 再次遍历检测环——出边指向已访问但尚未处理完的节点
+    // 统计可达子图内各节点的入度（只统计来自可达节点的边，忽略指向 start 的边）
     const pathIds = new Set(path.map((p) => p.stepId));
+    const inDegree = new Map();
     for (const step of path) {
+      if (!inDegree.has(step.stepId)) inDegree.set(step.stepId, 0);
       for (const edge of step.outgoingEdges) {
         if (edge.target !== 'end' && edge.target !== 'start' && pathIds.has(edge.target)) {
-          // 安全：允许合流（多条入边指向同一节点）
-          // 只有形成循环引用才报错
-          const targetStep = path.find((p) => p.stepId === edge.target);
-          if (targetStep && path.indexOf(targetStep) < path.indexOf(step)) {
-            throw new Error(`检测到环：节点 ${edge.target}`);
+          inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1);
+        }
+      }
+    }
+
+    // Kahn：入度为 0 的节点逐个移除
+    const queue = path.filter((p) => (inDegree.get(p.stepId) || 0) === 0).map((p) => p.stepId);
+    const removed = new Set();
+    while (queue.length > 0) {
+      const current = queue.shift();
+      removed.add(current);
+      const step = path.find((p) => p.stepId === current);
+      for (const edge of step.outgoingEdges) {
+        if (edge.target !== 'end' && edge.target !== 'start' && pathIds.has(edge.target)) {
+          const nextDegree = (inDegree.get(edge.target) || 0) - 1;
+          inDegree.set(edge.target, nextDegree);
+          if (nextDegree === 0 && !removed.has(edge.target)) {
+            queue.push(edge.target);
           }
         }
       }
+    }
+
+    if (removed.size < path.length) {
+      const cyclic = path.find((p) => !removed.has(p.stepId));
+      throw new Error(`检测到环：节点 ${cyclic.stepId}`);
     }
   }
 
@@ -328,64 +264,6 @@ export function validateGraph(nodes, edges) {
   }
 
   return errors;
-}
-
-/**
- * 返回未接入主链的节点（不包括 Start 和 End）。
- *
- * @param {Array} nodes
- * @param {Array} edges
- * @returns {Array} 未连接节点的 ID 数组
- */
-export function getDisconnectedNodes(nodes, edges) {
-  // 构建邻接表
-  const outgoingEdges = new Map();
-  const incomingEdges = new Map();
-  for (const edge of edges) {
-    if (!outgoingEdges.has(edge.source)) outgoingEdges.set(edge.source, []);
-    outgoingEdges.get(edge.source).push(edge);
-    if (!incomingEdges.has(edge.target)) incomingEdges.set(edge.target, []);
-    incomingEdges.get(edge.target).push(edge);
-  }
-
-  // 从 Start 开始 BFS
-  const connected = new Set();
-  const queue = ['start'];
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (connected.has(current)) continue;
-    connected.add(current);
-    const out = outgoingEdges.get(current) || [];
-    for (const edge of out) {
-      if (!connected.has(edge.target)) {
-        queue.push(edge.target);
-      }
-    }
-  }
-
-  // 从 End 反向 BFS
-  const reverseQueue = ['end'];
-  while (reverseQueue.length > 0) {
-    const current = reverseQueue.shift();
-    if (connected.has(current)) continue;
-    connected.add(current);
-    const inEdges = incomingEdges.get(current) || [];
-    for (const edge of inEdges) {
-      if (!connected.has(edge.source)) {
-        reverseQueue.push(edge.source);
-      }
-    }
-  }
-
-  // 收集不在主链中的 Request 节点
-  const disconnected = [];
-  for (const node of nodes) {
-    if (node.type === 'request' && !connected.has(node.id)) {
-      disconnected.push(node.id);
-    }
-  }
-
-  return disconnected;
 }
 
 /**

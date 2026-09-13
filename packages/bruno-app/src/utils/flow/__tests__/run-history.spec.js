@@ -89,3 +89,36 @@ describe('buildRunRecord', () => {
     expect(stored.dataBuffer).toBeNull();
   });
 });
+
+describe('truncateNodeState — 二进制 dataBuffer 处理', () => {
+  it('Uint8Array dataBuffer 落盘前应置空（避免 JSON 序列化膨胀且无法回放）', () => {
+    const record = buildRunRecord({
+      flowUid: 'flow1',
+      collectionUid: 'col1',
+      runState: {
+        flowRunId: 'run-bin',
+        status: 'success',
+        nodes: {
+          step_bin: {
+            status: 'success',
+            body: 'binary-ish',
+            dataBuffer: new Uint8Array([1, 2, 3, 4])
+          },
+          step_text: {
+            status: 'success',
+            body: { ok: true },
+            dataBuffer: null
+          }
+        }
+      },
+      startedAt: 1730000000000,
+      trigger: 'full',
+      stopAtNodeId: null,
+      status: 'success'
+    });
+
+    expect(record.nodes.step_bin.dataBuffer).toBeNull();
+    expect(record.nodes.step_text.dataBuffer).toBeNull();
+    expect(record.nodes.step_text.body).toEqual({ ok: true });
+  });
+});

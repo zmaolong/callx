@@ -219,6 +219,8 @@ export function evaluateCondition(condition, flowContext) {
     try {
       return Boolean(safeEvaluate(condition.expression, { context: flowContext }));
     } catch {
+      // 表达式求值失败（语法错误/引用缺失）按"条件不满足"处理：
+      // 静默回退是分支语义的一部分，运行时无可展示的上下文
       return false;
     }
   }
@@ -252,6 +254,7 @@ export function evaluateCondition(condition, flowContext) {
           // status 等字段是数字，先字符串化再匹配
           return new RegExp(condition.value).test(String(actualValue));
         } catch {
+          // 用户输入的非法正则按"不匹配"处理，而非让整个分支评估崩溃
           return false;
         }
       }

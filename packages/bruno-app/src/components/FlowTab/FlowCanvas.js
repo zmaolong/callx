@@ -252,6 +252,9 @@ const FlowCanvas = ({
         ...defaultEdgeOptions
       };
 
+      // 记录撤销快照后写 Redux（与删边/删节点一致，连线可被 Ctrl+Z 撤销）
+      if (onBeforeDelete) onBeforeDelete();
+
       setEdges((eds) => addEdge(newEdge, eds));
       dispatch(addFlowEdge({
         collectionUid,
@@ -263,7 +266,7 @@ const FlowCanvas = ({
         }
       }));
     },
-    [nodes, edges, dispatch, collectionUid, flow?.uid]
+    [nodes, edges, dispatch, collectionUid, flow?.uid, onBeforeDelete]
   );
 
   // 节点位置变化时持久化（基于 flow 原始节点数据，保留 errorHandler 等全部字段）

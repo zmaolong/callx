@@ -3,9 +3,8 @@
  */
 import {
   createFlowGraph,
-  resolveMainChain,
+  resolveExecutionPath,
   validateGraph,
-  getDisconnectedNodes,
   getPredecessorStepId,
   generateNodeStepId,
   generateEdgeId
@@ -37,140 +36,6 @@ describe('generateEdgeId', () => {
   it('应生成正确的边 ID', () => {
     expect(generateEdgeId('a', 'b')).toBe('edge_a_b');
     expect(generateEdgeId('start', 'step_abc')).toBe('edge_start_step_abc');
-  });
-});
-
-describe('resolveMainChain', () => {
-  const makeNodes = (extraNodes = []) => [
-    { id: 'start', type: 'start' },
-    { id: 'end', type: 'end' },
-    ...extraNodes
-  ];
-
-  const makeEdges = (pairs) =>
-    pairs.map(([source, target]) => ({
-      id: `edge_${source}_${target}`,
-      source,
-      target
-    }));
-
-  it('应解析合法 Start → A → B → End 的正确顺序', () => {
-    const nodes = makeNodes([
-      { id: 'step_a', type: 'request' },
-      { id: 'step_b', type: 'request' }
-    ]);
-    const edges = makeEdges([
-      ['start', 'step_a'],
-      ['step_a', 'step_b'],
-      ['step_b', 'end']
-    ]);
-    const chain = resolveMainChain(nodes, edges);
-    expect(chain).toEqual(['step_a', 'step_b']);
-  });
-
-  it('Start → A → End 单步链', () => {
-    const nodes = makeNodes([{ id: 'step_a', type: 'request' }]);
-    const edges = makeEdges([
-      ['start', 'step_a'],
-      ['step_a', 'end']
-    ]);
-    expect(resolveMainChain(nodes, edges)).toEqual(['step_a']);
-  });
-
-  it('无连线时返回空数组', () => {
-    const nodes = makeNodes([{ id: 'step_a', type: 'request' }]);
-    expect(resolveMainChain(nodes, [])).toEqual([]);
-  });
-
-  it('未连接节点不参与主链', () => {
-    const nodes = makeNodes([
-      { id: 'step_a', type: 'request' },
-      { id: 'step_b', type: 'request', requestUid: 'orphan' }
-    ]);
-    const edges = makeEdges([
-      ['start', 'step_a'],
-      ['step_a', 'end']
-    ]);
-    expect(resolveMainChain(nodes, edges)).toEqual(['step_a']);
-  });
-
-  it('Start 多出边时沿默认（首条）边预览主链', () => {
-    const nodes = makeNodes([
-      { id: 'step_a', type: 'request' },
-      { id: 'step_b', type: 'request' }
-    ]);
-    const edges = makeEdges([
-      ['start', 'step_a'],
-      ['start', 'step_b']
-    ]);
-    // 条件分支模式下不再抛错；step_a 无出边，链尾终止
-    expect(resolveMainChain(nodes, edges)).toEqual([]);
-  });
-
-  it('End 多入边合流时主链沿默认路径', () => {
-    const nodes = makeNodes([
-      { id: 'step_a', type: 'request' },
-      { id: 'step_b', type: 'request' }
-    ]);
-    // 两条独立链都指向 End：Start→A→End, B→End（B 未连接 Start）
-    const edges = makeEdges([
-      ['start', 'step_a'],
-      ['step_a', 'end'],
-      ['step_b', 'end']
-    ]);
-    expect(resolveMainChain(nodes, edges)).toEqual(['step_a']);
-  });
-
-  it('Request 节点分叉时沿默认（首条无条件）边预览主链', () => {
-    const nodes = makeNodes([
-      { id: 'step_a', type: 'request' },
-      { id: 'step_b', type: 'request' },
-      { id: 'step_c', type: 'request' }
-    ]);
-    // A→B, A→C：A 分叉，条件分支模式下沿首条无条件边走
-    const edges = makeEdges([
-      ['start', 'step_a'],
-      ['step_a', 'step_b'],
-      ['step_a', 'step_c'],
-      ['step_b', 'end']
-    ]);
-    expect(resolveMainChain(nodes, edges)).toEqual(['step_a', 'step_b']);
-  });
-
-  it('环应抛出错误', () => {
-    const nodes = makeNodes([
-      { id: 'step_a', type: 'request' },
-      { id: 'step_b', type: 'request' }
-    ]);
-    // 长链中的环：Start→A→B→C→B，C→B 形成环，但 B 只有 2 条入边
-    // 实际上环在链式结构中必然导致某节点入度 > 1
-    // 这里用三节点环：Start→A→B→C→A，A 有 2 条入边
-    const edges = makeEdges([
-      ['start', 'step_a'],
-      ['step_a', 'step_b'],
-      ['step_b', 'step_a']
-    ]);
-    // 环在被检测到之前，会先被入度检查捕获
-    expect(() => resolveMainChain(nodes, edges)).toThrow();
-  });
-
-  it('自连接应抛出错误', () => {
-    const nodes = makeNodes([{ id: 'step_a', type: 'request' }]);
-    const edges = makeEdges([
-      ['start', 'step_a'],
-      ['step_a', 'step_a']
-    ]);
-    expect(() => resolveMainChain(nodes, edges)).toThrow('自连接');
-  });
-
-  it('缺少 Start 应抛出错误', () => {
-    const nodes = [{ id: 'end', type: 'end' }];
-    expect(() => resolveMainChain(nodes, [])).toThrow('缺少 Start 节点');
-  });
-
-  it('缺少 End 应抛出错误', () => {
-    const nodes = [{ id: 'start', type: 'start' }];
-    expect(() => resolveMainChain(nodes, [])).toThrow('缺少 End 节点');
   });
 });
 
@@ -215,36 +80,6 @@ describe('validateGraph', () => {
   });
 });
 
-describe('getDisconnectedNodes', () => {
-  it('应返回未接入主链的 Request 节点', () => {
-    const nodes = [
-      { id: 'start', type: 'start' },
-      { id: 'end', type: 'end' },
-      { id: 'step_a', type: 'request' },
-      { id: 'step_b', type: 'request', requestUid: 'orphan' }
-    ];
-    const edges = [
-      { id: 'e1', source: 'start', target: 'step_a' },
-      { id: 'e2', source: 'step_a', target: 'end' }
-    ];
-    const disconnected = getDisconnectedNodes(nodes, edges);
-    expect(disconnected).toEqual(['step_b']);
-  });
-
-  it('所有节点都连接时应返回空数组', () => {
-    const nodes = [
-      { id: 'start', type: 'start' },
-      { id: 'end', type: 'end' },
-      { id: 'step_a', type: 'request' }
-    ];
-    const edges = [
-      { id: 'e1', source: 'start', target: 'step_a' },
-      { id: 'e2', source: 'step_a', target: 'end' }
-    ];
-    expect(getDisconnectedNodes(nodes, edges)).toEqual([]);
-  });
-});
-
 describe('getPredecessorStepId', () => {
   it('应返回直接前驱', () => {
     const edges = [
@@ -263,5 +98,91 @@ describe('getPredecessorStepId', () => {
 
   it('无入边时返回 null', () => {
     expect(getPredecessorStepId('step_a', [])).toBeNull();
+  });
+});
+
+describe('resolveExecutionPath — 合流与环检测', () => {
+  const makeNodes = (extra = []) => [
+    { id: 'start', type: 'start' },
+    { id: 'end', type: 'end' },
+    ...extra
+  ];
+
+  const makeEdges = (pairs) =>
+    pairs.map(([source, target]) => ({
+      id: `edge_${source}_${target}`,
+      source,
+      target
+    }));
+
+  it('不等长分支合流（BFS 序与拓扑序不一致）不应误判为环', () => {
+    // start→A→X→B 与 start→B 直连：B 在 BFS 序中先于 X 出现，
+    // 旧实现按 BFS 下标比较会把 X→B 误判为环
+    const nodes = makeNodes([
+      { id: 'step_a', type: 'request' },
+      { id: 'step_b', type: 'request' },
+      { id: 'step_x', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'step_a'],
+      ['start', 'step_b'],
+      ['step_a', 'step_x'],
+      ['step_x', 'step_b'],
+      ['step_b', 'end']
+    ]);
+
+    const path = resolveExecutionPath(nodes, edges);
+    expect(path.map((p) => p.stepId)).toEqual(['step_a', 'step_b', 'step_x']);
+  });
+
+  it('validateGraph 对不等长合流图应返回空错误', () => {
+    const nodes = makeNodes([
+      { id: 'step_a', type: 'request' },
+      { id: 'step_b', type: 'request' },
+      { id: 'step_x', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'step_a'],
+      ['start', 'step_b'],
+      ['step_a', 'step_x'],
+      ['step_x', 'step_b'],
+      ['step_b', 'end']
+    ]);
+
+    expect(validateGraph(nodes, edges)).toEqual([]);
+  });
+
+  it('真环仍应抛出错误', () => {
+    const nodes = makeNodes([
+      { id: 'step_a', type: 'request' },
+      { id: 'step_b', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'step_a'],
+      ['step_a', 'step_b'],
+      ['step_b', 'step_a']
+    ]);
+
+    expect(() => resolveExecutionPath(nodes, edges)).toThrow(/检测到环/);
+  });
+
+  it('等长菱形合流（两分支等长）应正常解析', () => {
+    const nodes = makeNodes([
+      { id: 'step_a', type: 'request' },
+      { id: 'step_b', type: 'request' },
+      { id: 'step_c', type: 'request' },
+      { id: 'step_d', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'step_a'],
+      ['step_a', 'step_b'],
+      ['step_a', 'step_c'],
+      ['step_b', 'step_d'],
+      ['step_c', 'step_d'],
+      ['step_d', 'end']
+    ]);
+
+    const path = resolveExecutionPath(nodes, edges);
+    expect(path).toHaveLength(4);
   });
 });
