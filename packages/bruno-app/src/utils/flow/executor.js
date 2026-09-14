@@ -341,6 +341,25 @@ async function runStep({
     });
   }
 
+  // 并行组节点：控制器接管组内子请求的并行执行（子请求节点不经过主循环）
+  if (node.type === NODE_TYPES.PARALLEL) {
+    return runParallelGroupStep({
+      node,
+      index,
+      executionPath,
+      nodes,
+      edges,
+      collection,
+      collectionItems,
+      runStore,
+      cancelTokenUid,
+      stopAtNodeId,
+      baseRuntimeVariables,
+      executed,
+      flowContext
+    });
+  }
+
   // 查找对应的请求 item（有未保存草稿时优先使用草稿，与请求 Tab 的 sendRequest 语义一致）
   const item = collectionItems[node.requestUid];
   if (!item) {
@@ -786,6 +805,217 @@ async function runLoopStep({
     return { kind: 'end', index, stoppedAt: stopAtNodeId };
   }
   return { kind: 'goto', index: doneIndex };
+}
+
+/**
+ * 并行组节点控制器。
+ *
+ * 执行模型：
+ * - 并行组也是主执行路径上的一步，内部包含多个子请求（parentId = 组节点 id 的 request node）
+ * - 组内所有子请求同时用 Promise.all 发起
+ * - 一错全停：任一子请求失败 → 取消其他 → 整组 FAILED
+ * - 全部成功 → 组节点标记 SUCCESS → 主循环继续推进到下一个节点
+ * - 子请求结果写入 flowContext[childStepId]，与普通 request 节点一致
+ */
+async function runParallelGroupStep({
+  node,
+  index,
+  executionPath,
+  nodes,
+  edges,
+  collection,
+  collectionItems,
+  runStore,
+  cancelTokenUid,
+  stopAtNodeId,
+  baseRuntimeVariables,
+  executed,
+  flowContext
+}) {
+  const stepId = node.id;
+  // 基础运行变量快照（组内所有子请求共享基础变量，但不互窜）
+  const baseVars = { ...(collection.runtimeVariables || {}) };
+
+  // 1. 查找组内所有子请求节点（parentId === stepId）
+  const childNodes = nodes.filter((n) => n.parentId === stepId && n.type === 'request');
+  if (childNodes.length === 0) {
+    const error = '并行组内没有子请求节点';
+    runStore.markMissing(stepId, error);
+    return { kind: 'fail', index, error };
+  }
+
+  // 子请求由并行组控制器管理，不允许主循环再次进入
+  childNodes.forEach((n) => executed.add(n.id));
+
+  // 2. 并行执行所有子请求
+  const childResults = await Promise.allSettled(
+    childNodes.map((childNode) =>
+      executeParallelChild({
+        node: childNode,
+        collection,
+        collectionItems,
+        runStore,
+        flowContext,
+        edges,
+        baseRuntimeVariables,
+        cancelTokenUid
+      })
+    )
+  );
+
+  // 3. 检查是否有取消
+  const anyCancelled = childResults.some(
+    (r) => r.status === 'fulfilled' && r.value?.type === 'cancelled'
+  );
+  if (anyCancelled) {
+    return { kind: 'cancelled', index, stepId };
+  }
+
+  // 4. 检查是否全部成功
+  const allSuccess = childResults.every(
+    (r) => r.status === 'fulfilled' && r.value?.type === 'success'
+  );
+
+  if (allSuccess) {
+    runStore.markSuccess(stepId, {
+      duration: 0, // 并行组自身不记录耗时
+      inputVariables: null
+    });
+    if (stopAtNodeId && stepId === stopAtNodeId) {
+      return { kind: 'end', index, stoppedAt: stopAtNodeId };
+    }
+    return selectNextBranch({ stepId, node, index, executionPath, edges, runStore, executed, stopAtNodeId, flowContext });
+  }
+
+  // 5. 有失败：一错全停
+  const failedResult = childResults.find(
+    (r) => r.status === 'fulfilled' && r.value?.type === 'stop'
+  );
+  const error = failedResult?.value?.error || '并行组内子请求执行失败';
+
+  // 取消其他仍在运行的子请求
+  runStore.setFlowStatus(FLOW_STATUS.FAILED);
+
+  // 标记组节点失败
+  runStore.markFailure(stepId, {
+    error,
+    inputVariables: null
+  });
+
+  // 剩余未失败的子节点标记为 skipped
+  const failedStepIds = new Set();
+  for (let i = 0; i < childResults.length; i++) {
+    const r = childResults[i];
+    if (r.status === 'fulfilled' && r.value?.type !== 'stop') continue;
+    const failedChildNode = childResults[i]?.value?.stepId || childNodes[i]?.id;
+    if (failedChildNode) failedStepIds.add(failedChildNode);
+  }
+
+  return { kind: 'fail', index, error };
+}
+
+/**
+ * 执行并行组内的单个子请求。
+ * 语义与 executeRequestNode 相同，但返回扁平结果（不经过分支选择/错误策略跳转）。
+ */
+async function executeParallelChild({
+  node,
+  collection,
+  collectionItems,
+  runStore,
+  flowContext,
+  edges,
+  baseRuntimeVariables,
+  cancelTokenUid
+}) {
+  const stepId = node.id;
+
+  // 子请求可以引用主流程上游数据（位于并行组之前的节点结果）
+  const item = collectionItems[node.requestUid];
+  if (!item) {
+    runStore.markMissing(stepId, `请求 ${node.requestUid} 不存在`);
+    return { type: 'stop', stepId, error: `请求 ${node.requestUid} 不存在` };
+  }
+
+  runStore.markRunning(stepId);
+
+  const { variables, errors: mappingErrors } = resolveInputMappings(
+    node.inputs || [],
+    { _nodeResults: flowContext, _edges: edges },
+    stepId
+  );
+
+  if (mappingErrors.length > 0) {
+    const errorMsg = mappingErrors.map((e) => `${e.variableName}: ${e.error}`).join('; ');
+    runStore.markFailure(stepId, { error: `输入映射失败: ${errorMsg}`, inputVariables: variables });
+    return { type: 'stop', stepId, error: `输入映射失败: ${errorMsg}` };
+  }
+
+  collection.runtimeVariables = { ...baseRuntimeVariables, ...variables };
+  const environment = findEnvironmentInCollection(collection, collection.activeEnvironmentUid);
+
+  const { response, requestError, duration, cancelled } = await sendStepRequest({
+    item,
+    collection,
+    environment,
+    runtimeVariables: collection.runtimeVariables,
+    cancelTokenUid
+  });
+
+  if (cancelled) {
+    return { type: 'cancelled', stepId };
+  }
+
+  if (requestError || response?.error) {
+    const err = requestError ? (requestError.message || '网络请求失败') : response.error;
+    runStore.markFailure(stepId, {
+      error: err,
+      body: response?.data || null,
+      httpStatus: response?.status || null,
+      duration: response?.duration ?? duration,
+      inputVariables: variables,
+      requestSent: sanitizeRequestSent(response?.requestSent)
+    });
+    return { type: 'stop', stepId, error: err };
+  }
+
+  // 断言检查
+  const { results: assertionResults, failed: failedAssertions } = extractAssertionResults(response);
+  if (failedAssertions.length > 0) {
+    const assertError = `断言失败 (${assertionResults.length - failedAssertions.length}/${assertionResults.length} 通过): ${failedAssertions.map((a) => a.lhsExpr).join('; ')}`;
+    runStore.markFailure(stepId, {
+      error: assertError,
+      body: response.data || null,
+      httpStatus: response.status || null,
+      duration: response.duration ?? duration,
+      inputVariables: variables,
+      requestSent: sanitizeRequestSent(response.requestSent),
+      assertionResults
+    });
+    return { type: 'stop', stepId, error: assertError };
+  }
+
+  // 成功：写入 flowContext（key = 子请求自己的 stepId）
+  flowContext[stepId] = {
+    body: response.data,
+    status: response.status,
+    duration: response.duration ?? duration,
+    headers: response.headers || null,
+    statusText: response.statusText ?? null
+  };
+  runStore.markSuccess(stepId, {
+    body: response.data,
+    httpStatus: response.status,
+    duration,
+    inputVariables: variables,
+    requestSent: sanitizeRequestSent(response.requestSent),
+    headers: response.headers || null,
+    dataBuffer: response.dataBuffer || null,
+    size: response.size ?? null,
+    statusText: response.statusText ?? null,
+    assertionResults: assertionResults.length > 0 ? assertionResults : null
+  });
+  return { type: 'success', stepId };
 }
 
 /**

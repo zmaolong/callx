@@ -61,6 +61,63 @@ const ConfigTab = ({
     );
   }
 
+  // 并行组节点：别名 + 子请求列表信息
+  if (nodeType === 'parallel') {
+    const childRequestNodes = (nodes || []).filter((n) => n.parentId === selectedNode.id && n.type === 'request');
+    return (
+      <>
+        <div style={{ marginBottom: 12 }}>
+          <InputLabel>
+            别名 (Alias)
+          </InputLabel>
+          <SidebarInput
+            value={nodeData.alias || ''}
+            onChange={(event) => onUpdateNode && onUpdateNode(selectedNode.id, { alias: event.target.value })}
+            placeholder="例如 批量查询用户"
+            aria-label="并行组别名 (Alias)"
+          />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <SectionTitle>
+            子请求（{childRequestNodes.length} 个）
+          </SectionTitle>
+          {childRequestNodes.length === 0 ? (
+            <MutedText>
+              画布中无子请求节点。请将请求节点拖拽到并行组内加入。
+            </MutedText>
+          ) : (
+            childRequestNodes.map((cn) => (
+              <div
+                key={cn.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 8px',
+                  marginBottom: 4,
+                  borderRadius: 6,
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  fontSize: 12
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>{cn.alias || cn.id}</span>
+              </div>
+            ))
+          )}
+
+          <MutedText style={{ marginTop: 10, lineHeight: 1.6 }}>
+            并行组内的子请求将同时（Promise.all）发起执行。所有子请求结束后才流转到下一个节点。
+            <br />
+            任一子请求失败即终止整个流程。子请求结果通过
+            {' '}<code>{'{{$flow.子请求StepId.body}}'}</code> 在下游节点中引用。
+          </MutedText>
+        </div>
+      </>
+    );
+  }
+
   // 循环节点：别名 + 数据源/收集/迭代上限（无错误策略、请求操作与输入映射）
   if (nodeType === 'loop') {
     return (

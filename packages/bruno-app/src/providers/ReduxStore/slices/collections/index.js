@@ -718,11 +718,19 @@ export const collectionsSlice = createSlice({
         const item = itemUid ? findItemInCollection(collection, itemUid) : null;
         const target = item || collection;
         if (target.flow?.nodes) {
-          target.flow.nodes = target.flow.nodes.filter((n) => n.id !== nodeId);
-          // Also remove edges connected to this node
+          // 如果删除的是并行组节点，级联删除其子节点（parentId === nodeId）
+          const node = target.flow.nodes.find((n) => n.id === nodeId);
+          const cascadeIds = new Set([nodeId]);
+          if (node && node.type === 'parallel') {
+            target.flow.nodes
+              .filter((n) => n.parentId === nodeId)
+              .forEach((child) => cascadeIds.add(child.id));
+          }
+          target.flow.nodes = target.flow.nodes.filter((n) => !cascadeIds.has(n.id));
+          // Also remove edges connected to these nodes
           if (target.flow.edges) {
             target.flow.edges = target.flow.edges.filter(
-              (e) => e.source !== nodeId && e.target !== nodeId
+              (e) => !cascadeIds.has(e.source) && !cascadeIds.has(e.target)
             );
           }
         }

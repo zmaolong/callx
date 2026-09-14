@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { IconPencil, IconCopy, IconTrash, IconPlus, IconSettings, IconRepeat } from '@tabler/icons';
+import { IconPencil, IconCopy, IconTrash, IconPlus, IconSettings, IconRepeat, IconGripHorizontal } from '@tabler/icons';
 
 const MenuContainer = styled.div`
   position: fixed;
@@ -72,6 +72,7 @@ const FlowContextMenu = ({ x, y, paneX, paneY, node, edge, onClose, onAction }) 
 
   const nodeType = node?.data?.type || node?.type;
   const isRequestNode = node && nodeType === 'request';
+  const isInParallelGroup = node && (node.data?.parentId || (node.data && node.data.parentId));
 
   const emit = (type, extra) => {
     onAction?.(type, extra || node || edge);
@@ -83,6 +84,11 @@ const FlowContextMenu = ({ x, y, paneX, paneY, node, edge, onClose, onAction }) 
       {/* 请求节点菜单 */}
       {isRequestNode && (
         <>
+          {isInParallelGroup && (
+            <MenuItem onClick={() => emit('removeFromGroup')}>
+              <IconGripHorizontal size={14} /> 移出并行组
+            </MenuItem>
+          )}
           <MenuItem onClick={() => emit('edit')}>
             <IconPencil size={14} /> 编辑请求
           </MenuItem>
@@ -116,6 +122,13 @@ const FlowContextMenu = ({ x, y, paneX, paneY, node, edge, onClose, onAction }) 
         </MenuItem>
       )}
 
+      {/* 并行组节点菜单：配置在工作台，此处仅删除 */}
+      {node && nodeType === 'parallel' && (
+        <MenuItem $danger onClick={() => emit('deleteNode')}>
+          <IconTrash size={14} /> 删除节点
+        </MenuItem>
+      )}
+
       {/* 边菜单 */}
       {edge && (
         <>
@@ -136,6 +149,9 @@ const FlowContextMenu = ({ x, y, paneX, paneY, node, edge, onClose, onAction }) 
           </MenuItem>
           <MenuItem onClick={() => emit('addNodeAtPane', { paneX: paneX ?? x, paneY: paneY ?? y, nodeType: 'loop' })}>
             <IconRepeat size={14} /> 添加循环节点
+          </MenuItem>
+          <MenuItem onClick={() => emit('addNodeAtPane', { paneX: paneX ?? x, paneY: paneY ?? y, nodeType: 'parallel' })}>
+            <IconGripHorizontal size={14} /> 添加并行组
           </MenuItem>
         </>
       )}

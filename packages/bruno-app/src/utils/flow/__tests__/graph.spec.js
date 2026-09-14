@@ -292,3 +292,120 @@ describe('validateGraph — 循环节点', () => {
     expect(path.map((p) => p.stepId)).toEqual(['loop1', 'step_b1', 'step_d']);
   });
 });
+
+describe('validateGraph — 并行组节点', () => {
+  const makeNodes = (extra = []) => [
+    { id: 'start', type: 'start' },
+    { id: 'end', type: 'end' },
+    ...extra
+  ];
+
+  const makeEdges = (pairs) =>
+    pairs.map(([source, target], i) => ({
+      id: `edge_${source}_${target}_${i}`,
+      source,
+      target
+    }));
+
+  it('合法并行组图应返回空错误', () => {
+    const nodes = makeNodes([
+      { id: 'group1', type: 'parallel', alias: '批量查询' },
+      { id: 'step_a', type: 'request', parentId: 'group1' },
+      { id: 'step_b', type: 'request', parentId: 'group1' },
+      { id: 'step_after', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'group1'],
+      ['group1', 'step_after'],
+      ['step_after', 'end']
+    ]);
+    expect(validateGraph(nodes, edges)).toEqual([]);
+  });
+
+  it('并行组子节点不应有连线', () => {
+    const nodes = makeNodes([
+      { id: 'group1', type: 'parallel' },
+      { id: 'step_a', type: 'request', parentId: 'group1' },
+      { id: 'step_after', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'group1'],
+      ['step_a', 'step_after'],
+      ['step_after', 'end']
+    ]);
+    const errors = validateGraph(nodes, edges);
+    expect(errors.some((e) => e.message.includes('不应有连线'))).toBe(true);
+  });
+
+  it('parentId 指向不存在的节点应报错', () => {
+    const nodes = makeNodes([
+      { id: 'step_a', type: 'request', parentId: 'nonexistent' },
+      { id: 'step_after', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'step_a'],
+      ['step_a', 'step_after'],
+      ['step_after', 'end']
+    ]);
+    const errors = validateGraph(nodes, edges);
+    expect(errors.some((e) => e.message.includes('父容器'))).toBe(true);
+  });
+
+  it('parentId 指向非并行组节点应报错', () => {
+    const nodes = makeNodes([
+      { id: 'step_x', type: 'request' },
+      { id: 'step_a', type: 'request', parentId: 'step_x' },
+      { id: 'step_after', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'step_a'],
+      ['step_a', 'step_after'],
+      ['step_after', 'end']
+    ]);
+    const errors = validateGraph(nodes, edges);
+    expect(errors.some((e) => e.message.includes('不是并行组节点'))).toBe(true);
+  });
+
+  it('执行路径应跳过并行组子节点', () => {
+    const nodes = [
+      { id: 'start', type: 'start' },
+      { id: 'end', type: 'end' },
+      { id: 'group1', type: 'parallel', alias: '并行组' },
+      { id: 'step_a', type: 'request', parentId: 'group1' },
+      { id: 'step_b', type: 'request', parentId: 'group1' },
+      { id: 'step_after', type: 'request' }
+    ];
+    const edges = [
+      { id: 'e1', source: 'start', target: 'group1' },
+      { id: 'e2', source: 'group1', target: 'step_after' },
+      { id: 'e3', source: 'step_after', target: 'end' }
+    ];
+    const path = resolveExecutionPath(nodes, edges);
+    // 并行组在主路径中是一步，子节点 step_a/step_b 不在主路径中
+    expect(path.map((p) => p.stepId)).toEqual(['group1', 'step_after']);
+  });
+
+  it('Start 可直接连并行组', () => {
+    const nodes = makeNodes([
+      { id: 'group1', type: 'parallel' },
+      { id: 'step_after', type: 'request' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'group1'],
+      ['group1', 'step_after'],
+      ['step_after', 'end']
+    ]);
+    expect(validateGraph(nodes, edges)).toEqual([]);
+  });
+
+  it('并行组可连到 End', () => {
+    const nodes = makeNodes([
+      { id: 'group1', type: 'parallel' }
+    ]);
+    const edges = makeEdges([
+      ['start', 'group1'],
+      ['group1', 'end']
+    ]);
+    expect(validateGraph(nodes, edges)).toEqual([]);
+  });
+});

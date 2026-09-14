@@ -14,7 +14,8 @@ const NODE_TYPES = {
   START: 'start',
   END: 'end',
   REQUEST: 'request',
-  LOOP: 'loop'
+  LOOP: 'loop',
+  PARALLEL: 'parallel'
 };
 
 const EDGE_TYPES = {
@@ -111,10 +112,11 @@ export function resolveExecutionPath(nodes, edges) {
     }
   }
 
-  // 从 Start 出发，收集所有可达节点（不含 Start/End）
+  // 从 Start 出发，收集所有可达节点（不含 Start/End、不含 parallel 子节点）
   const path = [];
   const visited = new Set();
   const queue = ['start'];
+  const childNodeIds = new Set(nodes.filter((n) => n.parentId).map((n) => n.id));
 
   while (queue.length > 0) {
     const current = queue.shift();
@@ -128,9 +130,10 @@ export function resolveExecutionPath(nodes, edges) {
       });
     }
 
+    // 沿着边推进时，parallel 子节点不加入主执行路径
     const out = outgoingEdges.get(current) || [];
     for (const edge of out) {
-      if (!visited.has(edge.target)) {
+      if (!visited.has(edge.target) && !childNodeIds.has(edge.target)) {
         queue.push(edge.target);
       }
     }
@@ -243,11 +246,12 @@ export function validateGraph(nodes, edges) {
     const sourceNode = nodeMap.get(edge.source);
     const targetNode = nodeMap.get(edge.target);
     if (sourceNode && targetNode) {
-      // 合法连线：Start→Request/Loop、Request→Request/Loop/End、Loop→Request/End
+      // 合法连线：Start→Request/Loop/Parallel、Request→Request/Loop/Parallel/End、Loop→Request/End、Parallel→Request/End
       const validTargets = {
-        start: ['request', 'loop'],
-        request: ['request', 'loop', 'end'],
-        loop: ['request', 'end']
+        start: ['request', 'loop', 'parallel'],
+        request: ['request', 'loop', 'parallel', 'end'],
+        loop: ['request', 'end'],
+        parallel: ['request', 'end']
       };
       const isValid = (validTargets[sourceNode.type] || []).includes(targetNode.type);
       if (!isValid) {
@@ -257,6 +261,40 @@ export function validateGraph(nodes, edges) {
         });
       }
     }
+  }
+
+  // 并行组节点校验
+  for (const node of nodes) {
+    if (node.type !== NODE_TYPES.PARALLEL) continue;
+    const nodeName = node.alias || node.id;
+    // 检查是否有 parentId 属性（并行组自身不应有 parentId）
+    if (node.parentId) {
+      errors.push({ message: `并行组节点「${nodeName}」不应属于其他组`, nodeId: node.id });
+    }
+  }
+
+  // parentId 校验：如果节点声明了 parentId，验证父节点存在且为 parallel 类型
+  for (const node of nodes) {
+    if (!node.parentId) continue;
+    if (node.type !== 'request') {
+      errors.push({ message: `节点「${nodeName(node)}」声明了父容器但类型不是 request`, nodeId: node.id });
+    }
+    const parent = nodeMap.get(node.parentId);
+    if (!parent) {
+      errors.push({ message: `节点「${nodeName(node)}」的父容器 ${node.parentId} 不存在`, nodeId: node.id });
+    } else if (parent.type !== NODE_TYPES.PARALLEL) {
+      errors.push({ message: `节点「${nodeName(node)}」的父容器 ${node.parentId} 不是并行组节点`, nodeId: node.id });
+    }
+    // 子节点不应有连线到主流程的边
+    const childEdges = edges.filter((e) => e.source === node.id || e.target === node.id);
+    if (childEdges.length > 0) {
+      errors.push({ message: `并行组子节点「${nodeName(node)}」不应有连线（通过父容器连线）`, nodeId: node.id });
+    }
+  }
+
+  // 辅助：取节点显示名
+  function nodeName(node) {
+    return node.alias || node.id;
   }
 
   // 循环节点结构校验（已有任一连线时才检查，避免新建空节点即报错）

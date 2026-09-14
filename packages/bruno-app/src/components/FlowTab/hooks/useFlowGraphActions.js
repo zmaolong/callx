@@ -30,10 +30,21 @@ const DEFAULT_LOOP_CONFIG = {
   maxIterations: 1000
 };
 
+// 并行组默认配置
+const DEFAULT_PARALLEL_CONFIG = {
+  collapsed: false
+};
+
 // 按类型创建画布节点
-const createFlowNode = (nodeType, position) => (nodeType === 'loop'
-  ? { id: generateNodeStepId(), type: 'loop', position, loopConfig: DEFAULT_LOOP_CONFIG }
-  : { id: generateNodeStepId(), type: 'request', position, inputs: [] });
+const createFlowNode = (nodeType, position) => {
+  if (nodeType === 'loop') {
+    return { id: generateNodeStepId(), type: 'loop', position, loopConfig: DEFAULT_LOOP_CONFIG };
+  }
+  if (nodeType === 'parallel') {
+    return { id: generateNodeStepId(), type: 'parallel', position, ...DEFAULT_PARALLEL_CONFIG };
+  }
+  return { id: generateNodeStepId(), type: 'request', position, inputs: [] };
+};
 
 export function useFlowGraphActions({
   flow,
@@ -148,6 +159,38 @@ export function useFlowGraphActions({
         takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
         dispatch(addFlowNode({ collectionUid, itemUid: flow.uid, node: newNode }));
         setSelectedNodeId?.(newNode.id);
+        break;
+      }
+      case 'removeFromGroup': {
+        // 从并行组中移出：清除 parentId，将子节点恢复为独立请求节点
+        const nodeId = payload.id;
+        takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
+        const node = flow?.flow?.nodes?.find((n) => n.id === nodeId);
+        if (node && node.parentId) {
+          const parentNode = flow?.flow?.nodes?.find((n) => n.id === node.parentId);
+          const restoreX = (parentNode?.position?.x || 0) + 300;
+          const restoreY = (parentNode?.position?.y || 0) + 60;
+          dispatch(updateFlowNode({
+            collectionUid,
+            itemUid: flow.uid,
+            nodeId,
+            updates: {
+              position: { x: restoreX, y: restoreY }
+            }
+          }));
+          // 用 removeFlowNode 的 api 不能清除单个字段，通过 updateFlowNode 直接设
+          // 但 updateFlowNode 通过合并更新，需要能清除 parentId
+          // 改为：调用 updateFlowNodes 整体替换
+          const updatedNodes = (flow?.flow?.nodes || []).map((n) => {
+            if (n.id === nodeId) {
+              const { parentId, ...rest } = n;
+              return { ...rest, position: { x: restoreX, y: restoreY } };
+            }
+            return n;
+          });
+          dispatch(updateFlowNodes({ collectionUid, itemUid: flow.uid, nodes: updatedNodes }));
+          setSelectedNodeId?.(nodeId);
+        }
         break;
       }
       case 'configureCondition': {

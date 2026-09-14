@@ -20,6 +20,8 @@ import StartNode from './nodes/StartNode';
 import EndNode from './nodes/EndNode';
 import RequestNode from './nodes/RequestNode';
 import LoopNode from './nodes/LoopNode';
+import ParallelNode from './nodes/ParallelNode';
+import ParallelChildNode from './nodes/ParallelChildNode';
 import ConditionEdge from './edges/ConditionEdge';
 import FlowContextMenu from './FlowContextMenu';
 import StyledWrapper from './StyledWrapper';
@@ -36,7 +38,8 @@ const nodeTypes = {
   start: StartNode,
   end: EndNode,
   request: RequestNode,
-  loop: LoopNode
+  loop: LoopNode,
+  parallel: ParallelNode
 };
 
 const edgeTypes = {
@@ -146,22 +149,68 @@ const FlowCanvas = ({
   // 将 flow 数据转换为 React Flow 格式
   const initialNodes = useMemo(() => {
     if (!flow?.flow?.nodes) return [];
-    return flow.flow.nodes.map((n) => {
-      const info = requestInfoMap?.[n.requestUid];
-      return {
-        id: n.id,
-        type: n.type === 'start' ? 'start' : n.type === 'end' ? 'end' : n.type === 'loop' ? 'loop' : 'request',
-        position: n.position || { x: 0, y: 0 },
-        data: {
-          ...n,
-          label: n.alias || info?.name || (n.type === 'loop' ? '循环' : n.id),
-          collectionUid,
-          method: info?.method,
-          url: info?.url
-        }
-      };
-    });
-  }, [flow?.flow?.nodes, collectionUid, requestInfoMap]);
+    // 第一遍：构建所有节点，但排除属于并行组的子节点（这些子节点只通过 ParallelNode 的 ChildBadge 展示）
+    const nodeMap = {};
+    const rfNodes = flow.flow.nodes
+      .filter((n) => !n.parentId) // 属于并行组的子节点不渲染为独立 React Flow 节点
+      .map((n) => {
+        const info = requestInfoMap?.[n.requestUid];
+        const typeMapping = { start: 'start', end: 'end', loop: 'loop', parallel: 'parallel' };
+        const rfNode = {
+          id: n.id,
+          type: typeMapping[n.type] || 'request',
+          position: n.position || { x: 0, y: 0 },
+          data: {
+            ...n,
+            label: n.alias || info?.name || (n.type === 'loop' ? '循环' : n.type === 'parallel' ? '并行组' : n.id),
+            collectionUid,
+            method: info?.method,
+            url: info?.url,
+            children: [],
+            collapsed: n.collapsed !== false, // 默认为展开
+            // 子请求选中回调
+            onSelectChild: (childId) => {
+              if (onSelectNode) {
+                onSelectNode({ id: childId });
+              }
+            },
+            // 子请求右键菜单回调
+            onChildContextMenu: (childId, event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              // 从原始数据中查找子节点信息，构造伪节点
+              const childNode = flow?.flow?.nodes?.find((cn) => cn.id === childId);
+              if (childNode) {
+                setContextMenu({
+                  x: event.clientX,
+                  y: event.clientY,
+                  node: { id: childId, data: childNode, type: 'request' },
+                  edge: null
+                });
+              }
+            }
+          }
+        };
+        nodeMap[n.id] = rfNode;
+        return rfNode;
+      });
+    // 第二遍：为每个并行组收集子节点信息（用于 ChildBadge 展示）
+    for (const originalNode of flow.flow.nodes) {
+      if (originalNode.parentId && nodeMap[originalNode.parentId]) {
+        const childInfo = requestInfoMap?.[originalNode.requestUid];
+        nodeMap[originalNode.parentId].data.children.push({
+          id: originalNode.id,
+          data: {
+            alias: originalNode.alias,
+            method: childInfo?.method,
+            url: childInfo?.url,
+            label: originalNode.alias || childInfo?.name || originalNode.id
+          }
+        });
+      }
+    }
+    return rfNodes;
+  }, [flow?.flow?.nodes, collectionUid, requestInfoMap, onSelectNode, flow?.flow]);
 
   const initialEdges = useMemo(() => {
     if (!flow?.flow?.edges) return [];
@@ -273,14 +322,15 @@ const FlowCanvas = ({
       const sourceType = sourceNode.data?.type || sourceNode.type;
       const targetType = targetNode.data?.type || targetNode.type;
 
-      // 合法连线：Start→Request/Loop、Request→Request/Loop/End、Loop→Request/End
+      // 合法连线：Start→Request/Loop/Parallel、Request→Request/Loop/Parallel/End、Loop→Request/End、Parallel→Request/End
       const validTargets = {
-        start: ['request', 'loop'],
-        request: ['request', 'loop', 'end'],
-        loop: ['request', 'end']
+        start: ['request', 'loop', 'parallel'],
+        request: ['request', 'loop', 'parallel', 'end'],
+        loop: ['request', 'end'],
+        parallel: ['request', 'end']
       };
       if (!(validTargets[sourceType] || []).includes(targetType)) {
-        toast.error('连线方向不合法：Start/请求节点 → 请求/循环节点，循环节点 → 请求节点/End');
+        toast.error('连线方向不合法：Start → 请求/循环/并行组，请求 → 请求/循环/并行组/End，循环/并行组 → 请求/End');
         return;
       }
 
@@ -347,10 +397,108 @@ const FlowCanvas = ({
   );
 
   // 节点位置变化时持久化（基于 flow 原始节点数据，保留 errorHandler 等全部字段）
+  // 同时检测拖入/拖出并行组（碰撞检测：拖入组的矩形区域 → 设置 parentId；拖出 → 清除）
   const onNodeDragStop = useCallback(
     (event, node) => {
+      const nodeType = node.data?.type || node.type;
       const flowNodes = flow?.flow?.nodes || [];
-      const updatedNodes = flowNodes.map((n) => (n.id === node.id ? { ...n, position: node.position } : n));
+      let updatedNodes = [...flowNodes];
+
+      // 只有 request 节点需要考虑拖入/拖出并行组
+      if (nodeType === 'request') {
+        // 找到所有平行组节点（展开态才能接收拖入）
+        const parallelNodes = nodes.filter((n) => (n.data?.type || n.type) === 'parallel' && !n.data?.collapsed);
+
+        // 检测是否在某个平行组区域内
+        let parentParallelId = null;
+        for (const pn of parallelNodes) {
+          // 根据 position 和尺寸估算组节点矩形区域
+          const padding = 60; // 估算组节点尺寸
+          // 用实际的 React Flow 节点实例获取尺寸
+          const pnPos = pn.position;
+          const width = pn.width || 260;
+          const height = pn.height || (pn.data?.children?.length ? 100 + pn.data.children.length * 40 : 140);
+          const left = pnPos.x;
+          const right = pnPos.x + width;
+          const top = pnPos.y;
+          const bottom = pnPos.y + height + 60;
+
+          const nodePos = node.position;
+          if (
+            nodePos.x >= left - 20 && nodePos.x <= right + 20
+            && nodePos.y >= top - 20 && nodePos.y <= bottom + 20
+          ) {
+            parentParallelId = pn.id;
+            break;
+          }
+        }
+
+        const currentParentId = flowNodes.find((n) => n.id === node.id)?.parentId;
+
+        if (parentParallelId && currentParentId !== parentParallelId) {
+          // 拖入并行组：设置 parentId，位置相对于组容器
+          const parentNode = flowNodes.find((n) => n.id === parentParallelId);
+          if (parentNode) {
+            const relativeX = 10; // 组内左边距
+            const existingChildren = flowNodes.filter((n) => n.parentId === parentParallelId);
+            const relativeY = 40 + existingChildren.length * 46; // 组头高度 + 每个子项间隔
+
+            updatedNodes = flowNodes.map((n) => {
+              if (n.id === node.id) {
+                return {
+                  ...n,
+                  parentId: parentParallelId,
+                  position: { x: relativeX, y: relativeY }
+                };
+              }
+              return n;
+            });
+
+            // 只 dispatch Redux，不调 setNodes —— 让 useEffect 同步从 Redux 更新 React Flow，
+            // 避免 React Flow 内部的 onNodesChange 用绝对坐标覆盖 parentId 和相对位置
+            dispatch(updateFlowNodes({
+              collectionUid,
+              itemUid: flow.uid,
+              nodes: updatedNodes
+            }));
+            return;
+          }
+        } else if (!parentParallelId && currentParentId) {
+          // 拖出并行组：清除 parentId，位置恢复到画布
+          const parentNode = flowNodes.find((n) => n.id === currentParentId);
+          if (parentNode) {
+            const restoreX = (parentNode.position?.x || 0) + 300;
+            const restoreY = (parentNode.position?.y || 0) + 60;
+            updatedNodes = flowNodes.map((n) => {
+              if (n.id === node.id) {
+                const { parentId, ...rest } = n;
+                return {
+                  ...rest,
+                  position: { x: restoreX, y: restoreY }
+                };
+              }
+              return n;
+            });
+
+            dispatch(updateFlowNodes({
+              collectionUid,
+              itemUid: flow.uid,
+              nodes: updatedNodes
+            }));
+            return;
+          }
+        } else {
+          // 普通位置更新
+          updatedNodes = flowNodes.map((n) =>
+            n.id === node.id ? { ...n, position: node.position } : n
+          );
+        }
+      } else {
+        // 非 request 节点的普通位置更新
+        updatedNodes = flowNodes.map((n) =>
+          n.id === node.id ? { ...n, position: node.position } : n
+        );
+      }
 
       setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, position: node.position } : n)));
 
@@ -360,7 +508,7 @@ const FlowCanvas = ({
         nodes: updatedNodes
       }));
     },
-    [flow?.flow?.nodes, dispatch, collectionUid, flow?.uid]
+    [flow?.flow?.nodes, nodes, dispatch, collectionUid, flow?.uid, onBeforeDelete]
   );
 
   // 选中节点
@@ -423,10 +571,17 @@ const FlowCanvas = ({
         // 记录撤销快照（removeFlowNode 会级联删除关联边）
         if (onBeforeDelete) onBeforeDelete();
 
+        // 如果是 parallel 组，级联删除子节点
+        const nodesToDelete = [selectedNode.id];
+        if (nodeType === 'parallel') {
+          const childNodes = nodes.filter((n) => n.parentId === selectedNode.id);
+          childNodes.forEach((child) => nodesToDelete.push(child.id));
+        }
+
         // 从 ReactFlow state 中删除
-        setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
+        setNodes((nds) => nds.filter((n) => !nodesToDelete.includes(n.id)));
         setEdges((eds) => eds.filter(
-          (e) => e.source !== selectedNode.id && e.target !== selectedNode.id
+          (e) => !nodesToDelete.includes(e.source) && !nodesToDelete.includes(e.target)
         ));
 
         // 从 Redux 中删除节点（removeFlowNode 也会自动删除关联边）
