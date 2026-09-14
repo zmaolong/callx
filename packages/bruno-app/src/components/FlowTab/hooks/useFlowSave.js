@@ -15,11 +15,15 @@ export function useFlowSave({ flow, collectionUid }) {
       toast.error('无法保存：Flow 数据不完整');
       return;
     }
-    const result = dispatch(saveFlow(flow.uid, collectionUid, false));
     toast.loading('正在保存 Flow...', { id: 'flow-save' });
-    if (result && result.then) {
-      result.then(() => { toast.success('Flow 保存成功!', { id: 'flow-save' }); })
-        .catch((err) => { toast.error('保存失败: ' + (err?.message || err), { id: 'flow-save' }); });
+    try {
+      const result = dispatch(saveFlow(flow.uid, collectionUid, false));
+      if (result && typeof result.then === 'function') {
+        result.then(() => { toast.success('Flow 保存成功!', { id: 'flow-save' }); })
+          .catch((err) => { toast.error('保存失败: ' + (err?.message || err), { id: 'flow-save' }); });
+      }
+    } catch (err) {
+      toast.error('保存失败: ' + (err?.message || err), { id: 'flow-save' });
     }
   }, [collectionUid, flow?.uid, dispatch]);
 

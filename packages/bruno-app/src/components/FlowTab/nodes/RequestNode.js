@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import styled, { css, keyframes, useTheme } from 'styled-components';
 import { Handle, Position } from '@xyflow/react';
 import { IconPlayerStop } from '@tabler/icons';
 import { getStatusColor, getMethodColor, STATUS_COLORS, STATUS_GLOW, STRATEGY_BADGE } from '../constants';
+import { FlowCanvasContext } from '../FlowCanvasContext';
 
 const spin = keyframes`
   from { transform: rotate(0deg); }
@@ -172,6 +173,8 @@ const RequestNode = ({ data }) => {
   const methodColor = getMethodColor(method);
   const strategy = data.errorHandler?.strategy;
   const hasErrorBar = status === 'failed' && data.errorMessage;
+  // 从 Context 获取取消回调（不再从 data 读取）
+  const { onCancelRun } = useContext(FlowCanvasContext);
 
   // hover 摘要：状态 + 耗时 + HTTP 码 + 错误首行
   const summaryParts = [];
@@ -184,12 +187,12 @@ const RequestNode = ({ data }) => {
     <NodeCard $statusColor={statusColor} $running={status === 'running'} title={summaryTitle}>
       <NodeHandle type="target" position={Position.Left} $color={statusColor} />
 
-      {status === 'running' && data.onCancelRun && (
+      {status === 'running' && onCancelRun && (
         <CancelNodeButton
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            data.onCancelRun();
+            onCancelRun();
           }}
           title="取消运行"
           aria-label="取消运行"

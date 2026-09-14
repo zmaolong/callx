@@ -197,6 +197,11 @@ const FlowTab = ({ flow }) => {
     takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges);
   }, [takeSnapshot, flow?.flow?.nodes, flow?.flow?.edges]);
 
+  // 拖拽开始前记录撤销快照但不清空 redo 栈（用户误触拖拽后仍可 Ctrl+Shift+Z 重做）
+  const takeSnapshotBeforeDrag = useCallback(() => {
+    takeSnapshot(flow?.flow?.nodes, flow?.flow?.edges, { clearRedo: false });
+  }, [takeSnapshot, flow?.flow?.nodes, flow?.flow?.edges]);
+
   // 清理运行态
   useEffect(() => {
     return () => {
@@ -249,6 +254,7 @@ const FlowTab = ({ flow }) => {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onBeforeDelete={takeSnapshotBeforeDelete}
+              onBeforeDrag={takeSnapshotBeforeDrag}
               onInstanceReady={(instance) => { canvasInstanceRef.current = instance; }}
               requestInfoMap={requestInfoMap}
               onCancelRun={handleCancel}

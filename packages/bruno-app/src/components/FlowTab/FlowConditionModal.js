@@ -179,11 +179,11 @@ const FlowConditionModal = ({ edge, nodes, edges, flowRun, onSave, onClose }) =>
 
   const sourceNode = useMemo(
     () => nodes?.find((n) => n.id === edge?.source),
-    [nodes, edge?.source]
+    [edge?.source, nodes]
   );
   const targetNode = useMemo(
     () => nodes?.find((n) => n.id === edge?.target),
-    [nodes, edge?.target]
+    [edge?.target, nodes]
   );
   const nodeName = (node) => node?.alias || node?.id || '?';
 

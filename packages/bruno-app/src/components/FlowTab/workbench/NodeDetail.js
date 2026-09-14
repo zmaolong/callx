@@ -43,6 +43,7 @@ import {
   getRunStatusInfo
 } from './styled';
 
+// 稳定的纯函数，移出组件避免每次渲染重建
 const formatJson = (data) => {
   if (data === null || data === undefined) return 'null';
   try {

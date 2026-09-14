@@ -7,11 +7,12 @@
  * - handle：左进右出各一对
  * - 子请求可点击选中，右侧面板显示配置
  */
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useContext, useMemo } from 'react';
 import styled from 'styled-components';
 import { Handle, Position } from '@xyflow/react';
 import { IconGripHorizontal, IconChevronDown, IconChevronRight } from '@tabler/icons';
 import { getStatusColor } from '../constants';
+import { FlowCanvasContext } from '../FlowCanvasContext';
 import ParallelChildNode from './ParallelChildNode';
 
 const GroupCard = styled.div`
@@ -171,6 +172,9 @@ const ParallelNode = ({ data, children: rfChildren }) => {
   const displayName = data.alias || data.label || '并行组';
   const collapsed = data.collapsed;
   const childNodes = data.children || [];
+  // 从 Context 获取稳定回调引用
+  const { onToggleCollapse, onSelectChild, onChildContextMenu } = useContext(FlowCanvasContext);
+  const nodeId = data.id; // 从 data 中取原始 ID
 
   // 摘要文案
   const summaryParts = [`${childNodes.length} 个子请求`];
@@ -189,8 +193,8 @@ const ParallelNode = ({ data, children: rfChildren }) => {
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          // data.onToggleCollapse 由外部注入，用于更新画布节点的 `collapsed` 状态
-          data.onToggleCollapse?.();
+          // 通过 Context 调用稳定回调
+          onToggleCollapse?.(nodeId, collapsed);
         }}
         title={collapsed ? '展开并行组' : '折叠并行组'}
         aria-label={collapsed ? '展开并行组' : '折叠并行组'}
@@ -214,10 +218,10 @@ const ParallelNode = ({ data, children: rfChildren }) => {
               data={child.data}
               isActive={data.selectedChildId === child.id}
               onClick={(childId) => {
-                data.onSelectChild?.(childId);
+                onSelectChild?.(childId);
               }}
               onContextMenu={(childId, event) => {
-                data.onChildContextMenu?.(childId, event);
+                onChildContextMenu?.(childId, event);
               }}
             />
           ))}

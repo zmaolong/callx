@@ -33,6 +33,7 @@ import {
   removeFlowEdge,
   removeFlowNode
 } from 'providers/ReduxStore/slices/collections';
+import { FlowCanvasContext } from './FlowCanvasContext';
 
 const nodeTypes = {
   start: StartNode,
@@ -109,6 +110,7 @@ const FlowCanvas = ({
   onUndo,
   onRedo,
   onBeforeDelete,
+  onBeforeDrag,
   onInstanceReady,
   requestInfoMap,
   onCancelRun,
@@ -139,12 +141,59 @@ const FlowCanvas = ({
     instanceRef.current?.fitView({ padding: 0.2, duration: 300 });
   }, []);
 
-  const defaultEdgeOptions = {
+  // —— 稳定回调引用（从 data 剥离，通过 Context 注入） ——
+  // 折叠/展开并行组
+  const handleToggleCollapse = useCallback((nodeId, currentCollapsed) => {
+    const flowNodes = flow?.flow?.nodes || [];
+    const updatedNodes = flowNodes.map((fn) => {
+      if (fn.id === nodeId) {
+        return { ...fn, collapsed: currentCollapsed === false ? true : false };
+      }
+      return fn;
+    });
+    dispatch(updateFlowNodes({
+      collectionUid,
+      itemUid: flow.uid,
+      nodes: updatedNodes
+    }));
+  }, [flow?.flow?.nodes, dispatch, collectionUid, flow?.uid]);
+
+  // 选中并行组子节点
+  const handleSelectChild = useCallback((childId) => {
+    if (onSelectNode) {
+      onSelectNode({ id: childId });
+    }
+  }, [onSelectNode]);
+
+  // 并行组子节点右键菜单
+  const handleChildContextMenu = useCallback((childId, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const childNode = flow?.flow?.nodes?.find((cn) => cn.id === childId);
+    if (childNode) {
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        node: { id: childId, data: childNode, type: 'request' },
+        edge: null
+      });
+    }
+  }, [flow?.flow?.nodes]);
+
+  // 注入 context 值（引用稳定不变）
+  const canvasContextValue = useMemo(() => ({
+    onToggleCollapse: handleToggleCollapse,
+    onSelectChild: handleSelectChild,
+    onChildContextMenu: handleChildContextMenu,
+    onCancelRun
+  }), [handleToggleCollapse, handleSelectChild, handleChildContextMenu, onCancelRun]);
+
+  const defaultEdgeOptions = useMemo(() => ({
     type: 'smoothstep',
     animated: false,
     style: { stroke: edgeColor, strokeWidth: 2 },
     markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor }
-  };
+  }), [edgeColor]);
 
   // 将 flow 数据转换为 React Flow 格式
   const initialNodes = useMemo(() => {
@@ -167,43 +216,9 @@ const FlowCanvas = ({
             method: info?.method,
             url: info?.url,
             children: [],
-            collapsed: n.collapsed !== false, // 默认为展开
-            // 折叠/展开切换回调
-            onToggleCollapse: () => {
-              const flowNodes = flow?.flow?.nodes || [];
-              const updatedNodes = flowNodes.map((fn) => {
-                if (fn.id === n.id) {
-                  return { ...fn, collapsed: fn.collapsed === false ? true : false };
-                }
-                return fn;
-              });
-              dispatch(updateFlowNodes({
-                collectionUid,
-                itemUid: flow.uid,
-                nodes: updatedNodes
-              }));
-            },
-            // 子请求选中回调
-            onSelectChild: (childId) => {
-              if (onSelectNode) {
-                onSelectNode({ id: childId });
-              }
-            },
-            // 子请求右键菜单回调
-            onChildContextMenu: (childId, event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              // 从原始数据中查找子节点信息，构造伪节点
-              const childNode = flow?.flow?.nodes?.find((cn) => cn.id === childId);
-              if (childNode) {
-                setContextMenu({
-                  x: event.clientX,
-                  y: event.clientY,
-                  node: { id: childId, data: childNode, type: 'request' },
-                  edge: null
-                });
-              }
-            }
+            collapsed: n.collapsed !== false // 默认为展开
+            // 注意：回调函数（onToggleCollapse/onSelectChild/onChildContextMenu）
+            // 通过 FlowCanvasContext 注入，不放在 data 中，避免 useMemo 重建时产生新闭包
           }
         };
         nodeMap[n.id] = rfNode;
@@ -225,7 +240,7 @@ const FlowCanvas = ({
       }
     }
     return rfNodes;
-  }, [flow?.flow?.nodes, collectionUid, requestInfoMap, onSelectNode, flow?.flow]);
+  }, [flow?.flow?.nodes, collectionUid, requestInfoMap, flow?.flow?.uid]);
 
   const initialEdges = useMemo(() => {
     if (!flow?.flow?.edges) return [];
@@ -285,8 +300,9 @@ const FlowCanvas = ({
     }
   }, [initialNodes, initialEdges]);
 
-  // 同步运行态到节点（executionStatus、duration、httpStatus、errorMessage、取消回调）
+  // 同步运行态到节点（executionStatus、duration、httpStatus、errorMessage、loopProgress）
   // 依赖 initialNodes：图被外部重置（撤销/重做/同步）后重新叠加运行态，避免状态丢失
+  // 注：onCancelRun 通过 FlowCanvasContext 注入，不放在 data 中
   useEffect(() => {
     if (!flowRun?.nodes) return;
     setNodes((nds) =>
@@ -301,13 +317,12 @@ const FlowCanvas = ({
             duration: nodeState.duration,
             httpStatus: nodeState.httpStatus,
             errorMessage: nodeState.error,
-            loopProgress: nodeState.loopProgress,
-            onCancelRun
+            loopProgress: nodeState.loopProgress
           }
         };
       })
     );
-  }, [flowRun?.nodes, initialNodes, onCancelRun]);
+  }, [flowRun?.nodes, initialNodes]);
 
   // 边动画：当前正在运行的节点对应的入边设置 animated: true
   useEffect(() => {
@@ -411,6 +426,11 @@ const FlowCanvas = ({
     [nodes, edges, dispatch, collectionUid, flow?.uid, onBeforeDelete]
   );
 
+  // 节点拖拽开始前记录撤销快照（保留 redo 栈，误触拖拽后仍可重做）
+  const onNodeDragStart = useCallback(() => {
+    if (onBeforeDrag) onBeforeDrag();
+  }, [onBeforeDrag]);
+
   // 节点位置变化时持久化（基于 flow 原始节点数据，保留 errorHandler 等全部字段）
   // 同时检测拖入/拖出并行组（碰撞检测：拖入组的矩形区域 → 设置 parentId；拖出 → 清除）
   const onNodeDragStop = useCallback(
@@ -430,9 +450,10 @@ const FlowCanvas = ({
           // 根据 position 和尺寸估算组节点矩形区域
           const padding = 60; // 估算组节点尺寸
           // 用实际的 React Flow 节点实例获取尺寸
-          const pnPos = pn.position;
-          const width = pn.width || 260;
-          const height = pn.height || (pn.data?.children?.length ? 100 + pn.data.children.length * 40 : 140);
+          // React Flow v12 中 node.measured 优先，退化到 node.width/保守估算
+          const pnPos = pn.position || { x: 0, y: 0 };
+          const width = pn.measured?.width ?? pn.width ?? 260;
+          const height = pn.measured?.height ?? pn.height ?? (pn.data?.children?.length ? 100 + pn.data.children.length * 40 : 140);
           const left = pnPos.x;
           const right = pnPos.x + width;
           const top = pnPos.y;
@@ -667,91 +688,94 @@ const FlowCanvas = ({
 
   return (
     <StyledWrapper className="flow-canvas-wrapper" ref={reactFlowWrapper}>
-      <ViewBar>
-        <ViewButton onClick={handleFitView} title="适应视图" aria-label="适应视图">
-          <IconFocusCentered size={16} />
-        </ViewButton>
-        <ViewButton
-          $active={showMiniMap}
-          onClick={() => setShowMiniMap((prev) => !prev)}
-          title={showMiniMap ? '隐藏小地图' : '显示小地图'}
-          aria-label={showMiniMap ? '隐藏小地图' : '显示小地图'}
+      <FlowCanvasContext.Provider value={canvasContextValue}>
+        <ViewBar>
+          <ViewButton onClick={handleFitView} title="适应视图" aria-label="适应视图">
+            <IconFocusCentered size={16} />
+          </ViewButton>
+          <ViewButton
+            $active={showMiniMap}
+            onClick={() => setShowMiniMap((prev) => !prev)}
+            title={showMiniMap ? '隐藏小地图' : '显示小地图'}
+            aria-label={showMiniMap ? '隐藏小地图' : '显示小地图'}
+          >
+            {showMiniMap ? <IconMap size={16} /> : <IconMapOff size={16} />}
+          </ViewButton>
+        </ViewBar>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onInit={handleInit}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          onEdgeDoubleClick={onEdgeDoubleClick}
+          onKeyDown={onKeyDown}
+          onNodeContextMenu={onNodeContextMenu}
+          onEdgeContextMenu={onEdgeContextMenu}
+          onPaneContextMenu={onPaneContextMenu}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
+          fitView
+          deleteKeyCode={null}
+          nodesDraggable={true}
+          snapToGrid
+          snapGrid={[16, 16]}
         >
-          {showMiniMap ? <IconMap size={16} /> : <IconMapOff size={16} />}
-        </ViewButton>
-      </ViewBar>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onInit={handleInit}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeDragStop={onNodeDragStop}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
-        onEdgeDoubleClick={onEdgeDoubleClick}
-        onKeyDown={onKeyDown}
-        onNodeContextMenu={onNodeContextMenu}
-        onEdgeContextMenu={onEdgeContextMenu}
-        onPaneContextMenu={onPaneContextMenu}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        defaultEdgeOptions={defaultEdgeOptions}
-        fitView
-        deleteKeyCode={null}
-        nodesDraggable={true}
-        snapToGrid
-        snapGrid={[16, 16]}
-      >
-        <Background color={theme.border?.border2 || '#aaa'} gap={16} />
-        <Controls />
-        {showMiniMap && (
-          <MiniMap
-            nodeColor={(node) => {
-              if (node.type === 'start') return STATUS_COLORS.success;
-              if (node.type === 'end') return STATUS_COLORS.failed;
-              const executionStatus = node.data?.executionStatus;
-              if (executionStatus && STATUS_COLORS[executionStatus]) return STATUS_COLORS[executionStatus];
-              return STATUS_COLORS.idle;
+          <Background color={theme.border?.border2 || '#aaa'} gap={16} />
+          <Controls />
+          {showMiniMap && (
+            <MiniMap
+              nodeColor={(node) => {
+                if (node.type === 'start') return STATUS_COLORS.success;
+                if (node.type === 'end') return STATUS_COLORS.failed;
+                const executionStatus = node.data?.executionStatus;
+                if (executionStatus && STATUS_COLORS[executionStatus]) return STATUS_COLORS[executionStatus];
+                return STATUS_COLORS.idle;
+              }}
+              maskColor={theme.mode === 'dark' ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.08)'}
+            />
+          )}
+        </ReactFlow>
+
+        {!hasRequestNodes && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none',
+              zIndex: 5,
+              textAlign: 'center',
+              color: theme.colors?.text?.muted || '#94a3b8',
+              fontSize: 13,
+              lineHeight: 1.8
             }}
-            maskColor={theme.mode === 'dark' ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.08)'}
+          >
+            <div style={{ fontSize: 15, fontWeight: 600 }}>画布还没有请求节点</div>
+            <div>右键画布空白处 → 「添加请求节点」，然后连线 Start → 请求 → End</div>
+          </div>
+        )}
+
+        {contextMenu && (
+          <FlowContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            paneX={contextMenu.paneX}
+            paneY={contextMenu.paneY}
+            node={contextMenu.node}
+            edge={contextMenu.edge}
+            onClose={handleCloseContextMenu}
+            onAction={onContextMenu}
           />
         )}
-      </ReactFlow>
-
-      {!hasRequestNodes && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            pointerEvents: 'none',
-            zIndex: 5,
-            textAlign: 'center',
-            color: theme.colors?.text?.muted || '#94a3b8',
-            fontSize: 13,
-            lineHeight: 1.8
-          }}
-        >
-          <div style={{ fontSize: 15, fontWeight: 600 }}>画布还没有请求节点</div>
-          <div>右键画布空白处 → 「添加请求节点」，然后连线 Start → 请求 → End</div>
-        </div>
-      )}
-
-      {contextMenu && (
-        <FlowContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          paneX={contextMenu.paneX}
-          paneY={contextMenu.paneY}
-          node={contextMenu.node}
-          edge={contextMenu.edge}
-          onClose={handleCloseContextMenu}
-          onAction={onContextMenu}
-        />
-      )}
+      </FlowCanvasContext.Provider>
     </StyledWrapper>
   );
 };

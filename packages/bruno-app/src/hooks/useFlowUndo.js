@@ -25,7 +25,7 @@ export function useFlowUndo(flowUid) {
   const [, forceUpdate] = useState(0);
 
   const takeSnapshot = useCallback(
-    (nodes, edges) => {
+    (nodes, edges, { clearRedo = true } = {}) => {
       if (!flowUid) return;
       pastRef.current.push({
         nodes: JSON.parse(JSON.stringify(nodes || [])),
@@ -34,8 +34,10 @@ export function useFlowUndo(flowUid) {
       if (pastRef.current.length > MAX_HISTORY) {
         pastRef.current.shift();
       }
-      // 新操作清空 redo 栈
-      futureRef.current = [];
+      // clearRedo 为 false 时保留 redo 栈（用于拖拽等非破坏性操作）
+      if (clearRedo) {
+        futureRef.current = [];
+      }
       forceUpdate((v) => v + 1);
     },
     [flowUid]

@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import styled from 'styled-components';
+import { getMethodColor } from '../constants';
 
 const ChildCard = styled.div`
   display: flex;
@@ -54,11 +55,6 @@ const ChildUrl = styled.span`
   white-space: nowrap;
   max-width: 100px;
 `;
-
-const getMethodColor = (m) => {
-  const colors = { GET: '#3b82f6', POST: '#22c55e', PUT: '#f59e0b', PATCH: '#a855f7', DELETE: '#ef4444', HEAD: '#64748b', OPTIONS: '#64748b' };
-  return colors[m] || '#64748b';
-};
 
 const ParallelChildNode = ({ id, data, onClick, isActive, onContextMenu }) => {
   const method = String(data?.method || '').toUpperCase();

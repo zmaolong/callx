@@ -729,17 +729,7 @@ export const getRunStatusInfo = (status) => {
 };
 
 export const getFlowStatusInfo = (status) => {
-  if (status === 'running') {
-    return { bg: STATUS_BADGE_BG.running, color: STATUS_COLORS.running, label: '运行中' };
-  }
-  if (status === 'success') {
-    return { bg: STATUS_BADGE_BG.success, color: STATUS_COLORS.success, label: '成功' };
-  }
-  if (status === 'failed') {
-    return { bg: STATUS_BADGE_BG.failed, color: STATUS_COLORS.failed, label: '失败' };
-  }
-  if (status === 'cancelled') {
-    return { bg: STATUS_BADGE_BG.cancelled, color: STATUS_COLORS.cancelled, label: '已取消' };
-  }
-  return null;
+  const info = getRunStatusInfo(status);
+  // Flow 整体状态不含 skipped，其余与节点一致
+  return info;
 };
