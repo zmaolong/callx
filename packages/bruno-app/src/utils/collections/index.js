@@ -727,8 +727,11 @@ export const transformRequestToSaveToFilesystem = (item) => {
       ...(node.requestPath !== undefined ? { requestPath: node.requestPath } : {}),
       ...(node.alias ? { alias: node.alias } : {}),
       position: node.position,
+      ...(node.parentId ? { parentId: node.parentId } : {}),
       ...(node.type === 'request' ? { inputs: node.inputs || [] } : {}),
-      ...(node.type === 'request' && node.errorHandler ? { errorHandler: node.errorHandler } : {})
+      ...(node.type === 'request' && node.errorHandler ? { errorHandler: node.errorHandler } : {}),
+      ...(node.loopConfig ? { loopConfig: node.loopConfig } : {}),
+      ...(node.collapsed !== undefined ? { collapsed: node.collapsed } : {})
     }));
 
     return {
