@@ -226,7 +226,7 @@ const ParallelNode = ({ data, children: rfChildren }) => {
 
       {!collapsed && childNodes.length === 0 && (
         <ChildrenContainer>
-          <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', padding: '4px 0', textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', padding: '36px 0', textAlign: 'center', minHeight: 100 }}>
             拖拽请求节点到此处
           </div>
         </ChildrenContainer>

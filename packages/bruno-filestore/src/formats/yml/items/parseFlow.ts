@@ -16,7 +16,7 @@ export interface FlowErrorHandler {
 
 export interface FlowNode {
   id: string;
-  type: 'start' | 'end' | 'request';
+  type: 'start' | 'end' | 'request' | 'loop' | 'parallel';
   requestUid?: string;
   requestPath?: string;
   alias?: string;
@@ -31,6 +31,13 @@ export interface FlowNode {
     };
   }>;
   errorHandler?: FlowErrorHandler;
+  loopConfig?: {
+    source?: { kind: string; expression?: string; value?: unknown; variableName?: string };
+    collectExpression?: string;
+    maxIterations?: number;
+  };
+  parentId?: string;
+  collapsed?: boolean;
 }
 
 export interface FlowEdge {

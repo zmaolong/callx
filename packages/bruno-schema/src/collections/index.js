@@ -689,7 +689,7 @@ const flowNodeErrorHandlerSchema = Yup.object({
 
 const flowNodeSchema = Yup.object({
   id: Yup.string().min(1, 'flow node id is required').required('flow node id is required'),
-  type: Yup.string().oneOf(['start', 'end', 'request']).required('flow node type is required'),
+  type: Yup.string().oneOf(['start', 'end', 'request', 'loop', 'parallel']).required('flow node type is required'),
   requestUid: Yup.string().nullable(),
   requestPath: Yup.string().nullable(),
   alias: Yup.string().nullable(),
@@ -701,7 +701,10 @@ const flowNodeSchema = Yup.object({
     .strict()
     .required('flow node position is required'),
   inputs: Yup.array().of(flowInputMappingSchema).nullable(),
-  errorHandler: flowNodeErrorHandlerSchema
+  errorHandler: flowNodeErrorHandlerSchema,
+  loopConfig: Yup.object().nullable(),
+  parentId: Yup.string().nullable(),
+  collapsed: Yup.boolean().nullable()
 })
   .noUnknown(true)
   .strict();

@@ -51,13 +51,20 @@ export interface FlowInputMapping {
 
 export interface FlowNode {
   id: string;
-  type: 'start' | 'end' | 'request';
+  type: 'start' | 'end' | 'request' | 'loop' | 'parallel';
   requestUid?: string;
   requestPath?: string;
   alias?: string;
   position: { x: number; y: number };
   inputs?: FlowInputMapping[];
   errorHandler?: FlowErrorHandler | null;
+  loopConfig?: {
+    source?: { kind: string; expression?: string; value?: unknown; variableName?: string };
+    collectExpression?: string;
+    maxIterations?: number;
+  };
+  parentId?: string;
+  collapsed?: boolean;
 }
 
 export interface FlowEdgeCondition {
