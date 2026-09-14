@@ -168,6 +168,21 @@ const FlowCanvas = ({
             url: info?.url,
             children: [],
             collapsed: n.collapsed !== false, // 默认为展开
+            // 折叠/展开切换回调
+            onToggleCollapse: () => {
+              const flowNodes = flow?.flow?.nodes || [];
+              const updatedNodes = flowNodes.map((fn) => {
+                if (fn.id === n.id) {
+                  return { ...fn, collapsed: fn.collapsed === false ? true : false };
+                }
+                return fn;
+              });
+              dispatch(updateFlowNodes({
+                collectionUid,
+                itemUid: flow.uid,
+                nodes: updatedNodes
+              }));
+            },
             // 子请求选中回调
             onSelectChild: (childId) => {
               if (onSelectNode) {
