@@ -91,7 +91,8 @@
     "test:benchmark": "playwright test --config=playwright.benchmark.config.ts",
     "lint": "cross-env NODE_OPTIONS=\"--max_old_space_size=4096\" npx eslint",
     "lint:fix": "cross-env NODE_OPTIONS=\"--max_old_space_size=4096\" npx eslint --fix",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "node ./scripts/patch-tippy-react.js"
   },
   "nano-staged": {
     "*.{js,ts,jsx}": [

@@ -120,6 +120,22 @@ describe('AIAssist', () => {
       expect(tippyRoot.parentElement).toBe(document.body);
     });
 
+    it('does not access the removed React 19 element ref', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        renderAIAssist();
+        openPopup();
+
+        const deprecatedRefWarning = consoleError.mock.calls.flat().some((argument) =>
+          typeof argument === 'string' && argument.includes('Accessing element.ref was removed in React 19')
+        );
+        expect(deprecatedRefWarning).toBe(false);
+      } finally {
+        consoleError.mockRestore();
+      }
+    });
+
     it('closes the popup when Escape is pressed', () => {
       renderAIAssist();
       openPopup();
